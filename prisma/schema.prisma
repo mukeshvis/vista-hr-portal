@@ -1,0 +1,304 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Essential User Authentication Model
+model User {
+  id              Int      @id @default(autoincrement())
+  emp_id          String?  @db.VarChar(50)
+  acc_type        String   @db.VarChar(50)
+  name            String?  @db.VarChar(255)
+  username        String   @db.VarChar(255)
+  email           String   @db.VarChar(60)
+  password        String   @db.VarChar(60)
+  identity        String?  @db.VarChar(200)
+  password_status Int?     @default(0)
+  status          Int      @default(1)
+  remember_token  String   @db.VarChar(60)
+  timestamps      DateTime @default(now()) @db.Timestamp(0)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Date
+  createdAt       DateTime @map("created_at") @db.Date
+  company_id      Int
+  dbName          String   @db.VarChar(255)
+  role_no         String   @db.VarChar(50)
+
+  @@map("users")
+}
+
+// Core HR Models - Essential for HR Portal
+model employee {
+  id                       Int       @id @default(autoincrement())
+  leaves_policy_id         Int
+  leavePolicy              leave_policy @relation(fields: [leaves_policy_id], references: [id])
+  active                   Int       @default(1)
+  eobi_id                  Int       @default(0)
+  provident_fund_id        Int?
+  tax_id                   Int       @default(0)
+  designation_id           Int
+  qualification_id         Int
+  car_policy_id            Int       @default(0)
+  emp_id                   String    @db.VarChar(50)
+  role_id                  Int
+  emp_no                   String?   @db.VarChar(100)
+  emp_name                 String    @db.VarChar(100)
+  emp_father_name          String    @db.VarChar(100)
+  working_hours_policy_id  Int?
+  workingHoursPolicy       working_hours_policy? @relation(fields: [working_hours_policy_id], references: [id])
+  reporting_manager        Int?
+  reportingManager         employee? @relation("EmployeeReportsTo", fields: [reporting_manager], references: [id])
+  subordinates             employee[] @relation("EmployeeReportsTo")
+  emp_department_id        Int
+  empDepartment            department @relation(fields: [emp_department_id], references: [id])
+  employee_project_id      Int?
+  emp_grade_id             Int?
+  emp_date_of_birth        DateTime  @db.Date
+  date_of_leaving          DateTime? @db.Date
+  date_of_confirmation     DateTime? @db.Date
+  emp_place_of_birth       String    @db.VarChar(50)
+  emp_joining_date         DateTime  @db.Date
+  probation_expire_date    DateTime? @db.Date
+  emp_gender               String    @db.VarChar(11)
+  emp_cnic                 String    @db.VarChar(20)
+  life_time_cnic           Int?
+  emp_cnic_expiry_date     String    @db.VarChar(50)
+  cnic_path                String?   @db.LongText
+  cnic_name                String?   @db.VarChar(100)
+  cnic_type                String?   @db.VarChar(100)
+  emp_contact_no           String    @db.VarChar(50)
+  contact_home             String?   @db.VarChar(50)
+  emergency_no             String?   @db.VarChar(50)
+  emp_employementstatus_id Int
+  emp_sub_department_id    Int
+  emp_salary               Decimal   @db.Decimal(15, 3)
+  day_off                  String    @db.VarChar(150)
+  labour_law               Int
+  normal_or_per_day_salary Int?      @default(1)
+  emp_email                String?   @db.VarChar(100)
+  professional_email       String?   @db.VarChar(100)
+  emp_marital_status       Int
+  health_insurance_check   Int?
+  group_insurance_check    Int?
+  work_remotely_check      Int?
+  salary_percent           Int?
+  can_login                String    @db.VarChar(10)
+  residential_address      String    @db.LongText
+  permanent_address        String    @db.LongText
+  branch                   String?   @db.VarChar(30)
+  relegion                 String    @db.VarChar(50)
+  nationality              String    @db.VarChar(50)
+  img_path                 String    @db.LongText
+  eobi_number              String?   @db.VarChar(50)
+  eobi_path                String?   @db.LongText
+  eobi_type                String?   @db.VarChar(50)
+  account_title            String?   @db.VarChar(50)
+  bank_id                  Int?
+  bank_account             String    @db.VarChar(100)
+  status                   Int       @default(1)
+  username                 String    @db.VarChar(100)
+  date                     DateTime  @db.Date
+  time                     String    @db.VarChar(50)
+  hold_salary              String?   @db.VarChar(20)
+  employee_category_id     Int?
+  gratuity                 String    @db.VarChar(10)
+  line_manager_2           String?   @db.VarChar(30)
+
+  @@index([emp_no], map: "emr_no")
+}
+
+model department {
+  id              Int        @id @default(autoincrement())
+  department_name String     @db.VarChar(100)
+  status          Int        @default(1)
+  username        String     @db.LongText
+  date            DateTime   @db.Date
+  time            String     @db.VarChar(12)
+  branch_id       Int
+
+  // Relationship
+  employees       employee[]
+}
+
+model attendance {
+  id                 Int       @id @default(autoincrement())
+  emp_id             String?   @db.VarChar(50)
+  attendance_date    DateTime? @db.Date
+  day                String?   @db.VarChar(10)
+  month              String?   @db.VarChar(10)
+  year               String?   @db.VarChar(10)
+  clock_in           String?   @db.VarChar(20)
+  clock_out          String?   @db.VarChar(20)
+  work_remotely      Int?
+  neglect_attendance String?   @default("no") @db.VarChar(20)
+  neglect_early      String?   @default("no") @db.VarChar(20)
+  late               String?   @db.VarChar(10)
+  absent             String?   @db.VarChar(10)
+  status             Int?      @default(1)
+  remarks            String?   @db.Text
+  username           String?   @db.VarChar(50)
+  date               DateTime? @db.Date
+  time               DateTime? @db.Time(0)
+}
+
+model payroll_data {
+  id                      Int       @id @default(autoincrement())
+  emp_id                  String?   @db.VarChar(50)
+  deduction_days          Float?
+  total_days              Int?
+  total_present           Int?
+  total_absent            Int?
+  total_holidays          Int?
+  total_ot                Int?
+  total_ot_hours          Int?      @default(0)
+  total_late_arrivals     Int?
+  deduction               Int?
+  overtime                Int?
+  total_halfday_count     Decimal?  @db.Decimal(10, 0)
+  total_early_hours_count Int?      @default(0)
+  total_late_hours_count  Int?      @default(0)
+  total_ot_count_np       Int?      @default(0)
+  total_leaves_count      Int?      @default(0)
+  total_halfdays          Int?
+  month                   Int?
+  year                    Int?
+  remarks                 String?   @db.Text
+  status                  Int?
+  approval_status_m       Int?      @default(1)
+  username                String?   @db.VarChar(20)
+  date                    DateTime? @db.Date
+  time                    DateTime? @db.Time(0)
+}
+
+model payslip {
+  id                       Int      @id @default(autoincrement())
+  emp_id                   String   @db.VarChar(50)
+  loan_id                  Int?
+  loan_amount_paid         Int?
+  emp_department_id        Int?
+  emp_sub_department_id    Int
+  designation_id           Int?
+  grade_id                 Int?
+  month                    String   @db.VarChar(5)
+  year                     String   @db.VarChar(10)
+  month_year               String?  @db.VarChar(15)
+  annual_leaves            Float?   @db.Float
+  emergency_leaves         Float?   @db.Float
+  medical_leaves           Float?   @db.Float
+  present                  Decimal? @db.Decimal(10, 0)
+  gross_salaries           Int
+  basic_salary             Decimal  @db.Decimal(15, 3)
+  fix_medical              Int
+  hr_utility_allowance     Int
+  fuel_allowance           Int?
+  car_allowance            Int?
+  mobile                   Int?
+  school_fees              Int?
+  overtime                 Int?
+  other_allowance          Int
+  leave_encash_allowance   Int?
+  deferred_salary          Int?
+  arrears_amount           Decimal? @db.Decimal(15, 0)
+  bonus_amount             Int?     @default(0)
+  total_allowance          Decimal  @db.Decimal(15, 3)
+  gross_with_allowances    Decimal? @db.Decimal(10, 0)
+  tax_amount               Int?     @default(0)
+  pf_employee_fund         Decimal? @db.Decimal(15, 3)
+  pf_company_fund          Decimal? @db.Decimal(15, 3)
+  pf_arrears_deffered_fund Int?
+  advance_salary_amount    Int?     @default(0)
+  deduction_days           Int?
+  lwp_deduction            Int
+  lateness                 Int?
+  penalty                  Int
+  other_deduct             Int
+  total_deduction          Decimal  @db.Decimal(15, 3)
+  net_salary               Decimal  @db.Decimal(15, 3)
+  account_no               String?  @db.VarChar(50)
+  payment_mode             String?  @db.VarChar(10)
+  username                 String   @db.VarChar(100)
+  status                   Int      @default(1)
+  date                     DateTime @db.Date
+  time                     String   @db.VarChar(50)
+  slipno                   String   @db.VarChar(100)
+  total_salary             Int?
+  pf_amount                Decimal? @db.Decimal(15, 3)
+  taxable_salary           Int
+  tax_amount_yearly        Int?
+  tax_adjustment           Int?
+  tax_paid                 Int?
+  balance                  Int?
+  payable_salary           Int?
+}
+
+
+// Designation table for mapping designation_id
+model designation {
+  id                Int      @id @default(autoincrement())
+  designation_name  String   @db.VarChar(100)
+  status           Int      @default(1)
+  username         String   @db.VarChar(100)
+  date             DateTime @db.Date
+  time             String   @db.VarChar(50)
+}
+
+// Grades table for mapping emp_grade_id
+model grades {
+  id                   Int      @id @default(autoincrement())
+  employee_grade_type  String?  @db.VarChar(100)
+  category             String?  @db.VarChar(100)
+  company_id           Int?
+  designation_id       Int?
+  status               Int?     @default(1)
+  username             String?  @db.VarChar(100)
+  date                 DateTime? @db.Date
+  time                 String?  @db.VarChar(50)
+}
+
+// Working Hours Policy table for mapping working_hours_policy_id
+model working_hours_policy {
+  id                    Int        @id @default(autoincrement())
+  policy_name           String     @db.VarChar(100)
+  start_time            String     @db.VarChar(10)
+  end_time              String     @db.VarChar(10)
+  break_start_time      String?    @db.VarChar(10)
+  break_end_time        String?    @db.VarChar(10)
+  total_hours           Decimal    @db.Decimal(4, 2)
+  break_duration        Int?       @default(0)
+  late_arrival_grace    Int?       @default(0)
+  early_departure_grace Int?       @default(0)
+  overtime_rate         Decimal?   @db.Decimal(5, 2)
+  weekend_days          String?    @db.VarChar(20)
+  status                Int        @default(1)
+  created_by            String?    @db.VarChar(100)
+  date                  DateTime   @db.Date
+  time                  String     @db.VarChar(50)
+
+  // Relationship
+  employees             employee[]
+}
+
+// Leave Policy table for mapping leaves_policy_id
+model leave_policy {
+  id                    Int        @id @default(autoincrement())
+  policy_name           String     @db.VarChar(100)
+  annual_leave_days     Int        @default(0)
+  emergency_leave_days  Int        @default(0)
+  medical_leave_days    Int        @default(0)
+  maternity_leave_days  Int        @default(0)
+  paternity_leave_days  Int        @default(0)
+  casual_leave_days     Int        @default(0)
+  carry_forward_limit   Int        @default(0)
+  encashment_allowed    Int        @default(0)
+  probation_leave_days  Int        @default(0)
+  status                Int        @default(1)
+  created_by            String?    @db.VarChar(100)
+  date                  DateTime   @db.Date
+  time                  String     @db.VarChar(50)
+
+  // Relationship
+  employees             employee[]
+}
