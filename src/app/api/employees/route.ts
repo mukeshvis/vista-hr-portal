@@ -136,38 +136,24 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Find or create leave policy record
-      let leavePolicyId = 1 // Default leave policy ID
+      // Find leave policy from existing leaves_policy table (IDs 21-29)
+      let leavePolicyId = 21 // Default leave policy ID (first existing ID)
       if (employeeData.leavePolicy) {
         try {
-          // First try to find existing leave policy
+          // Find existing leave policy from leaves_policy table
           const existingLeavePolicy = await prisma.$queryRaw`
-            SELECT id FROM leave_policy WHERE policy_name = ${employeeData.leavePolicy} LIMIT 1
+            SELECT id FROM leaves_policy WHERE leaves_policy_name = ${employeeData.leavePolicy} LIMIT 1
           ` as any[]
 
           if (existingLeavePolicy.length > 0) {
             leavePolicyId = existingLeavePolicy[0].id
             console.log('✅ Found existing leave policy:', employeeData.leavePolicy, 'with ID:', leavePolicyId)
           } else {
-            // Create new leave policy if it doesn't exist
-            await prisma.$executeRaw`
-              INSERT INTO leave_policy (policy_name, status, created_by, date, time)
-              VALUES (${employeeData.leavePolicy}, 1, 'system', ${new Date().toISOString().split('T')[0]}, ${new Date().toTimeString().split(' ')[0]})
-            `
-
-            // Get the newly created leave policy id
-            const newLeavePolicy = await prisma.$queryRaw`
-              SELECT id FROM leave_policy WHERE policy_name = ${employeeData.leavePolicy} ORDER BY id DESC LIMIT 1
-            ` as any[]
-
-            if (newLeavePolicy.length > 0) {
-              leavePolicyId = newLeavePolicy[0].id
-              console.log('✅ Created new leave policy:', employeeData.leavePolicy, 'with ID:', leavePolicyId)
-            }
+            console.log('⚠️ Leave policy not found:', employeeData.leavePolicy, '- using default ID:', leavePolicyId)
           }
         } catch (error) {
-          console.error('❌ Error handling leave policy:', error)
-          leavePolicyId = 1 // Fallback to default
+          console.error('❌ Error finding leave policy:', error)
+          leavePolicyId = 21 // Fallback to default
         }
       }
 
