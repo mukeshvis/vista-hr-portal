@@ -15,7 +15,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --no-audit --no-fund --legacy-peer-deps
+RUN npm install --no-audit --no-fund --legacy-peer-deps
 
 # Copy project files
 COPY . .
