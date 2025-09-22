@@ -27,7 +27,7 @@ RUN npx prisma generate
 # Set minimal environment variables needed for build
 ENV ENABLE_SCHEDULER=false
 
-ENV NEXTAUTH_SECRET="bda4f27e2e67a7c4a5d93e0f9e3b8b8e3dca9f6279f93baf237cd8769d3a9123"
+ENV NEXTAUTH_SECRET=bda4f27e2e67a7c4a5d93e0f9e3b8b8e3dca9f6279f93baf237cd8769d3a9123
 
 ENV DATABASE_URL=mysql://mukesh:mukesh%40vis123@db.vis.com.pk:3306/vis_company
 
