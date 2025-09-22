@@ -53,6 +53,9 @@ interface EmployeeProfile {
   professionalEmail: string
   branch: string
   username: string
+  grade: string
+  workingHoursPolicy: string
+  leavePolicy: string
 }
 
 export default function EmployeeProfilePage() {
@@ -258,8 +261,8 @@ export default function EmployeeProfilePage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-muted-foreground">Father's Name</p>
-                  <p className="font-medium">{employee.fatherName}</p>
+                  <p className="text-sm text-muted-foreground">Father&apos;s Name</p>
+                  <p className="font-medium">{employee.fatherName || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Date of Birth</p>
@@ -267,21 +270,34 @@ export default function EmployeeProfilePage() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Nationality</p>
-                  <p className="font-medium">{employee.nationality}</p>
+                  <p className="font-medium">{employee.nationality || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Marital Status</p>
-                  <p className="font-medium">{employee.maritalStatus}</p>
+                  <p className="font-medium">{employee.maritalStatus || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">CNIC</p>
-                  <p className="font-medium">{employee.cnic}</p>
+                  <p className="font-medium">{employee.cnic || 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">CNIC Expiry Date</p>
                   <p className="font-medium">{employee.cnicExpiryDate ? formatDate(employee.cnicExpiryDate) : 'N/A'}</p>
                 </div>
               </div>
+
+              {employee.permanentAddress && employee.permanentAddress !== 'N/A' && (
+                <>
+                  <Separator />
+                  <div className="flex items-start gap-3">
+                    <MapPin className="h-4 w-4 text-purple-500 mt-1" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Permanent Address</p>
+                      <p className="font-medium">{employee.permanentAddress}</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -317,6 +333,43 @@ export default function EmployeeProfilePage() {
                   <p className="font-medium">{employee.designation}</p>
                 </div>
               </div>
+
+              {employee.grade && employee.grade !== 'N/A' && (
+                <div className="flex items-center gap-3">
+                  <Building className="h-4 w-4 text-yellow-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Grade</p>
+                    <p className="font-medium">{employee.grade}</p>
+                  </div>
+                </div>
+              )}
+
+              {employee.workingHoursPolicy && employee.workingHoursPolicy !== 'N/A' && (
+                <div className="flex items-center gap-3">
+                  <Clock className="h-4 w-4 text-indigo-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Working Hours Policy</p>
+                    <p className="font-medium">
+                      {employee.workingHoursPolicy === '1' && 'Operations Division (G2 to G4)'}
+                      {employee.workingHoursPolicy === '2' && 'Operations Division (G2 to G4) --2'}
+                      {employee.workingHoursPolicy === '3' && 'Rating Division (G3 to G5)'}
+                      {employee.workingHoursPolicy === '4' && 'All Division (G6)'}
+                      {employee.workingHoursPolicy === '5' && 'All Division (G7)'}
+                      {!['1', '2', '3', '4', '5'].includes(employee.workingHoursPolicy) && employee.workingHoursPolicy}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {employee.leavePolicy && employee.leavePolicy !== 'N/A' && (
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-4 w-4 text-green-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Leave Policy</p>
+                    <p className="font-medium">{employee.leavePolicy}</p>
+                  </div>
+                </div>
+              )}
 
               {employee.reportingManager && employee.reportingManager !== 'N/A' && (
                 <div className="flex items-center gap-3">
@@ -362,15 +415,21 @@ export default function EmployeeProfilePage() {
               <div className="grid grid-cols-2 gap-4 mt-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Day Off</p>
-                  <p className="font-medium">{employee.dayOff}</p>
+                  <p className="font-medium">{employee.dayOff || 'N/A'}</p>
                 </div>
-                {employee.probationExpireDate && (
+                {employee.username && employee.username !== 'N/A' && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Username</p>
+                    <p className="font-medium">{employee.username}</p>
+                  </div>
+                )}
+                {employee.probationExpireDate && employee.probationExpireDate !== 'N/A' && (
                   <div>
                     <p className="text-sm text-muted-foreground">Probation Expire Date</p>
                     <p className="font-medium">{formatDate(employee.probationExpireDate)}</p>
                   </div>
                 )}
-                {employee.dateOfLeaving && (
+                {employee.dateOfLeaving && employee.dateOfLeaving !== 'N/A' && (
                   <div>
                     <p className="text-sm text-muted-foreground">Date of Leaving</p>
                     <p className="font-medium">{formatDate(employee.dateOfLeaving)}</p>

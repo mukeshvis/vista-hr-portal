@@ -8,11 +8,21 @@ export default auth((req) => {
   // Define protected routes
   const isProtectedRoute = nextUrl.pathname.startsWith('/dashboard') ||
                           nextUrl.pathname.startsWith('/admin') ||
-                          nextUrl.pathname.startsWith('/profile')
+                          nextUrl.pathname.startsWith('/profile') ||
+                          nextUrl.pathname.startsWith('/employees')
 
   // Define auth routes
   const isAuthRoute = nextUrl.pathname.startsWith('/login') ||
                      nextUrl.pathname.startsWith('/register')
+
+  // Handle root path (/)
+  if (nextUrl.pathname === '/') {
+    if (isLoggedIn) {
+      return NextResponse.redirect(new URL('/dashboard', nextUrl))
+    } else {
+      return NextResponse.redirect(new URL('/login', nextUrl))
+    }
+  }
 
   // Redirect to login if accessing protected route without auth
   if (isProtectedRoute && !isLoggedIn) {

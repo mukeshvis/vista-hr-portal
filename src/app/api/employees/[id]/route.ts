@@ -66,12 +66,16 @@ export async function GET(
         e.day_off as dayOff,
         e.professional_email as professionalEmail,
         e.branch,
-        e.username
+        e.username,
+        e.working_hours_policy_id,
+        e.leaves_policy_id,
+        COALESCE(lp.leaves_policy_name, 'N/A') as leave_policy_name
       FROM employee e
       LEFT JOIN designation d ON e.designation_id = d.id
       LEFT JOIN department dept ON e.emp_department_id = dept.id
       LEFT JOIN employee rm ON e.reporting_manager = rm.id
       LEFT JOIN grades g ON e.emp_grade_id = g.id
+      LEFT JOIN leaves_policy lp ON e.leaves_policy_id = lp.id
       WHERE e.id = ${employeeId}
       LIMIT 1
     ` as any[]
@@ -122,7 +126,10 @@ export async function GET(
       dayOff: employeeData.dayOff || 'N/A',
       professionalEmail: employeeData.professionalEmail || 'N/A',
       branch: employeeData.branch || 'N/A',
-      username: employeeData.username || 'N/A'
+      username: employeeData.username || 'N/A',
+      workingHoursPolicy: employeeData.working_hours_policy_id ? employeeData.working_hours_policy_id.toString() : 'N/A',
+      leavePolicy: employeeData.leave_policy_name || 'N/A',
+      grade: employeeData.grade_name || 'N/A'
     }
 
     return NextResponse.json(formattedEmployee)
@@ -172,16 +179,99 @@ export async function PUT(
 
     // Use a transaction to ensure proper connection handling
     const result = await prisma.$transaction(async (tx) => {
-      // Format joining date for MySQL
+      // Format dates for MySQL
       let formattedJoiningDate = null
       if (updateData.joiningDate) {
         const date = new Date(updateData.joiningDate)
         formattedJoiningDate = date.toISOString().split('T')[0]
       }
 
+      let formattedDateOfBirth = null
+      if (updateData.dateOfBirth) {
+        const date = new Date(updateData.dateOfBirth)
+        formattedDateOfBirth = date.toISOString().split('T')[0]
+      }
+
+      let formattedCnicExpiryDate = null
+      if (updateData.cnicExpiryDate) {
+        const date = new Date(updateData.cnicExpiryDate)
+        formattedCnicExpiryDate = date.toISOString().split('T')[0]
+      }
+
+      let formattedProbationExpireDate = null
+      if (updateData.probationExpireDate) {
+        const date = new Date(updateData.probationExpireDate)
+        formattedProbationExpireDate = date.toISOString().split('T')[0]
+      }
+
+      let formattedDateOfLeaving = null
+      if (updateData.dateOfLeaving) {
+        const date = new Date(updateData.dateOfLeaving)
+        formattedDateOfLeaving = date.toISOString().split('T')[0]
+      }
+
+      // Handle department update
+      let departmentId = updateData.departmentId
+      if (updateData.department && !departmentId) {
+        // Find or create department record
+        const existingDepartment = await tx.$queryRaw`
+          SELECT id FROM department WHERE department_name = ${updateData.department} LIMIT 1
+        ` as any[]
+
+        if (existingDepartment.length > 0) {
+          departmentId = existingDepartment[0].id
+        } else {
+          // Create new department if it doesn't exist
+          await tx.$executeRaw`
+            INSERT INTO department (department_name, status, username, date, time, branch_id)
+            VALUES (${updateData.department}, 1, 'system', ${new Date().toISOString().split('T')[0]}, ${new Date().toTimeString().split(' ')[0]}, 1)
+          `
+
+          const newDepartment = await tx.$queryRaw`
+            SELECT id FROM department WHERE department_name = ${updateData.department} ORDER BY id DESC LIMIT 1
+          ` as any[]
+
+          if (newDepartment.length > 0) {
+            departmentId = newDepartment[0].id
+          }
+        }
+      }
+
+      // Handle grade update
+      let gradeId = null
+      if (updateData.grade && updateData.designationId) {
+        // Create or update grade record
+        const designationId = parseInt(updateData.designationId)
+
+        await tx.$executeRaw`
+          INSERT INTO grades (employee_grade_type, designation_id, status, date, time)
+          VALUES (${updateData.grade}, ${designationId}, 1, ${new Date().toISOString().split('T')[0]}, ${new Date().toTimeString().split(' ')[0]})
+        `
+
+        const newGrade = await tx.$queryRaw`
+          SELECT id FROM grades WHERE employee_grade_type = ${updateData.grade} AND designation_id = ${designationId} ORDER BY id DESC LIMIT 1
+        ` as any[]
+
+        if (newGrade.length > 0) {
+          gradeId = newGrade[0].id
+        }
+      }
+
+      // Handle leave policy
+      let leavePolicyId = null
+      if (updateData.leavePolicy) {
+        const existingLeavePolicy = await tx.$queryRaw`
+          SELECT id FROM leaves_policy WHERE leaves_policy_name = ${updateData.leavePolicy} LIMIT 1
+        ` as any[]
+
+        if (existingLeavePolicy.length > 0) {
+          leavePolicyId = existingLeavePolicy[0].id
+        }
+      }
+
       console.log('Executing SQL update...')
 
-      // Update employee data using raw SQL
+      // Update employee data using raw SQL with all fields
       const updateResult = await tx.$executeRaw`
         UPDATE employee
         SET
@@ -189,19 +279,31 @@ export async function PUT(
           emp_email = ${updateData.email || 'N/A'},
           emp_contact_no = ${updateData.phone || 'N/A'},
           designation_id = ${Number(updateData.designationId) || null},
-          emp_department_id = ${Number(updateData.departmentId) || null},
+          emp_department_id = ${Number(departmentId) || null},
           reporting_manager = ${Number(updateData.reportingManagerId) || null},
+          emp_grade_id = ${gradeId},
+          working_hours_policy_id = ${updateData.workingHoursPolicy ? parseInt(updateData.workingHoursPolicy) : null},
+          leaves_policy_id = ${leavePolicyId},
           emp_salary = ${Number(updateData.salary)},
           status = ${updateData.status === 'Active' ? 1 : 0},
-          emp_gender = ${Number(updateData.gender) || 1},
+          emp_gender = ${updateData.gender === 'Male' ? 1 : updateData.gender === 'Female' ? 2 : Number(updateData.gender) || 1},
           residential_address = ${updateData.address || 'N/A'},
           permanent_address = ${updateData.permanentAddress || 'N/A'},
           emp_marital_status = ${updateData.maritalStatus === 'Married' ? 1 : 0},
           nationality = ${updateData.nationality || 'N/A'},
           emp_cnic = ${updateData.cnic || 'N/A'},
+          emp_cnic_expiry_date = ${formattedCnicExpiryDate},
           bank_account = ${updateData.bankAccount || 'N/A'},
           account_title = ${updateData.accountTitle || 'N/A'},
-          emp_joining_date = ${formattedJoiningDate}
+          emp_joining_date = ${formattedJoiningDate},
+          emp_father_name = ${updateData.fatherName || 'N/A'},
+          emp_date_of_birth = ${formattedDateOfBirth},
+          probation_expire_date = ${formattedProbationExpireDate},
+          date_of_leaving = ${formattedDateOfLeaving},
+          day_off = ${updateData.dayOff || 'Sunday'},
+          professional_email = ${updateData.professionalEmail || 'N/A'},
+          branch = ${updateData.branch || 'Main'},
+          username = ${updateData.username || updateData.empId || 'N/A'}
         WHERE id = ${employeeId}
       `
 
@@ -233,12 +335,25 @@ export async function PUT(
           e.nationality,
           e.emp_cnic as cnic,
           e.bank_account as bankAccount,
-          e.account_title as accountTitle
+          e.account_title as accountTitle,
+          e.emp_father_name as fatherName,
+          e.emp_date_of_birth as dateOfBirth,
+          e.probation_expire_date as probationExpireDate,
+          e.date_of_leaving as dateOfLeaving,
+          e.emp_cnic_expiry_date as cnicExpiryDate,
+          e.day_off as dayOff,
+          e.professional_email as professionalEmail,
+          e.branch,
+          e.username,
+          e.working_hours_policy_id,
+          e.leaves_policy_id,
+          COALESCE(lp.leaves_policy_name, 'N/A') as leave_policy_name
         FROM employee e
         LEFT JOIN designation d ON e.designation_id = d.id
         LEFT JOIN department dept ON e.emp_department_id = dept.id
         LEFT JOIN employee rm ON e.reporting_manager = rm.id
         LEFT JOIN grades g ON e.emp_grade_id = g.id
+        LEFT JOIN leaves_policy lp ON e.leaves_policy_id = lp.id
         WHERE e.id = ${employeeId}
         LIMIT 1
       ` as any[]
@@ -280,7 +395,19 @@ export async function PUT(
       nationality: employeeData.nationality || 'N/A',
       cnic: employeeData.cnic || 'N/A',
       bankAccount: employeeData.bankAccount || 'N/A',
-      accountTitle: employeeData.accountTitle || 'N/A'
+      accountTitle: employeeData.accountTitle || 'N/A',
+      fatherName: employeeData.fatherName || 'N/A',
+      dateOfBirth: employeeData.dateOfBirth,
+      dateOfLeaving: employeeData.dateOfLeaving,
+      probationExpireDate: employeeData.probationExpireDate,
+      cnicExpiryDate: employeeData.cnicExpiryDate,
+      dayOff: employeeData.dayOff || 'N/A',
+      professionalEmail: employeeData.professionalEmail || 'N/A',
+      branch: employeeData.branch || 'N/A',
+      username: employeeData.username || 'N/A',
+      workingHoursPolicy: employeeData.working_hours_policy_id ? employeeData.working_hours_policy_id.toString() : 'N/A',
+      leavePolicy: employeeData.leave_policy_name || 'N/A',
+      grade: employeeData.grade_name || 'N/A'
     }
 
     console.log('✅ Employee update successful')

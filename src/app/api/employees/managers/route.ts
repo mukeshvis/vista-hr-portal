@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     // Transform the data to match the expected format for dropdown
     const formattedManagers = employees.map(emp => ({
       value: emp.id.toString(),
-      label: `${emp.name} (${emp.designation})`
+      label: emp.name
     }))
 
     return NextResponse.json(formattedManagers)

@@ -64,6 +64,9 @@ interface EmployeeProfile {
   professionalEmail: string
   branch: string
   username: string
+  grade: string
+  workingHoursPolicy: string
+  leavePolicy: string
 }
 
 interface DesignationOption {
@@ -354,9 +357,9 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Male">Male</SelectItem>
-                          <SelectItem value="Female">Female</SelectItem>
+                        <SelectContent className="bg-white">
+                          <SelectItem value="Male" className="bg-white hover:bg-gray-100">Male</SelectItem>
+                          <SelectItem value="Female" className="bg-white hover:bg-gray-100">Female</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -369,9 +372,9 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Single">Single</SelectItem>
-                          <SelectItem value="Married">Married</SelectItem>
+                        <SelectContent className="bg-white">
+                          <SelectItem value="Single" className="bg-white hover:bg-gray-100">Single</SelectItem>
+                          <SelectItem value="Married" className="bg-white hover:bg-gray-100">Married</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -389,6 +392,32 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                         id="cnic"
                         value={editData.cnic}
                         onChange={(e) => handleInputChange('cnic', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="fatherName">Father&apos;s Name</Label>
+                      <Input
+                        id="fatherName"
+                        value={editData.fatherName}
+                        onChange={(e) => handleInputChange('fatherName', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                      <Input
+                        id="dateOfBirth"
+                        type="date"
+                        value={editData.dateOfBirth?.split('T')[0] || ''}
+                        onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="cnicExpiryDate">CNIC Expiry Date</Label>
+                      <Input
+                        id="cnicExpiryDate"
+                        type="date"
+                        value={editData.cnicExpiryDate?.split('T')[0] || ''}
+                        onChange={(e) => handleInputChange('cnicExpiryDate', e.target.value)}
                       />
                     </div>
                   </div>
@@ -509,10 +538,111 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                     </div>
                     <div>
                       <Label htmlFor="department">Department</Label>
-                      <Input
-                        id="department"
+                      <Select
                         value={editData.department}
-                        onChange={(e) => handleInputChange('department', e.target.value)}
+                        onValueChange={(value) => handleInputChange('department', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select department..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white">
+                          {[
+                            'Rating Division',
+                            'Operation Division',
+                            'Finance & Accounts',
+                            'Compliance',
+                            'Management Information System / Information Technology',
+                            'General Department',
+                            'VITAL',
+                            'Pak Ujala',
+                            'News VIS'
+                          ].map((dept) => (
+                            <SelectItem key={dept} value={dept} className="bg-white hover:bg-gray-100">
+                              {dept}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="grade">Grade</Label>
+                      <Select
+                        value={editData.grade || ''}
+                        onValueChange={(value) => handleInputChange('grade', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select grade..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60 overflow-y-auto bg-white">
+                          {['32', '33', '4', '44', '77', 'abc intern', 'CL-1', 'CLE-I', 'CLE-II', 'CLE-III', 'CLE-IV',
+                            'ENG 1', 'ENG 2', 'ENG 3', 'ENG II', 'ENG III', 'ENG-11', 'ENG-111', 'ENG-I', 'ENG-II',
+                            'ENG-III', 'ENG-IV', 'ENG-V', 'Eng-v', 'EX III', 'EX IV', 'EX-1', 'EX-I', 'EX-II', 'EX-III',
+                            'EX-IV', 'EX-V', 'EXG II', 'G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'G7', 'Grade Scale', 'Non',
+                            'President & CEO'].map((grade) => (
+                            <SelectItem key={grade} value={grade} className="bg-white hover:bg-gray-100">
+                              {grade}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="workingHoursPolicy">Working Hours Policy</Label>
+                      <Select
+                        value={editData.workingHoursPolicy || ''}
+                        onValueChange={(value) => handleInputChange('workingHoursPolicy', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select working hours policy..." />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white">
+                          {[
+                            { value: '1', label: 'Operations Division (G2 to G4)' },
+                            { value: '2', label: 'Operations Division (G2 to G4) --2' },
+                            { value: '3', label: 'Rating Division (G3 to G5)' },
+                            { value: '4', label: 'All Division (G6)' },
+                            { value: '5', label: 'All Division (G7)' }
+                          ].map((policy) => (
+                            <SelectItem key={policy.value} value={policy.value} className="bg-white hover:bg-gray-100">
+                              {policy.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="leavePolicy">Leave Policy</Label>
+                      <Select
+                        value={editData.leavePolicy || ''}
+                        onValueChange={(value) => handleInputChange('leavePolicy', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select leave policy..." />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60 overflow-y-auto bg-white">
+                          {[
+                            'Annual & Emergency',
+                            'Annual, Emergency and sick customized 14.5 days',
+                            'Annual, Emergency and sick 15 days',
+                            'Annual, emergency and sick half yearly',
+                            'July-2022 to June-2023',
+                            'July-2023 to June-2024',
+                            'July-2024 to June-2025',
+                            'July-2025 to June-2026'
+                          ].map((policy, index) => (
+                            <SelectItem key={`policy-${index}`} value={policy} className="bg-white hover:bg-gray-100">
+                              {policy}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="branch">Branch</Label>
+                      <Input
+                        id="branch"
+                        value={editData.branch}
+                        onChange={(e) => handleInputChange('branch', e.target.value)}
                       />
                     </div>
                     <div>
@@ -637,11 +767,52 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Active">Active</SelectItem>
-                          <SelectItem value="Inactive">Inactive</SelectItem>
+                        <SelectContent className="bg-white">
+                          <SelectItem value="Active" className="bg-white hover:bg-gray-100">Active</SelectItem>
+                          <SelectItem value="Inactive" className="bg-white hover:bg-gray-100">Inactive</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="dayOff">Day Off</Label>
+                      <Select
+                        value={editData.dayOff || ''}
+                        onValueChange={(value) => handleInputChange('dayOff', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select day" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white">
+                          <SelectItem value="none" className="bg-white hover:bg-gray-100">None</SelectItem>
+                          <SelectItem value="Sat=>Sun=>" className="bg-white hover:bg-gray-100">Sat=&gt;Sun=&gt;</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="username">Username</Label>
+                      <Input
+                        id="username"
+                        value={editData.username}
+                        onChange={(e) => handleInputChange('username', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="probationExpireDate">Probation Expire Date</Label>
+                      <Input
+                        id="probationExpireDate"
+                        type="date"
+                        value={editData.probationExpireDate?.split('T')[0] || ''}
+                        onChange={(e) => handleInputChange('probationExpireDate', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="dateOfLeaving">Date of Leaving (Optional)</Label>
+                      <Input
+                        id="dateOfLeaving"
+                        type="date"
+                        value={editData.dateOfLeaving?.split('T')[0] || ''}
+                        onChange={(e) => handleInputChange('dateOfLeaving', e.target.value)}
+                      />
                     </div>
                   </div>
                 </CardContent>
