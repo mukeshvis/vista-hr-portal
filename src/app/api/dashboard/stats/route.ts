@@ -1,33 +1,42 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
 
-export async function GET(request: NextRequest) {
+interface CountResult {
+  count: bigint | number
+}
+
+interface DepartmentResult {
+  id: number
+  department_name: string
+}
+
+export async function GET() {
   try {
     // Get total employee count
     const totalEmployees = await prisma.$queryRaw`
       SELECT COUNT(*) as count FROM employee
-    ` as any[]
+    ` as CountResult[]
 
     // Get active employees count (status = 1)
     const activeEmployees = await prisma.$queryRaw`
       SELECT COUNT(*) as count FROM employee WHERE status = 1
-    ` as any[]
+    ` as CountResult[]
 
     // Get today's attendance statistics (if attendance table exists)
     // For now, we'll calculate based on employee status
     const presentToday = await prisma.$queryRaw`
       SELECT COUNT(*) as count FROM employee WHERE status = 1
-    ` as any[]
+    ` as CountResult[]
 
     // Get departments count and list from department table (all departments)
     const departmentsCount = await prisma.$queryRaw`
       SELECT COUNT(*) as count FROM department
-    ` as any[]
+    ` as CountResult[]
 
     // Get all department names (including inactive)
     const departmentsList = await prisma.$queryRaw`
       SELECT id, department_name FROM department ORDER BY department_name ASC
-    ` as any[]
+    ` as DepartmentResult[]
 
     // Calculate some basic stats
     const totalCount = Number(totalEmployees[0]?.count || 0)
@@ -39,7 +48,7 @@ export async function GET(request: NextRequest) {
     const attendancePercentage = totalCount > 0 ? ((presentCount / totalCount) * 100).toFixed(1) : '0.0'
 
     // Format departments list
-    const formattedDepartments = departmentsList.map((dept: any) => ({
+    const formattedDepartments = departmentsList.map((dept: DepartmentResult) => ({
       id: dept.id,
       name: dept.department_name
     }))

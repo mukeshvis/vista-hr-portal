@@ -1,7 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
 
-export async function GET(request: NextRequest) {
+interface ManagerResult {
+  id: number
+  name: string
+  designation: string
+}
+
+export async function GET() {
   try {
     // Fetch all employees who can be managers
     const employees = await prisma.$queryRaw`
@@ -13,7 +19,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN designation d ON e.designation_id = d.id
       WHERE e.status = 1
       ORDER BY e.emp_name ASC
-    ` as any[]
+    ` as ManagerResult[]
 
     // Transform the data to match the expected format for dropdown
     const formattedManagers = employees.map(emp => ({

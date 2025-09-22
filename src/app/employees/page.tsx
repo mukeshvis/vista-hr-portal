@@ -506,7 +506,7 @@ export default function EmployeesPage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="fatherName">Father's Name</Label>
+                      <Label htmlFor="fatherName">Father&apos;s Name</Label>
                       <Input
                         id="fatherName"
                         value={newEmployee.fatherName}

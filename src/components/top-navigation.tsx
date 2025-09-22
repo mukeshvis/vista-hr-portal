@@ -21,7 +21,13 @@ import {
 import Link from "next/link"
 
 interface TopNavigationProps {
-  session: any
+  session: {
+    user?: {
+      name?: string | null
+      username?: string | null
+      email?: string | null
+    }
+  } | null
 }
 
 const menuItems = [

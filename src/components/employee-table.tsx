@@ -43,7 +43,7 @@ interface EmployeeProfile {
   department: string
   departmentId: number
   reportingManager: string
-  reportingManagerId: number
+  reportingManagerId: number | null
   joiningDate: string
   salary: number
   status: string
