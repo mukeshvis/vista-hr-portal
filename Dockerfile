@@ -11,13 +11,14 @@ RUN adduser --system --uid 1001 nextjs
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and prisma schema first
 COPY package*.json ./
+COPY prisma ./prisma/
 
-# Install dependencies
-RUN npm install 
+# Install dependencies with clean cache
+RUN npm ci --only=production --ignore-scripts
 
-# Copy project files
+# Copy remaining project files
 COPY . .
 
 # Generate Prisma client
