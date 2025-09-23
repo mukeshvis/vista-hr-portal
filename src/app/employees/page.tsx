@@ -152,6 +152,12 @@ export default function EmployeesPage() {
   const [successMessage, setSuccessMessage] = useState('')
   const [showErrorPopup, setShowErrorPopup] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [empIdValidation, setEmpIdValidation] = useState({
+    isChecking: false,
+    exists: false,
+    message: ''
+  })
+
   const [newEmployee, setNewEmployee] = useState<NewEmployee>({
     empId: '',
     name: '',
@@ -250,6 +256,51 @@ export default function EmployeesPage() {
     }
   }, [])
 
+  // Check if Employee ID exists in database
+  const checkEmployeeId = useCallback(async (empId: string) => {
+    if (!empId.trim()) {
+      setEmpIdValidation({ isChecking: false, exists: false, message: '' })
+      return
+    }
+
+    setEmpIdValidation({ isChecking: true, exists: false, message: '' })
+
+    try {
+      const response = await fetch(`/api/employees/check-id?empId=${encodeURIComponent(empId)}`)
+
+      if (response.ok) {
+        const data = await response.json()
+        setEmpIdValidation({
+          isChecking: false,
+          exists: data.exists,
+          message: data.message
+        })
+      } else {
+        setEmpIdValidation({
+          isChecking: false,
+          exists: false,
+          message: 'Error checking Employee ID'
+        })
+      }
+    } catch (error) {
+      console.error('Error checking employee ID:', error)
+      setEmpIdValidation({
+        isChecking: false,
+        exists: false,
+        message: 'Error checking Employee ID'
+      })
+    }
+  }, [])
+
+  // Debounced Employee ID check
+  const debouncedEmpId = useDebounce(newEmployee.empId, 500)
+
+  useEffect(() => {
+    if (debouncedEmpId) {
+      checkEmployeeId(debouncedEmpId)
+    }
+  }, [debouncedEmpId, checkEmployeeId])
+
   // Filter employees based on search term
   useEffect(() => {
     if (!debouncedSearchTerm.trim()) {
@@ -285,6 +336,7 @@ export default function EmployeesPage() {
 
   // Handle add employee
   const handleAddEmployee = () => {
+    setEmpIdValidation({ isChecking: false, exists: false, message: '' })
     setIsAddDialogOpen(true)
   }
 
@@ -322,6 +374,13 @@ export default function EmployeesPage() {
   }
 
   const handleSaveNewEmployee = async () => {
+    // Check if Employee ID already exists
+    if (empIdValidation.exists) {
+      setErrorMessage('Employee ID already exists. Please choose a different ID.')
+      setShowErrorPopup(true)
+      return
+    }
+
     // Validate required fields first
     if (!validateRequiredFields()) {
       return
@@ -357,6 +416,7 @@ export default function EmployeesPage() {
         setShowSuccessPopup(true)
 
         // Reset form
+        setEmpIdValidation({ isChecking: false, exists: false, message: '' })
         setNewEmployee({
           empId: '',
           name: '',
@@ -503,7 +563,17 @@ export default function EmployeesPage() {
                         value={newEmployee.empId}
                         onChange={(e) => handleInputChange('empId', e.target.value)}
                         required
+                        className={`${empIdValidation.exists ? 'border-red-500 focus:border-red-500' : ''}`}
                       />
+                      {empIdValidation.isChecking && (
+                        <p className="text-sm text-gray-500 mt-1">Checking availability...</p>
+                      )}
+                      {empIdValidation.exists && (
+                        <p className="text-sm text-red-500 mt-1">{empIdValidation.message}</p>
+                      )}
+                      {!empIdValidation.exists && !empIdValidation.isChecking && newEmployee.empId && empIdValidation.message && (
+                        <p className="text-sm text-green-500 mt-1">{empIdValidation.message}</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="fatherName">Father&apos;s Name</Label>
@@ -827,7 +897,7 @@ export default function EmployeesPage() {
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="salary">Monthly Salary (INR) *</Label>
+                      <Label htmlFor="salary">Monthly Salary (PKR) *</Label>
                       <Input
                         id="salary"
                         type="number"

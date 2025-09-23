@@ -1,21 +1,17 @@
-# Base image
-FROM node:20-alpine
+# ---------- Build Stage ----------
+FROM node:20-alpine AS builder
 
 # Install necessary dependencies for Prisma
 RUN apk add --no-cache openssl libc6-compat
 
-# Create nextjs user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
-
 # Set working directory
 WORKDIR /app
 
-# Copy package files and prisma schema first
+# Copy dependency files and prisma schema
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# Install all dependencies first
+# Install dependencies (including dev for build)
 RUN npm ci --ignore-scripts
 
 # Copy remaining project files
@@ -24,29 +20,45 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
-# Build the Next.js application
-# Set minimal environment variables needed for build
-ENV ENABLE_SCHEDULER=false
-# ENV NEXTAUTH_SECRET=dummy-secret-for-build-only
-ENV NEXTAUTH_SECRET=bda4f27e2e67a7c4a5d93e0f9e3b8b8e3dca9f6279f93baf237cd8769d3a9123
-ENV DATABASE_URL=mysql://mukesh:mukesh%40vis123@db.vis.com.pk:3306/vis_company
-ENV NEXTAUTH_URL=http://192.168.1.214:5001
-ENV NEXT_PUBLIC_APP_URL=http://192.168.1.214:5001
+# Build Next.js app (dummy envs just for build)
+ARG NEXTAUTH_SECRET=dummy-secret
+ARG DATABASE_URL=mysql://user:pass@localhost:3306/db
+ARG NEXTAUTH_URL=http://localhost:3000
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+ENV DATABASE_URL=$DATABASE_URL
+ENV NEXTAUTH_URL=$NEXTAUTH_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 RUN npm run build
 
-# Change ownership of the app directory to nextjs user
-RUN chown -R nextjs:nodejs /app
 
-# Switch to nextjs user
+# ---------- Runtime Stage ----------
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy only necessary files from builder
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/prisma ./prisma
+
+# Switch to non-root user
 USER nextjs
 
-# Clear build-time environment variables and set runtime defaults
+# Runtime envs (can be overridden at container start)
 ENV NODE_ENV=production
-ENV ENABLE_SCHEDULER=true
+ENV ENABLE_SCHEDULER=false
+ENV PORT=5001
 
 # Expose port
 EXPOSE 5001
-ENV PORT=5001
-# Start the application
+
+# Start app
 CMD ["npm", "start"]

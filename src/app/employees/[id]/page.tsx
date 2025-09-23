@@ -99,7 +99,7 @@ export default function EmployeeProfilePage() {
   const formatSalary = (salary: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'INR',
+      currency: 'PKR',
       maximumFractionDigits: 0
     }).format(salary)
   }

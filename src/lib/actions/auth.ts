@@ -43,14 +43,5 @@ export async function authenticate(
 
 
 export async function signOutAction() {
-  try {
-    await signOut({ redirectTo: '/login' })
-  } catch (error) {
-    // Handle redirect errors gracefully
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
-      throw error
-    }
-    console.error('Sign out error:', error)
-    throw error
-  }
+  await signOut({ redirectTo: '/login' })
 }

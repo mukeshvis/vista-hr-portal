@@ -829,7 +829,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="salary">Monthly Salary (INR)</Label>
+                      <Label htmlFor="salary">Monthly Salary (PKR)</Label>
                       <Input
                         id="salary"
                         type="number"

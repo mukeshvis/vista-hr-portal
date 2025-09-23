@@ -5,6 +5,7 @@ import { prisma } from "@/lib/database/prisma"
 import { validateUserCredentials } from "@/lib/database/queries/user"
 
 export const authConfig = {
+  // adapter: PrismaAdapter(prisma), // Comment out for credentials provider
   providers: [
     Credentials({
       name: "credentials",
@@ -44,12 +45,12 @@ export const authConfig = {
     maxAge: 24 * 60 * 60, // 24 hours
   },
   secret: process.env.NEXTAUTH_SECRET,
+  trustHost: true,
   pages: {
     signIn: "/login",
-    signOut: "/login",
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
+    async signIn({ user, account }) {
       // Allow sign in if user exists and is active
       if (user && account?.provider === "credentials") {
         return true
@@ -78,5 +79,5 @@ export const authConfig = {
       return session
     }
   },
-  debug: false,
+  debug: process.env.NODE_ENV === "development",
 } satisfies NextAuthConfig
