@@ -27,10 +27,11 @@ RUN npx prisma generate
 # Build the Next.js application
 # Set minimal environment variables needed for build
 ENV ENABLE_SCHEDULER=false
-ENV NEXTAUTH_SECRET=dummy-secret-for-build-only
-ENV DATABASE_URL=mysql://dummy:dummy@localhost:3306/dummy
-ENV NEXTAUTH_URL=http://localhost:3000
-ENV NEXT_PUBLIC_APP_URL=http://localhost:3000
+# ENV NEXTAUTH_SECRET=dummy-secret-for-build-only
+NEXTAUTH_SECRET="bda4f27e2e67a7c4a5d93e0f9e3b8b8e3dca9f6279f93baf237cd8769d3a9123"
+ENV DATABASE_URL="mysql://mukesh:mukesh%40vis123@db.vis.com.pk:3306/vis_company"
+ENV NEXTAUTH_URL=http://192.168.1.214:5001
+ENV NEXT_PUBLIC_APP_URL=http://192.168.1.214:5001
 
 RUN npm run build
 
@@ -45,7 +46,7 @@ ENV NODE_ENV=production
 ENV ENABLE_SCHEDULER=true
 
 # Expose port
-EXPOSE 3000
-ENV PORT=3000
+EXPOSE 5001
+ENV PORT=5001
 # Start the application
 CMD ["npm", "start"]
