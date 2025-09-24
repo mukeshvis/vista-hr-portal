@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Vista HR Portal",
+  title: "VIS HR Portal",
   description: "Human Resource Management System",
 };
 

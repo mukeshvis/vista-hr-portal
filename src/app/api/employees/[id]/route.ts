@@ -37,11 +37,14 @@ export async function GET(
           ELSE e.emp_joining_date
         END as joiningDate,
         e.emp_salary as salary,
-        e.status,
+        e.active as status,
         e.emp_gender as gender,
         e.residential_address as address,
         e.permanent_address as permanentAddress,
-        e.emp_marital_status as maritalStatus,
+        e.emp_marital_status as maritalStatusId,
+        COALESCE(ms.marital_status_name, 'Unknown') as maritalStatus,
+        e.emp_employementstatus_id as employmentStatusId,
+        COALESCE(es.job_type_name, 'Unknown') as employmentStatus,
         e.nationality,
         e.emp_cnic as cnic,
         e.bank_account as bankAccount,
@@ -76,6 +79,8 @@ export async function GET(
       LEFT JOIN employee rm ON e.reporting_manager = rm.id
       LEFT JOIN grades g ON e.emp_grade_id = g.id
       LEFT JOIN leaves_policy lp ON e.leaves_policy_id = lp.id
+      LEFT JOIN marital_status ms ON e.emp_marital_status = ms.id
+      LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
       WHERE e.id = ${employeeId}
       LIMIT 1
     ` as any[]
@@ -91,6 +96,9 @@ export async function GET(
 
     console.log('Raw employee data from database:', employeeData)
     console.log('Gender value from DB:', employeeData.gender, 'Type:', typeof employeeData.gender)
+    console.log('Status value from DB:', employeeData.status, 'Type:', typeof employeeData.status)
+    console.log('Status === 1?', employeeData.status === 1)
+    console.log('Status == 1?', employeeData.status == 1)
 
     // Format the response
     const formattedEmployee = {
@@ -109,11 +117,14 @@ export async function GET(
       gradeName: employeeData.grade_name || 'N/A',
       joiningDate: employeeData.joiningDate,
       salary: Number(employeeData.salary),
-      status: employeeData.status === 1 ? 'Active' : 'Inactive',
+      status: (employeeData.status === 1 || employeeData.status === '1') ? 'Active' : 'Inactive',
       gender: Number(employeeData.gender) === 1 ? 'Male' : Number(employeeData.gender) === 2 ? 'Female' : `N/A (${employeeData.gender})`,
       address: employeeData.address || 'N/A',
       permanentAddress: employeeData.permanentAddress || 'N/A',
-      maritalStatus: employeeData.maritalStatus === 1 ? 'Married' : 'Single',
+      maritalStatus: employeeData.maritalStatus,
+      maritalStatusId: employeeData.maritalStatusId,
+      employmentStatus: employeeData.employmentStatus || 'N/A',
+      employmentStatusId: employeeData.employmentStatusId,
       nationality: employeeData.nationality || 'N/A',
       cnic: employeeData.cnic || 'N/A',
       bankAccount: employeeData.bankAccount || 'N/A',
@@ -196,6 +207,9 @@ export async function PUT(
       if (updateData.cnicExpiryDate) {
         const date = new Date(updateData.cnicExpiryDate)
         formattedCnicExpiryDate = date.toISOString().split('T')[0]
+      } else {
+        // Provide default date if not provided (required by database)
+        formattedCnicExpiryDate = '2030-12-31' // Default future date
       }
 
       let formattedProbationExpireDate = null
@@ -269,6 +283,47 @@ export async function PUT(
         }
       }
 
+      // If no leave policy found, set a default one (required by database)
+      if (!leavePolicyId) {
+        const defaultLeavePolicy = await tx.$queryRaw`
+          SELECT id FROM leaves_policy ORDER BY id ASC LIMIT 1
+        ` as any[]
+
+        if (defaultLeavePolicy.length > 0) {
+          leavePolicyId = defaultLeavePolicy[0].id
+        } else {
+          // Create a default leave policy if none exists
+          await tx.$executeRaw`
+            INSERT INTO leaves_policy (leaves_policy_name, status, username, date, time)
+            VALUES ('Default Policy', 1, 'system', ${new Date().toISOString().split('T')[0]}, ${new Date().toTimeString().split(' ')[0]})
+          `
+
+          const newLeavePolicy = await tx.$queryRaw`
+            SELECT id FROM leaves_policy ORDER BY id DESC LIMIT 1
+          ` as any[]
+
+          if (newLeavePolicy.length > 0) {
+            leavePolicyId = newLeavePolicy[0].id
+          }
+        }
+      }
+
+      // Handle marital status
+      let maritalStatusId = 7 // Default to Single (ID 7)
+      if (updateData.maritalStatus) {
+        // Find existing marital status by name
+        const existingMaritalStatus = await tx.$queryRaw`
+          SELECT id FROM marital_status WHERE marital_status_name = ${updateData.maritalStatus} AND status = 1 LIMIT 1
+        ` as any[]
+
+        if (existingMaritalStatus.length > 0) {
+          maritalStatusId = existingMaritalStatus[0].id
+        }
+      } else if (updateData.maritalStatusId) {
+        // Use provided marital status ID
+        maritalStatusId = parseInt(updateData.maritalStatusId)
+      }
+
       console.log('Executing SQL update...')
 
       // Update employee data using raw SQL with all fields
@@ -285,11 +340,12 @@ export async function PUT(
           working_hours_policy_id = ${updateData.workingHoursPolicy ? parseInt(updateData.workingHoursPolicy) : null},
           leaves_policy_id = ${leavePolicyId},
           emp_salary = ${Number(updateData.salary)},
-          status = ${updateData.status === 'Active' ? 1 : 0},
+          active = ${updateData.status === 'Active' ? 1 : 0},
           emp_gender = ${updateData.gender === 'Male' ? 1 : updateData.gender === 'Female' ? 2 : Number(updateData.gender) || 1},
           residential_address = ${updateData.address || 'N/A'},
           permanent_address = ${updateData.permanentAddress || 'N/A'},
-          emp_marital_status = ${updateData.maritalStatus === 'Married' ? 1 : 0},
+          emp_marital_status = ${maritalStatusId},
+          emp_employementstatus_id = ${updateData.employmentStatus ? parseInt(updateData.employmentStatus) : null},
           nationality = ${updateData.nationality || 'N/A'},
           emp_cnic = ${updateData.cnic || 'N/A'},
           emp_cnic_expiry_date = ${formattedCnicExpiryDate},
@@ -327,11 +383,12 @@ export async function PUT(
           COALESCE(g.employee_grade_type, 'N/A') as grade_name,
           e.emp_joining_date as joiningDate,
           e.emp_salary as salary,
-          e.status,
+          e.active as status,
           e.emp_gender as gender,
           e.residential_address as address,
           e.permanent_address as permanentAddress,
-          e.emp_marital_status as maritalStatus,
+          e.emp_marital_status as maritalStatusId,
+          COALESCE(ms.marital_status_name, 'Unknown') as maritalStatus,
           e.nationality,
           e.emp_cnic as cnic,
           e.bank_account as bankAccount,
@@ -354,6 +411,8 @@ export async function PUT(
         LEFT JOIN employee rm ON e.reporting_manager = rm.id
         LEFT JOIN grades g ON e.emp_grade_id = g.id
         LEFT JOIN leaves_policy lp ON e.leaves_policy_id = lp.id
+        LEFT JOIN marital_status ms ON e.emp_marital_status = ms.id
+        LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
         WHERE e.id = ${employeeId}
         LIMIT 1
       ` as any[]
@@ -387,11 +446,14 @@ export async function PUT(
       gradeName: employeeData.grade_name || 'N/A',
       joiningDate: employeeData.joiningDate,
       salary: Number(employeeData.salary),
-      status: employeeData.status === 1 ? 'Active' : 'Inactive',
+      status: (employeeData.status === 1 || employeeData.status === '1') ? 'Active' : 'Inactive',
       gender: Number(employeeData.gender) === 1 ? 'Male' : Number(employeeData.gender) === 2 ? 'Female' : `N/A (${employeeData.gender})`,
       address: employeeData.address || 'N/A',
       permanentAddress: employeeData.permanentAddress || 'N/A',
-      maritalStatus: employeeData.maritalStatus === 1 ? 'Married' : 'Single',
+      maritalStatus: employeeData.maritalStatus,
+      maritalStatusId: employeeData.maritalStatusId,
+      employmentStatus: employeeData.employmentStatus || 'N/A',
+      employmentStatusId: employeeData.employmentStatusId,
       nationality: employeeData.nationality || 'N/A',
       cnic: employeeData.cnic || 'N/A',
       bankAccount: employeeData.bankAccount || 'N/A',

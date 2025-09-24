@@ -21,6 +21,8 @@ import { useRouter } from "next/navigation"
 import { MaleIcon } from "@/components/ui/male-icon"
 import { FemaleIcon } from "@/components/ui/female-icon"
 import { SuccessPopup } from "@/components/ui/success-popup"
+import { ErrorPopup } from "@/components/ui/error-popup"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 interface Employee {
   id: string
@@ -30,6 +32,7 @@ interface Employee {
   gender?: string
   reportingManager?: string
   reportingManagerId?: number
+  status?: string
 }
 
 interface EmployeeProfile {
@@ -51,6 +54,7 @@ interface EmployeeProfile {
   address: string
   permanentAddress: string
   maritalStatus: string
+  employmentStatus: string
   nationality: string
   cnic: string
   bankAccount: string
@@ -83,6 +87,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
   const [editData, setEditData] = useState<EmployeeProfile | null>(null)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isPageLoading, setIsPageLoading] = useState(false)
   const [designations, setDesignations] = useState<DesignationOption[]>([])
   const [isDesignationOpen, setIsDesignationOpen] = useState(false)
   const [designationSearch, setDesignationSearch] = useState('')
@@ -91,8 +96,12 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
   const [isManagerOpen, setIsManagerOpen] = useState(false)
   const [managerSearch, setManagerSearch] = useState('')
   const managerRef = useRef<HTMLDivElement>(null)
+  const [maritalStatusOptions, setMaritalStatusOptions] = useState<{id: number, name: string}[]>([])
+  const [employmentStatuses, setEmploymentStatuses] = useState<{value: string, label: string}[]>([])
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
+  const [showErrorPopup, setShowErrorPopup] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -124,32 +133,56 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
   }, [editData?.designation, editData?.designationId])
 
   const handleViewEmployee = (employeeId: string) => {
+    setIsPageLoading(true)
     router.push(`/employees/${employeeId}`)
   }
 
   const handleEditEmployee = async (employeeId: string) => {
     try {
-      // Fetch designations first
-      const designationResponse = await fetch('/api/designations')
+      setIsPageLoading(true)
+
+      // Make all API calls in parallel for better performance
+      const [
+        designationResponse,
+        managersResponse,
+        maritalStatusResponse,
+        employmentStatusResponse,
+        employeeResponse
+      ] = await Promise.all([
+        fetch('/api/designations'),
+        fetch('/api/employees/managers'),
+        fetch('/api/marital-status'),
+        fetch('/api/employment-status?forSelect=true'),
+        fetch(`/api/employees/${employeeId}`)
+      ])
+
+      // Process all responses
       if (designationResponse.ok) {
         const designationsData = await designationResponse.json()
         console.log('✅ Designations loaded:', designationsData.length, 'items')
-        console.log('🔍 First few designations:', designationsData.slice(0, 3))
         setDesignations(designationsData)
       }
 
-      // Fetch managers list
-      const managersResponse = await fetch('/api/employees/managers')
       if (managersResponse.ok) {
         const managersData = await managersResponse.json()
         console.log('✅ Managers loaded:', managersData.length, 'items')
         setManagers(managersData)
       }
 
-      // Fetch full employee details for editing
-      const response = await fetch(`/api/employees/${employeeId}`)
-      if (response.ok) {
-        const employeeData = await response.json()
+      if (maritalStatusResponse.ok) {
+        const maritalStatusData = await maritalStatusResponse.json()
+        console.log('✅ Marital status options loaded:', maritalStatusData.length, 'items')
+        setMaritalStatusOptions(maritalStatusData)
+      }
+
+      if (employmentStatusResponse.ok) {
+        const employmentStatusData = await employmentStatusResponse.json()
+        console.log('✅ Employment status options loaded:', employmentStatusData.length, 'items')
+        setEmploymentStatuses(employmentStatusData)
+      }
+
+      if (employeeResponse.ok) {
+        const employeeData = await employeeResponse.json()
         console.log('✅ Employee data from API:', employeeData)
         console.log('🔍 Designation from API:', employeeData.designation)
         console.log('🔍 DesignationId from API:', employeeData.designationId)
@@ -159,14 +192,54 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         setIsEditDialogOpen(true)
       } else {
         console.error('Failed to fetch employee details')
+        setErrorMessage('Failed to load employee details. Please try again.')
+        setShowErrorPopup(true)
       }
     } catch (error) {
       console.error('Error fetching employee details:', error)
+      setErrorMessage('Error loading employee data. Please try again.')
+      setShowErrorPopup(true)
+    } finally {
+      setIsPageLoading(false)
     }
   }
 
   const handleSaveChanges = async () => {
     if (!editData) return
+
+    // Enhanced field validation
+    const requiredFields = [
+      { field: 'name', label: 'Employee Name' },
+      { field: 'email', label: 'Email' },
+      { field: 'salary', label: 'Monthly Salary' }
+    ]
+
+    // Check each required field
+    for (const { field, label } of requiredFields) {
+      const value = editData[field as keyof EmployeeProfile]
+
+      if (!value || (typeof value === 'string' && value.trim() === '') || value === 0) {
+        setErrorMessage(`${label} is required. Please fill in this field.`)
+        setShowErrorPopup(true)
+        return
+      }
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (editData.email && !emailRegex.test(editData.email)) {
+      setErrorMessage('Please enter a valid email address.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    // Validate salary is positive
+    const salaryNum = Number(editData.salary)
+    if (salaryNum <= 0) {
+      setErrorMessage('Monthly Salary must be greater than 0.')
+      setShowErrorPopup(true)
+      return
+    }
 
     try {
       setIsSaving(true)
@@ -213,11 +286,13 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
       } else {
         const errorData = await response.json()
         console.error('Failed to update employee:', errorData)
-        alert(`Failed to update employee: ${errorData.error || 'Unknown error'}`)
+        setErrorMessage(`Failed to update employee: ${errorData.error || 'Unknown error'}`)
+        setShowErrorPopup(true)
       }
     } catch (error) {
       console.error('Error updating employee:', error)
-      alert(`Error updating employee: ${error}`)
+      setErrorMessage(`Error updating employee: ${error}`)
+      setShowErrorPopup(true)
     } finally {
       setIsSaving(false)
     }
@@ -234,7 +309,14 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
 
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
+      {/* Loading Overlay - Only Moving Loader */}
+      {isPageLoading && (
+        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none" style={{alignItems: 'flex-start', paddingTop: '100px'}}>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600"></div>
+        </div>
+      )}
+
       <Table>
         <TableHeader>
           <TableRow className="border-b">
@@ -252,9 +334,9 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                 <TableCell className="py-2">
                   <div className="flex items-center gap-3">
                     {employee.gender?.toLowerCase() === 'female' || employee.gender?.toLowerCase() === 'f' ? (
-                      <FemaleIcon size={32} className="rounded-full" />
+                      <FemaleIcon size={32} className="rounded-full text-pink-500" />
                     ) : (
-                      <MaleIcon size={32} className="rounded-full" />
+                      <MaleIcon size={32} className="rounded-full text-blue-600" />
                     )}
                     <span className="font-medium">{employee.name}</span>
                   </div>
@@ -269,8 +351,9 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       size="sm"
                       className="h-8 px-3 py-2 text-sm"
                       onClick={() => handleEditEmployee(employee.id)}
+                      disabled={isPageLoading}
                     >
-                      <Edit className="h-4 w-4 mr-1" />
+                      <Edit className="h-4 w-4 mr-1 text-blue-500" />
                       Edit
                     </Button>
                     <Button
@@ -278,8 +361,9 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       size="sm"
                       className="h-8 px-3 py-2 text-sm"
                       onClick={() => handleViewEmployee(employee.id)}
+                      disabled={isPageLoading}
                     >
-                      <Eye className="h-4 w-4 mr-1" />
+                      <Eye className="h-4 w-4 mr-1 text-green-500" />
                       View
                     </Button>
                   </div>
@@ -349,6 +433,15 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="professionalEmail">Professional Email</Label>
+                      <Input
+                        id="professionalEmail"
+                        type="email"
+                        value={editData.professionalEmail}
+                        onChange={(e) => handleInputChange('professionalEmail', e.target.value)}
+                      />
+                    </div>
+                    <div>
                       <Label htmlFor="gender">Gender</Label>
                       <Select
                         value={editData.gender}
@@ -373,10 +466,26 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-white">
-                          <SelectItem value="Single" className="bg-white hover:bg-gray-100">Single</SelectItem>
-                          <SelectItem value="Married" className="bg-white hover:bg-gray-100">Married</SelectItem>
+                          {maritalStatusOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.name} className="bg-white hover:bg-gray-100">
+                              {option.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="employmentStatus">Employment Type</Label>
+                      <SearchableSelect
+                        options={employmentStatuses}
+                        value={editData.employmentStatus}
+                        onValueChange={(value) => handleInputChange('employmentStatus', value)}
+                        placeholder="Select employment type..."
+                        searchPlaceholder="Search employment types..."
+                      />
+                      {employmentStatuses.length === 0 && (
+                        <p className="text-sm text-red-500 mt-1">Loading employment types...</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="nationality">Nationality</Label>
@@ -884,8 +993,17 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         isOpen={showSuccessPopup}
         message={successMessage}
         onClose={() => setShowSuccessPopup(false)}
-        duration={3000}
+        duration={2000}
       />
+
+      {/* Error Popup */}
+      <ErrorPopup
+        isOpen={showErrorPopup}
+        message={errorMessage}
+        onClose={() => setShowErrorPopup(false)}
+        duration={2000}
+      />
+
     </div>
   )
 }

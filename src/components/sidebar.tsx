@@ -18,13 +18,13 @@ import {
 } from "lucide-react"
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Employees", href: "/employees", icon: Users },
-  { name: "Attendance", href: "/attendance", icon: Clock },
-  { name: "Payroll", href: "/payroll", icon: DollarSign },
-  { name: "Leaves", href: "/leaves", icon: Calendar },
-  { name: "Reports", href: "/reports", icon: FileText },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "text-blue-500" },
+  { name: "Employees", href: "/employees", icon: Users, color: "text-green-500" },
+  { name: "Attendance", href: "/attendance", icon: Clock, color: "text-orange-500" },
+  { name: "Payroll", href: "/payroll", icon: DollarSign, color: "text-emerald-500" },
+  { name: "Leaves", href: "/leaves", icon: Calendar, color: "text-purple-500" },
+  { name: "Reports", href: "/reports", icon: FileText, color: "text-red-500" },
+  { name: "Settings", href: "/settings", icon: Settings, color: "text-gray-500" },
 ]
 
 interface SidebarProps {
@@ -57,10 +57,10 @@ export function Sidebar({ className }: SidebarProps) {
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className={cn("flex items-center space-x-2", isCollapsed && "lg:justify-center")}>
             <div className="w-8 h-8 bg-black rounded-md flex items-center justify-center">
-              <span className="text-white font-bold text-sm">HR</span>
+              <span className="text-white font-bold text-sm">VIS</span>
             </div>
             {!isCollapsed && (
-              <span className="font-semibold text-gray-900">HR Portal</span>
+              <span className="font-semibold text-gray-900">VIS HR Portal</span>
             )}
           </div>
 
@@ -103,7 +103,7 @@ export function Sidebar({ className }: SidebarProps) {
                   isCollapsed && "lg:justify-center lg:px-2"
                 )}
               >
-                <Icon className="h-5 w-5 flex-shrink-0" />
+                <Icon className={cn("h-5 w-5 flex-shrink-0", item.color)} />
                 {!isCollapsed && <span>{item.name}</span>}
               </Link>
             )

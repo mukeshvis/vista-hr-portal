@@ -17,6 +17,7 @@ import {
   CreditCard,
   Calendar,
   FileText,
+  Settings,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -31,12 +32,13 @@ interface TopNavigationProps {
 }
 
 const menuItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Employees", href: "/employees", icon: Users },
-  { label: "Attendance", href: "/attendance", icon: Clock },
-  { label: "Payroll", href: "/payroll", icon: CreditCard },
-  { label: "Leaves", href: "/leaves", icon: Calendar },
-  { label: "Reports", href: "/reports", icon: FileText },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "text-blue-500" },
+  { label: "Employees", href: "/employees", icon: Users, color: "text-green-500" },
+  { label: "Attendance", href: "/attendance", icon: Clock, color: "text-orange-500" },
+  { label: "Payroll", href: "/payroll", icon: CreditCard, color: "text-emerald-500" },
+  { label: "Leaves", href: "/leaves", icon: Calendar, color: "text-purple-500" },
+  { label: "Reports", href: "/reports", icon: FileText, color: "text-red-500" },
+  { label: "Portal System", href: "/portal-system", icon: Settings, color: "text-indigo-500" },
 ]
 
 export function TopNavigation({ session }: TopNavigationProps) {
@@ -47,7 +49,7 @@ export function TopNavigation({ session }: TopNavigationProps) {
           {/* Left: App Title */}
           <div className="flex items-center">
             <Link href="/dashboard" className="text-xl font-bold text-black">
-              Vista HR Portal
+              VIS HR Portal
             </Link>
           </div>
 
@@ -59,7 +61,7 @@ export function TopNavigation({ session }: TopNavigationProps) {
                 href={item.href}
                 className="flex items-center gap-2 text-sm text-black hover:text-gray-600 transition-colors"
               >
-                <item.icon className="h-4 w-4" />
+                <item.icon className={`h-4 w-4 ${item.color}`} />
                 {item.label}
               </Link>
             ))}

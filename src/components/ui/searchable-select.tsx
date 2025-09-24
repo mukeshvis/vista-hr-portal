@@ -29,7 +29,7 @@ export function SearchableSelect({
   const selectedOption = options.find((option) => option.value === value)
 
   const filteredOptions = options.filter((option) =>
-    option.label.toLowerCase().includes(searchTerm.toLowerCase())
+    option?.label?.toLowerCase()?.includes(searchTerm.toLowerCase())
   )
 
   React.useEffect(() => {
@@ -109,7 +109,7 @@ export function SearchableSelect({
                       value === option.value ? "opacity-100" : "opacity-0"
                     }`}
                   />
-                  <span className="text-black">{option.label}</span>
+                  <span className="text-black">{option?.label || 'Unknown'}</span>
                 </div>
               ))
             )}

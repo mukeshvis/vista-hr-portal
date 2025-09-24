@@ -3,33 +3,32 @@ import { prisma } from '@/lib/database/prisma'
 
 export async function GET(request: NextRequest) {
   try {
-    // Fetch ALL employees at once for client-side pagination
+    // Optimize query by limiting JOINs and fetching only essential data for listing
     const employees = await prisma.$queryRaw`
       SELECT
         e.id,
         e.emp_name as name,
         e.designation_id,
         e.emp_gender as gender,
-        e.reporting_manager,
+        e.active as status,
         COALESCE(d.designation_name, 'Unknown') as designation,
-        COALESCE(rm.emp_name, 'N/A') as reporting_manager_name,
         COALESCE(g.employee_grade_type, 'N/A') as group_level
       FROM employee e
       LEFT JOIN designation d ON e.designation_id = d.id
-      LEFT JOIN employee rm ON e.reporting_manager = rm.id
       LEFT JOIN grades g ON e.emp_grade_id = g.id
+      WHERE e.active IS NOT NULL
       ORDER BY e.emp_name ASC
+      LIMIT 1000
     ` as any[]
 
-    // Transform the data to match the expected format
+    // Transform the data to match the expected format (simplified for faster loading)
     const formattedEmployees = employees.map(emp => ({
       id: emp.id.toString(),
       name: emp.name,
       designation: emp.designation,
       group: emp.group_level,
-      gender: emp.gender || 'Male', // Default to Male if not specified
-      reportingManager: emp.reporting_manager_name,
-      reportingManagerId: emp.reporting_manager
+      gender: emp.gender === 1 ? 'Male' : emp.gender === 2 ? 'Female' : 'Male',
+      status: emp.status === 1 ? 'Active' : 'Inactive'
     }))
 
     return NextResponse.json(formattedEmployees)
@@ -47,6 +46,13 @@ export async function GET(request: NextRequest) {
     ]
 
     return NextResponse.json(mockEmployees)
+  } finally {
+    // Ensure database connections are properly cleaned up
+    try {
+      await prisma.$disconnect()
+    } catch (disconnectError) {
+      console.error('Error disconnecting from database:', disconnectError)
+    }
   }
 }
 
@@ -157,11 +163,46 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // Handle marital status - find or create marital status record
+      let maritalStatusId = 7 // Default to Single (ID 7)
+      if (employeeData.maritalStatus) {
+        try {
+          // Find existing marital status
+          const existingMaritalStatus = await prisma.$queryRaw`
+            SELECT id FROM marital_status WHERE marital_status_name = ${employeeData.maritalStatus} AND status = 1 LIMIT 1
+          ` as any[]
+
+          if (existingMaritalStatus.length > 0) {
+            maritalStatusId = existingMaritalStatus[0].id
+            console.log('✅ Found existing marital status:', employeeData.maritalStatus, 'with ID:', maritalStatusId)
+          } else {
+            // Create new marital status if it doesn't exist
+            await prisma.$executeRaw`
+              INSERT INTO marital_status (marital_status_name, status, username, date, time, company_id)
+              VALUES (${employeeData.maritalStatus}, 1, 'system', ${new Date().toISOString().split('T')[0]}, ${new Date().toTimeString().split(' ')[0]}, 1)
+            `
+
+            // Get the newly created marital status id
+            const newMaritalStatus = await prisma.$queryRaw`
+              SELECT id FROM marital_status WHERE marital_status_name = ${employeeData.maritalStatus} ORDER BY id DESC LIMIT 1
+            ` as any[]
+
+            if (newMaritalStatus.length > 0) {
+              maritalStatusId = newMaritalStatus[0].id
+              console.log('✅ Created new marital status:', employeeData.maritalStatus, 'with ID:', maritalStatusId)
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error handling marital status:', error)
+          maritalStatusId = 7 // Fallback to Single
+        }
+      }
+
       // Execute raw SQL insert
       await prisma.$executeRaw`
         INSERT INTO employee (
           emp_id, emp_name, emp_email, emp_contact_no, designation_id, emp_grade_id, working_hours_policy_id, reporting_manager,
-          emp_department_id, qualification_id, role_id, emp_salary, status,
+          emp_department_id, qualification_id, role_id, emp_salary, active,
           emp_gender, residential_address, permanent_address, emp_marital_status,
           nationality, emp_cnic, emp_cnic_expiry_date, bank_account, account_title,
           emp_joining_date, emp_father_name, emp_date_of_birth, day_off,
@@ -174,9 +215,9 @@ export async function POST(request: NextRequest) {
           ${employeeData.workingHoursPolicy ? parseInt(employeeData.workingHoursPolicy) : null},
           ${employeeData.reportingManager ? parseInt(employeeData.reportingManager) : null},
           ${departmentId}, ${1}, ${1}, ${parseFloat(employeeData.salary) || 0},
-          ${employeeData.status === 'Active' ? 1 : 0}, ${employeeData.gender === 'Male' ? '1' : '2'},
+          ${employeeData.status === 'Active' ? 1 : 0}, ${employeeData.gender === 'Male' ? 1 : 2},
           ${employeeData.address || 'N/A'}, ${employeeData.permanentAddress || 'N/A'},
-          ${employeeData.maritalStatus === 'Married' ? 1 : 0}, ${employeeData.nationality || 'Pakistan'},
+          ${maritalStatusId}, ${employeeData.nationality || 'Pakistan'},
           ${employeeData.cnic || 'N/A'}, ${cnicExpiryDate}, ${employeeData.bankAccount || 'N/A'},
           ${employeeData.accountTitle || 'N/A'}, ${joiningDate}, ${employeeData.fatherName || 'N/A'},
           ${dateOfBirth}, ${employeeData.dayOff || 'Sunday'}, ${employeeData.professionalEmail || 'N/A'},

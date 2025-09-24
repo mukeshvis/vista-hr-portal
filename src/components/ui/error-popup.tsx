@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useEffect, useState } from 'react'
-import { X, AlertCircle } from 'lucide-react'
+import React, { useEffect } from 'react'
+import { X, AlertTriangle } from 'lucide-react'
 
 interface ErrorPopupProps {
   isOpen: boolean
@@ -13,36 +13,21 @@ interface ErrorPopupProps {
 
 export function ErrorPopup({
   isOpen,
-  title = "Validation Error",
+  title = "Error",
   message,
   onClose,
-  duration = 4000
+  duration = 2000
 }: ErrorPopupProps) {
-  const [showIcon, setShowIcon] = useState(false)
-
-  // Debug logging
-  useEffect(() => {
-    console.log('ErrorPopup isOpen changed to:', isOpen)
-  }, [isOpen])
 
   useEffect(() => {
     if (isOpen) {
-      setShowIcon(false) // Reset icon state
-
-      // Show loading then error icon
-      const timer = setTimeout(() => {
-        setShowIcon(true)
-      }, 300)
-
       // Auto close after duration
       const closeTimer = setTimeout(() => {
         console.log('Auto-closing error popup')
         onClose()
-        setShowIcon(false)
       }, duration)
 
       return () => {
-        clearTimeout(timer)
         clearTimeout(closeTimer)
       }
     }
@@ -51,50 +36,70 @@ export function ErrorPopup({
   if (!isOpen) return null
 
   const handleCloseClick = () => {
-    console.log('🔴 Close button clicked!')
-    console.log('🔴 Calling onClose function...')
+    console.log('🔴 Error popup close button clicked!')
     onClose()
   }
 
   return (
-    <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[9999]">
-      <div className="bg-red-600 rounded-lg shadow-2xl p-6 max-w-sm w-full mx-4 border border-red-500 animate-in fade-in zoom-in duration-300">
-          {/* Error Animation Container */}
-          <div className="flex flex-col items-center text-center">
-            {/* Animated Error Icon */}
-            <div className="relative mb-4">
-              {!showIcon ? (
-                // Loading Circle Animation
-                <div className="w-12 h-12 border-4 border-red-300 border-t-red-100 rounded-full animate-spin"></div>
-              ) : (
-                // Error Icon Animation
-                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center animate-bounce">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
-                </div>
-              )}
-            </div>
+    <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-in zoom-in duration-300" style={{ zIndex: 99999 }}>
+      <div className="bg-red-50 border border-red-200 rounded-lg shadow-lg max-w-sm w-full p-4 relative mx-4">
+        {/* Close Button */}
+        <button
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            console.log('🔴 X button clicked!')
+            handleCloseClick()
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          className="absolute top-2 right-2 text-red-400 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-red-100"
+          style={{ cursor: 'pointer', zIndex: 100000 }}
+          type="button"
+          title="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
 
-            {/* Error Message */}
-            <h3 className="text-lg font-semibold text-white mb-2">
+        {/* Content */}
+        <div className="flex items-start space-x-3 pr-6">
+          {/* Error Icon */}
+          <div className="flex-shrink-0">
+            <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5" />
+          </div>
+
+          {/* Message Content */}
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-red-800 mb-1">
               {title}
             </h3>
-            <p className="text-red-100 text-sm leading-relaxed mb-4">
+            <p className="text-sm text-red-700 leading-relaxed">
               {message}
             </p>
+          </div>
+        </div>
 
-            {/* Close Button */}
-            <button
-              onClick={handleCloseClick}
-              onMouseDown={(e) => {
-                console.log('🔴 Mouse down on close button')
-                e.preventDefault()
-              }}
-              className="flex items-center gap-2 bg-white text-red-600 px-6 py-3 rounded-md hover:bg-gray-100 active:bg-gray-200 transition-all text-sm font-medium cursor-pointer shadow-lg hover:shadow-xl transform hover:scale-105"
-              type="button"
-            >
-              <X className="w-4 h-4" />
-              Close
-            </button>
+        {/* Bottom Close Button */}
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              console.log('🔴 Close button clicked!')
+              handleCloseClick()
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700 active:bg-red-800 transition-colors shadow-sm"
+            style={{ cursor: 'pointer' }}
+            type="button"
+          >
+            Close
+          </button>
         </div>
       </div>
     </div>

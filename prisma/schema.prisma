@@ -346,3 +346,31 @@ model leave_policy {
   // Relationship
   employees             employee[]
 }
+
+// Marital Status table for mapping emp_marital_status
+model marital_status {
+  id                    Int        @id @default(autoincrement())
+  marital_status_name   String     @db.VarChar(100)
+  status                Int        @default(1)
+  username              String     @db.LongText
+  date                  DateTime   @db.Date
+  time                  String     @db.VarChar(12)
+  company_id            Int
+
+  // Relationship - commented out until we add relation field to employee
+  // employees             employee[]
+}
+
+// Employment Status table for mapping emp_employementstatus_id
+model emp_empstatus {
+  id                    Int        @id @default(autoincrement())
+  job_type_name         String     @db.VarChar(100)
+  status                Int        @default(1)
+  username              String     @db.LongText
+  date                  DateTime   @db.Date
+  time                  String     @db.VarChar(12)
+  company_id            Int
+
+  // Relationship - commented out until we add relation field to employee
+  // employees             employee[]
+}

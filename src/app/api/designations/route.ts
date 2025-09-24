@@ -1,72 +1,200 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from "next/server"
+import { prisma } from "@/lib/database/prisma"
 
-// Type definition for designation
-interface DesignationType {
-  id: number
-  designation_name: string
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const forSelect = searchParams.get('forSelect')
+
+    // Fetch all designations excluding deleted ones (status != 0)
+    const designations = await prisma.$queryRaw`
+      SELECT id, designation_name, status
+      FROM designation
+      WHERE status != 0
+      ORDER BY id ASC
+    ` as any[]
+
+    if (forSelect === 'true') {
+      // Format for SearchableSelect component
+      const formattedDesignations = designations.map(designation => ({
+        value: designation.id.toString(),
+        label: designation.designation_name
+      }))
+      return NextResponse.json(formattedDesignations)
+    } else {
+      // Return full designation data for table
+      return NextResponse.json(designations)
+    }
+
+  } catch (error) {
+    console.error("Error fetching designations:", error)
+    return NextResponse.json(
+      { error: "Failed to fetch designations" },
+      { status: 500 }
+    )
+  }
 }
 
-// Mock data as fallback
-const MOCK_DESIGNATIONS: DesignationType[] = [
-  { id: 1, designation_name: "Sr Web Developer" },
-  { id: 2, designation_name: "Jr Developer" },
-  { id: 3, designation_name: "Intern Developer" },
-  { id: 4, designation_name: "Graphic Designer" },
-  { id: 5, designation_name: "President & CEO" },
-  { id: 6, designation_name: "Deputy CEO" },
-  { id: 7, designation_name: "Advisors / Consultants" },
-  { id: 8, designation_name: "Executive Directors / Directors" },
-  { id: 9, designation_name: "Senior Manager" },
-  { id: 10, designation_name: "Manager" },
-  { id: 11, designation_name: "Assistant Manager" },
-  { id: 12, designation_name: "Junior Manager" },
-  { id: 13, designation_name: "Internee" },
-  { id: 14, designation_name: "Officers" },
-  { id: 15, designation_name: "Executive Secretary/ Assistant" },
-  { id: 16, designation_name: "Receptionist / Operator" },
-  { id: 17, designation_name: "Office Boy" },
-  { id: 18, designation_name: "Driver" },
-  { id: 19, designation_name: "Janitorial" },
-  { id: 20, designation_name: "Watchman" },
-  { id: 21, designation_name: "Group Head" },
-  { id: 22, designation_name: "IT Assistant" },
-  { id: 23, designation_name: "Software Developer" },
-  { id: 24, designation_name: "Senior Assistant Manager" },
-  { id: 25, designation_name: "Accounts Officer" },
-  { id: 26, designation_name: "Data Entry Operator" },
-  { id: 27, designation_name: "Network Assistant" },
-  { id: 28, designation_name: "Financial Analyst" },
-  { id: 29, designation_name: "Manager Software Development" },
-  { id: 30, designation_name: "Assistant Data Entry & Scanning" },
-  { id: 31, designation_name: "Data Operator" },
-  { id: 32, designation_name: "Assistant" },
-  { id: 33, designation_name: "Group Manager" },
-  { id: 34, designation_name: "Maintenance Support" },
-  { id: 35, designation_name: "Group Head- CB/DFIs" },
-  { id: 36, designation_name: "Database Assistant" },
-  { id: 37, designation_name: "Group Head Research & Development" },
-  { id: 38, designation_name: "Manager Analytics" },
-  { id: 39, designation_name: "Director Analytics" },
-  { id: 40, designation_name: "Data Analyst" }
-]
-
-export async function GET() {
+export async function POST(request: Request) {
   try {
-    // Use mock data for designations
-    console.log('✅ Fetching designations from mock data')
+    const body = await request.json()
+    const { designation_name } = body
 
-    const formattedDesignations = MOCK_DESIGNATIONS.map((designation: DesignationType) => ({
-      value: designation.id.toString(),
-      label: designation.designation_name
-    }))
+    // Validate required fields
+    if (!designation_name || designation_name.trim() === '') {
+      return NextResponse.json(
+        { error: "Designation name is required" },
+        { status: 400 }
+      )
+    }
 
-    return NextResponse.json(formattedDesignations)
+    // Check if designation already exists
+    const existingDesignation = await prisma.designation.findFirst({
+      where: {
+        designation_name: designation_name.trim(),
+        status: { not: 0 }
+      }
+    })
+
+    if (existingDesignation) {
+      return NextResponse.json(
+        { error: "This designation already exists" },
+        { status: 409 }
+      )
+    }
+
+    // Create new designation
+    const newDesignation = await prisma.designation.create({
+      data: {
+        designation_name: designation_name.trim(),
+        status: 1,
+        username: "system",
+        date: new Date(),
+        time: new Date().toTimeString().slice(0, 8)
+      }
+    })
+
+    console.log('✅ New designation created:', {
+      id: newDesignation.id,
+      name: newDesignation.designation_name
+    })
+
+    return NextResponse.json({
+      success: true,
+      designation: newDesignation,
+      message: "Designation added successfully"
+    })
+
   } catch (error) {
-    console.error('Error processing designations:', error)
-
-    // Fallback response
+    console.error("Error creating designation:", error)
     return NextResponse.json(
-      { error: 'Failed to fetch designations' },
+      { error: "Failed to create designation" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json()
+    const { id, designation_name } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Designation ID is required" },
+        { status: 400 }
+      )
+    }
+
+    if (!designation_name || designation_name.trim() === '') {
+      return NextResponse.json(
+        { error: "Designation name is required" },
+        { status: 400 }
+      )
+    }
+
+    // Check if another designation with the same name exists
+    const existingDesignation = await prisma.designation.findFirst({
+      where: {
+        designation_name: designation_name.trim(),
+        status: { not: 0 },
+        id: { not: parseInt(id) }
+      }
+    })
+
+    if (existingDesignation) {
+      return NextResponse.json(
+        { error: "This designation name already exists" },
+        { status: 409 }
+      )
+    }
+
+    // Update designation
+    const updatedDesignation = await prisma.designation.update({
+      where: { id: parseInt(id) },
+      data: {
+        designation_name: designation_name.trim(),
+        time: new Date().toTimeString().slice(0, 8)
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      designation: updatedDesignation,
+      message: "Designation updated successfully"
+    })
+
+  } catch (error) {
+    console.error("Error updating designation:", error)
+    return NextResponse.json(
+      { error: "Failed to update designation" },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Designation ID is required" },
+        { status: 400 }
+      )
+    }
+
+    // Check if designation is being used by any grades (exclude deleted grades)
+    const gradesCount = await prisma.grades.count({
+      where: {
+        designation_id: parseInt(id),
+        status: { not: -1 }
+      }
+    })
+
+    if (gradesCount > 0) {
+      return NextResponse.json(
+        { error: `Cannot delete designation. It is being used by ${gradesCount} grade(s).` },
+        { status: 409 }
+      )
+    }
+
+    // Soft delete by setting status to -1 (completely deleted)
+    await prisma.designation.update({
+      where: { id: parseInt(id) },
+      data: { status: -1 }
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: "Designation deleted successfully"
+    })
+
+  } catch (error) {
+    console.error("Error deleting designation:", error)
+    return NextResponse.json(
+      { error: "Failed to delete designation" },
       { status: 500 }
     )
   }

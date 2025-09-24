@@ -614,43 +614,95 @@ export default function DashboardPage() {
       <main className="container mx-auto px-6 py-6 space-y-6">
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatsCard
-              title="Total Employees"
-              value={dashboardData.totalEmployees.toLocaleString()}
-              icon={Users}
-              trend={dashboardData.totalEmployees > 0 ? `${dashboardData.activeEmployees} active` : "No data"}
-              description="Total workforce"
-              iconColor="text-blue-600"
-              iconBgColor="bg-blue-100"
-            />
-            <StatsCard
-              title="Present Today"
-              value={dashboardData.presentToday.toLocaleString()}
-              icon={UserCheck}
-              trend={`${dashboardData.attendancePercentage} attendance`}
-              description={`Out of ${dashboardData.totalEmployees} employees`}
-              iconColor="text-emerald-600"
-              iconBgColor="bg-emerald-100"
-            />
-            <StatsCard
-              title="Pending Leaves"
-              value={dashboardData.pendingLeaves}
-              icon={Calendar}
-              trend={dashboardData.pendingLeaves > 5 ? `${dashboardData.pendingLeaves - 5} urgent approvals` : "Normal workload"}
-              urgent={dashboardData.pendingLeaves > 5}
-              description="Requires attention"
-              iconColor="text-rose-600"
-              iconBgColor="bg-rose-100"
-            />
-            <StatsCard
-              title="Payroll Status"
-              value={`₹${(dashboardData.payrollAmount / 100000).toFixed(1)}L`}
-              icon={Banknote}
-              trend="Ready for processing"
-              description="Monthly payroll"
-              iconColor="text-amber-600"
-              iconBgColor="bg-amber-100"
-            />
+            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
+              <CardContent className="p-8 pt-10">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-sm font-medium text-slate-600">Total Employees</p>
+                    </div>
+                    <p className="text-3xl font-bold text-slate-800">{dashboardData.totalEmployees.toLocaleString()}</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <TrendingUp className="h-3 w-3 text-green-600" />
+                      <span className="text-xs font-medium text-green-600">
+                        {dashboardData.totalEmployees > 0 ? `${dashboardData.activeEmployees} active` : "No data"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Total workforce</p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                    <Users className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100">
+              <CardContent className="p-8 pt-10">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-sm font-medium text-slate-600">Present Today</p>
+                    </div>
+                    <p className="text-3xl font-bold text-slate-800">{dashboardData.presentToday.toLocaleString()}</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <TrendingUp className="h-3 w-3 text-green-600" />
+                      <span className="text-xs font-medium text-green-600">
+                        {dashboardData.attendancePercentage} attendance
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Out of {dashboardData.totalEmployees} employees</p>
+                  </div>
+                  <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                    <UserCheck className="h-6 w-6 text-emerald-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-100">
+              <CardContent className="p-8 pt-10">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-sm font-medium text-slate-600">Pending Leaves</p>
+                      {dashboardData.pendingLeaves > 5 && <Badge variant="destructive" className="text-xs animate-pulse">Urgent</Badge>}
+                    </div>
+                    <p className="text-3xl font-bold text-slate-800">{dashboardData.pendingLeaves}</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <TrendingUp className="h-3 w-3 text-green-600" />
+                      <span className="text-xs font-medium text-green-600">
+                        {dashboardData.pendingLeaves > 5 ? `${dashboardData.pendingLeaves - 5} urgent approvals` : "Normal workload"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Requires attention</p>
+                  </div>
+                  <div className="w-12 h-12 bg-rose-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                    <Calendar className="h-6 w-6 text-rose-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100">
+              <CardContent className="p-8 pt-10">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <p className="text-sm font-medium text-slate-600">Payroll Status</p>
+                    </div>
+                    <p className="text-3xl font-bold text-slate-800">₹{(dashboardData.payrollAmount / 100000).toFixed(1)}L</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <TrendingUp className="h-3 w-3 text-green-600" />
+                      <span className="text-xs font-medium text-green-600">
+                        Ready for processing
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Monthly payroll</p>
+                  </div>
+                  <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                    <Banknote className="h-6 w-6 text-amber-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Secondary Metrics */}

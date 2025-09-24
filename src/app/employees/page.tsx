@@ -52,6 +52,7 @@ interface NewEmployee {
   address: string
   permanentAddress: string
   maritalStatus: string
+  employmentStatus: string
   nationality: string
   cnic: string
   cnicExpiryDate: string
@@ -148,6 +149,8 @@ export default function EmployeesPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [designations, setDesignations] = useState<DesignationOption[]>([]) // Designations from API
   const [employees, setEmployees] = useState<EmployeeOption[]>([]) // Employees for reporting manager dropdown
+  const [maritalStatusOptions, setMaritalStatusOptions] = useState<{id: number, name: string}[]>([]) // Marital status options from API
+  const [employmentStatuses, setEmploymentStatuses] = useState<{value: string, label: string}[]>([]) // Employment status options from API
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [showErrorPopup, setShowErrorPopup] = useState(false)
@@ -157,6 +160,7 @@ export default function EmployeesPage() {
     exists: false,
     message: ''
   })
+  const [fieldErrors, setFieldErrors] = useState<{[key: string]: string}>({})
 
   const [newEmployee, setNewEmployee] = useState<NewEmployee>({
     empId: '',
@@ -176,6 +180,7 @@ export default function EmployeesPage() {
     address: '',
     permanentAddress: '',
     maritalStatus: 'Single',
+    employmentStatus: '',
     nationality: '',
     cnic: '',
     cnicExpiryDate: '',
@@ -222,7 +227,7 @@ export default function EmployeesPage() {
   // Fetch designations from API
   const fetchDesignations = useCallback(async () => {
     try {
-      const response = await fetch('/api/designations')
+      const response = await fetch('/api/designations?forSelect=true')
       if (response.ok) {
         const data = await response.json()
         setDesignations(data)
@@ -233,6 +238,40 @@ export default function EmployeesPage() {
     } catch (error) {
       console.error('Error fetching designations:', error)
       setDesignations([])
+    }
+  }, [])
+
+  // Fetch marital status options from API
+  const fetchMaritalStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/marital-status')
+      if (response.ok) {
+        const data = await response.json()
+        setMaritalStatusOptions(data)
+      } else {
+        console.error('Failed to fetch marital status options')
+        setMaritalStatusOptions([])
+      }
+    } catch (error) {
+      console.error('Error fetching marital status options:', error)
+      setMaritalStatusOptions([])
+    }
+  }, [])
+
+  // Fetch employment status options from API
+  const fetchEmploymentStatuses = useCallback(async () => {
+    try {
+      const response = await fetch('/api/employment-status?forSelect=true')
+      if (response.ok) {
+        const data = await response.json()
+        setEmploymentStatuses(data)
+      } else {
+        console.error('Failed to fetch employment statuses')
+        setEmploymentStatuses([])
+      }
+    } catch (error) {
+      console.error('Error fetching employment statuses:', error)
+      setEmploymentStatuses([])
     }
   }, [])
 
@@ -326,8 +365,10 @@ export default function EmployeesPage() {
   useEffect(() => {
     fetchAllEmployees()
     fetchDesignations()
+    fetchMaritalStatus()
+    fetchEmploymentStatuses()
     fetchEmployeesForReporting()
-  }, [fetchAllEmployees, fetchDesignations, fetchEmployeesForReporting])
+  }, [fetchAllEmployees, fetchDesignations, fetchMaritalStatus, fetchEmploymentStatuses, fetchEmployeesForReporting])
 
   // Handle page changes
   const handlePageChange = (page: number) => {
@@ -342,22 +383,137 @@ export default function EmployeesPage() {
 
   const handleInputChange = (field: keyof NewEmployee, value: string | number) => {
     setNewEmployee(prev => ({ ...prev, [field]: value }))
+
+    // Clear field error when user starts typing
+    if (fieldErrors[field]) {
+      setFieldErrors(prev => ({ ...prev, [field]: '' }))
+    }
+
+    // Real-time field validation
+    validateField(field, value)
+
+    // Auto-populate grade when designation is selected
+    if (field === 'designation' && value) {
+      fetchGradeByDesignation(value as string)
+    }
   }
 
-  // Validate required fields
+  // Real-time field validation
+  const validateField = (field: keyof NewEmployee, value: string | number) => {
+    let error = ''
+
+    switch (field) {
+      case 'name':
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          error = 'This field is required'
+        }
+        break
+      case 'email':
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          error = 'This field is required'
+        } else if (typeof value === 'string') {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+          if (!emailRegex.test(value)) {
+            error = 'Please enter a valid email address'
+          }
+        }
+        break
+      case 'phone':
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          error = 'This field is required'
+        } else if (typeof value === 'string') {
+          const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/
+          if (!phoneRegex.test(value.replace(/[\s\-\(\)]/g, ''))) {
+            error = 'Please enter a valid phone number'
+          }
+        }
+        break
+      case 'salary':
+        if (!value || value === 0 || value === '') {
+          error = 'This field is required'
+        } else if (Number(value) <= 0) {
+          error = 'Monthly Salary must be greater than 0'
+        }
+        break
+      case 'empId':
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          error = 'This field is required'
+        }
+        break
+      case 'designation':
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          error = 'This field is required'
+        }
+        break
+      case 'department':
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          error = 'This field is required'
+        }
+        break
+      case 'joiningDate':
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          error = 'This field is required'
+        }
+        break
+    }
+
+    setFieldErrors(prev => ({ ...prev, [field]: error }))
+  }
+
+  // Fetch grade based on designation ID
+  const fetchGradeByDesignation = useCallback(async (designationId: string) => {
+    try {
+      const response = await fetch(`/api/grades/by-designation?designationId=${designationId}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.grade) {
+          // Auto-populate the grade field
+          setNewEmployee(prev => ({
+            ...prev,
+            grade: data.grade
+          }))
+
+          // Log selection info
+          if (data.totalGrades > 1) {
+            console.log(`✅ Grade "${data.grade}" selected from ${data.totalGrades} options (${data.uniqueGrades} unique)`)
+          } else {
+            console.log('✅ Grade auto-populated:', data.grade)
+          }
+        }
+      } else {
+        console.log('⚠️ No grade found for designation ID:', designationId)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching grade by designation:', error)
+    }
+  }, [])
+
+  // Enhanced field validation with specific messages
   const validateRequiredFields = () => {
     const requiredFields = [
       { field: 'name', label: 'Full Name' },
       { field: 'empId', label: 'Employee ID' },
       { field: 'email', label: 'Email' },
-      { field: 'designation', label: 'Designation' }
+      { field: 'phone', label: 'Phone Number' },
+      { field: 'designation', label: 'Designation' },
+      { field: 'joiningDate', label: 'Joining Date' },
+      { field: 'salary', label: 'Monthly Salary' }
     ]
 
-    const missingFields = requiredFields.filter(({ field }) => !newEmployee[field as keyof NewEmployee])
+    // Check each required field individually for specific error messages
+    for (const { field, label } of requiredFields) {
+      const value = newEmployee[field as keyof NewEmployee]
 
-    if (missingFields.length > 0) {
-      const fieldNames = missingFields.map(({ label }) => label).join(', ')
-      setErrorMessage(`Please fill in the following required fields: ${fieldNames}`)
+      if (!value || (typeof value === 'string' && value.trim() === '') || value === 0) {
+        setErrorMessage(`${label} is required. Please fill in this field.`)
+        setShowErrorPopup(true)
+        return false
+      }
+    }
+
+    // Validate Employee ID exists check
+    if (empIdValidation.exists) {
+      setErrorMessage('Employee ID already exists. Please choose a different ID.')
       setShowErrorPopup(true)
       return false
     }
@@ -365,9 +521,38 @@ export default function EmployeesPage() {
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
     if (newEmployee.email && !emailRegex.test(newEmployee.email)) {
-      setErrorMessage('Please enter a valid email address')
+      setErrorMessage('Please enter a valid email address.')
       setShowErrorPopup(true)
       return false
+    }
+
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/
+    if (newEmployee.phone && !phoneRegex.test(newEmployee.phone.replace(/[\s\-\(\)]/g, ''))) {
+      setErrorMessage('Please enter a valid phone number.')
+      setShowErrorPopup(true)
+      return false
+    }
+
+    // Validate salary is a positive number
+    const salaryNum = Number(newEmployee.salary)
+    if (salaryNum <= 0) {
+      setErrorMessage('Monthly Salary must be greater than 0.')
+      setShowErrorPopup(true)
+      return false
+    }
+
+    // Validate joining date is not in future
+    if (newEmployee.joiningDate) {
+      const joiningDate = new Date(newEmployee.joiningDate)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0) // Reset time for date comparison
+
+      if (joiningDate > today) {
+        setErrorMessage('Joining Date cannot be in the future.')
+        setShowErrorPopup(true)
+        return false
+      }
     }
 
     return true
@@ -393,7 +578,7 @@ export default function EmployeesPage() {
         ...newEmployee,
         designation_id: parseInt(newEmployee.designation), // Convert designation to designation_id
         gender: newEmployee.gender === 'Male' ? 1 : 2,
-        maritalStatus: newEmployee.maritalStatus === 'Married' ? 1 : 0,
+        maritalStatus: newEmployee.maritalStatus, // Keep as string - API will handle conversion
         status: newEmployee.status === 'Active' ? 1 : 0
       }
 
@@ -417,6 +602,7 @@ export default function EmployeesPage() {
 
         // Reset form
         setEmpIdValidation({ isChecking: false, exists: false, message: '' })
+        setFieldErrors({})
         setNewEmployee({
           empId: '',
           name: '',
@@ -435,6 +621,7 @@ export default function EmployeesPage() {
           address: '',
           permanentAddress: '',
           maritalStatus: 'Single',
+          employmentStatus: '',
           nationality: '',
           cnic: '',
           cnicExpiryDate: '',
@@ -554,7 +741,11 @@ export default function EmployeesPage() {
                         value={newEmployee.name}
                         onChange={(e) => handleInputChange('name', e.target.value)}
                         required
+                        className={fieldErrors['name'] ? 'border-red-500 focus:border-red-500' : ''}
                       />
+                      {fieldErrors['name'] && (
+                        <p className="text-sm text-red-500 mt-1">{fieldErrors['name']}</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="empId">Employee ID *</Label>
@@ -563,7 +754,7 @@ export default function EmployeesPage() {
                         value={newEmployee.empId}
                         onChange={(e) => handleInputChange('empId', e.target.value)}
                         required
-                        className={`${empIdValidation.exists ? 'border-red-500 focus:border-red-500' : ''}`}
+                        className={`${empIdValidation.exists || fieldErrors['empId'] ? 'border-red-500 focus:border-red-500' : ''}`}
                       />
                       {empIdValidation.isChecking && (
                         <p className="text-sm text-gray-500 mt-1">Checking availability...</p>
@@ -573,6 +764,9 @@ export default function EmployeesPage() {
                       )}
                       {!empIdValidation.exists && !empIdValidation.isChecking && newEmployee.empId && empIdValidation.message && (
                         <p className="text-sm text-green-500 mt-1">{empIdValidation.message}</p>
+                      )}
+                      {fieldErrors['empId'] && (
+                        <p className="text-sm text-red-500 mt-1">{fieldErrors['empId']}</p>
                       )}
                     </div>
                     <div>
@@ -600,7 +794,11 @@ export default function EmployeesPage() {
                         value={newEmployee.email}
                         onChange={(e) => handleInputChange('email', e.target.value)}
                         required
+                        className={fieldErrors['email'] ? 'border-red-500 focus:border-red-500' : ''}
                       />
+                      {fieldErrors['email'] && (
+                        <p className="text-sm text-red-500 mt-1">{fieldErrors['email']}</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="professionalEmail">Professional Email</Label>
@@ -618,7 +816,11 @@ export default function EmployeesPage() {
                         value={newEmployee.phone}
                         onChange={(e) => handleInputChange('phone', e.target.value)}
                         required
+                        className={fieldErrors['phone'] ? 'border-red-500 focus:border-red-500' : ''}
                       />
+                      {fieldErrors['phone'] && (
+                        <p className="text-sm text-red-500 mt-1">{fieldErrors['phone']}</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="gender">Gender</Label>
@@ -645,10 +847,26 @@ export default function EmployeesPage() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-white">
-                          <SelectItem value="Single" className="bg-white hover:bg-gray-100">Single</SelectItem>
-                          <SelectItem value="Married" className="bg-white hover:bg-gray-100">Married</SelectItem>
+                          {maritalStatusOptions.map((option) => (
+                            <SelectItem key={option.id} value={option.name} className="bg-white hover:bg-gray-100">
+                              {option.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="employmentStatus">Employment Type</Label>
+                      <SearchableSelect
+                        options={employmentStatuses}
+                        value={newEmployee.employmentStatus}
+                        onValueChange={(value) => handleInputChange('employmentStatus', value)}
+                        placeholder="Select employment status..."
+                        searchPlaceholder="Search employment statuses..."
+                      />
+                      {employmentStatuses.length === 0 && (
+                        <p className="text-sm text-red-500 mt-1">Loading employment statuses...</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="nationality">Nationality</Label>
@@ -715,7 +933,11 @@ export default function EmployeesPage() {
                         onValueChange={(value) => handleInputChange('designation', value)}
                         placeholder="Select designation..."
                         searchPlaceholder="Search designations..."
+                        className={fieldErrors['designation'] ? 'border-red-500' : ''}
                       />
+                      {fieldErrors['designation'] && (
+                        <p className="text-sm text-red-500 mt-1">{fieldErrors['designation']}</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="grade">Grade</Label>
@@ -724,7 +946,7 @@ export default function EmployeesPage() {
                         onValueChange={(value) => handleInputChange('grade', value)}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Select grade..." />
+                          <SelectValue placeholder={!newEmployee.designation ? "Select designation first..." : "Select grade..."} />
                         </SelectTrigger>
                         <SelectContent className="bg-white max-h-60 overflow-y-auto">
                           {gradeOptions.map((grade) => (
@@ -734,6 +956,16 @@ export default function EmployeesPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {!newEmployee.grade && !newEmployee.designation && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          Grade will be auto-selected when you choose a designation
+                        </p>
+                      )}
+                      {!newEmployee.grade && newEmployee.designation && (
+                        <p className="text-sm text-orange-600 mt-1">
+                          ⚠️ No grade found for this designation. Please select manually.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="workingHoursPolicy">Working Hours Policy</Label>
@@ -778,7 +1010,7 @@ export default function EmployeesPage() {
                         value={newEmployee.department}
                         onValueChange={(value) => handleInputChange('department', value)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className={fieldErrors['department'] ? 'border-red-500' : ''}>
                           <SelectValue placeholder="Select department..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white">
@@ -789,6 +1021,9 @@ export default function EmployeesPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {fieldErrors['department'] && (
+                        <p className="text-sm text-red-500 mt-1">{fieldErrors['department']}</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="leavePolicy">Leave Policy</Label>
@@ -824,7 +1059,11 @@ export default function EmployeesPage() {
                         value={newEmployee.joiningDate}
                         onChange={(e) => handleInputChange('joiningDate', e.target.value)}
                         required
+                        className={fieldErrors['joiningDate'] ? 'border-red-500 focus:border-red-500' : ''}
                       />
+                      {fieldErrors['joiningDate'] && (
+                        <p className="text-sm text-red-500 mt-1">{fieldErrors['joiningDate']}</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="status">Employment Status</Label>
@@ -912,7 +1151,11 @@ export default function EmployeesPage() {
                           }
                         }}
                         required
+                        className={fieldErrors['salary'] ? 'border-red-500 focus:border-red-500' : ''}
                       />
+                      {fieldErrors['salary'] && (
+                        <p className="text-sm text-red-500 mt-1">{fieldErrors['salary']}</p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="accountTitle">Account Title</Label>
@@ -960,7 +1203,7 @@ export default function EmployeesPage() {
           isOpen={showSuccessPopup}
           message={successMessage}
           onClose={() => setShowSuccessPopup(false)}
-          duration={4000}
+          duration={2000}
         />
 
         {/* Error Popup for Validation */}

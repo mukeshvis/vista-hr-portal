@@ -56,6 +56,7 @@ interface EmployeeProfile {
   grade: string
   workingHoursPolicy: string
   leavePolicy: string
+  employmentStatus: string
 }
 
 export default function EmployeeProfilePage() {
@@ -333,6 +334,16 @@ export default function EmployeeProfilePage() {
                   <p className="font-medium">{employee.designation}</p>
                 </div>
               </div>
+
+              {employee.employmentStatus && employee.employmentStatus !== 'N/A' && (
+                <div className="flex items-center gap-3">
+                  <Settings className="h-4 w-4 text-indigo-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Employment Type</p>
+                    <p className="font-medium">{employee.employmentStatus}</p>
+                  </div>
+                </div>
+              )}
 
               {employee.grade && employee.grade !== 'N/A' && (
                 <div className="flex items-center gap-3">

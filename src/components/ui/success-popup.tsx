@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
-import { Check } from 'lucide-react'
+import { X } from 'lucide-react'
 
 interface SuccessPopupProps {
   isOpen: boolean
@@ -14,131 +14,133 @@ export function SuccessPopup({
   isOpen,
   message,
   onClose,
-  duration = 3000
+  duration = 2000
 }: SuccessPopupProps) {
-  const [showCheckmark, setShowCheckmark] = useState(false)
+  const [showTick, setShowTick] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
-      // Show loading circle first, then checkmark after 1 second
-      const timer = setTimeout(() => {
-        setShowCheckmark(true)
-      }, 1000)
+      // Show tick animation after popup appears
+      const tickTimer = setTimeout(() => {
+        setShowTick(true)
+      }, 200)
 
       // Auto close after duration
       const closeTimer = setTimeout(() => {
+        console.log('Auto-closing success popup')
         onClose()
-        setShowCheckmark(false)
       }, duration)
 
       return () => {
-        clearTimeout(timer)
+        clearTimeout(tickTimer)
         clearTimeout(closeTimer)
+        setShowTick(false)
       }
     }
   }, [isOpen, duration, onClose])
 
   if (!isOpen) return null
 
+  const handleCloseClick = () => {
+    console.log('✅ Success popup close button clicked!')
+    onClose()
+  }
+
   return (
-    <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[9999]">
-      <div className="bg-black rounded-lg shadow-2xl p-8 max-w-sm w-full mx-4 transform transition-all duration-300 scale-100 animate-fadeInScale border border-gray-700">
-        {/* Success Animation Container */}
-        <div className="flex flex-col items-center text-center">
-          {/* Animated Circle with Checkmark */}
-          <div className="relative mb-6">
-            {!showCheckmark ? (
-              // Loading Circle Animation
-              <div className="w-16 h-16 border-4 border-gray-600 border-t-green-500 rounded-full animate-spin"></div>
-            ) : (
-              // Success Checkmark Animation
-              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center animate-bounceIn">
-                <Check className="w-8 h-8 text-white animate-checkmark" />
-              </div>
-            )}
+    <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-in zoom-in duration-300" style={{ zIndex: 99999 }}>
+      <div className="bg-green-50 border border-green-200 rounded-lg shadow-lg max-w-sm w-full p-4 relative mx-4">
+        {/* Close Button */}
+        <button
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            console.log('✅ X button clicked!')
+            handleCloseClick()
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          className="absolute top-2 right-2 text-green-400 hover:text-green-600 transition-colors p-1 rounded-full hover:bg-green-100"
+          style={{ cursor: 'pointer', zIndex: 100000 }}
+          type="button"
+          title="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Content */}
+        <div className="flex items-start space-x-3 pr-6">
+          {/* Animated Success Icon */}
+          <div className="flex-shrink-0">
+            <div className="relative w-8 h-8 mt-0.5">
+              {/* Circle background */}
+              <div
+                className={`absolute inset-0 rounded-full border-2 border-green-500 transition-all duration-500 ${
+                  showTick ? 'scale-100 opacity-100' : 'scale-75 opacity-60'
+                }`}
+                style={{
+                  backgroundColor: showTick ? '#22c55e' : 'transparent',
+                }}
+              />
+
+              {/* Animated checkmark */}
+              <svg
+                className="absolute inset-0 w-full h-full"
+                viewBox="0 0 24 24"
+                fill="none"
+              >
+                <path
+                  d="M9 12l2 2 4-4"
+                  stroke="white"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className={`transition-all duration-700 ${
+                    showTick ? 'opacity-100' : 'opacity-0'
+                  }`}
+                  style={{
+                    strokeDasharray: showTick ? '100' : '0',
+                    strokeDashoffset: showTick ? '0' : '100',
+                    transform: showTick ? 'scale(1)' : 'scale(0.5)',
+                  }}
+                />
+              </svg>
+            </div>
           </div>
 
-          {/* Success Message */}
-          <h3 className="text-xl font-semibold text-white mb-2">
-            Success!
-          </h3>
-          <p className="text-gray-300 text-sm leading-relaxed">
-            {message}
-          </p>
-
-          {/* Success Indicator Dots */}
-          <div className="flex space-x-1 mt-4">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+          {/* Message Content */}
+          <div className="flex-1">
+            <h3 className="text-sm font-medium text-green-800 mb-1">
+              Success!
+            </h3>
+            <p className="text-sm text-green-700 leading-relaxed">
+              {message}
+            </p>
           </div>
         </div>
+
+        {/* Bottom Close Button */}
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              console.log('✅ Close button clicked!')
+              handleCloseClick()
+            }}
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 active:bg-green-800 transition-colors shadow-sm"
+            style={{ cursor: 'pointer' }}
+            type="button"
+          >
+            Close
+          </button>
+        </div>
       </div>
-
-      {/* Custom CSS Animations */}
-      <style jsx>{`
-        @keyframes fadeInScale {
-          0% {
-            opacity: 0;
-            transform: scale(0.8);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        @keyframes bounceIn {
-          0% {
-            opacity: 0;
-            transform: scale(0.3);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1.1);
-          }
-          70% {
-            transform: scale(0.9);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        @keyframes checkmark {
-          0% {
-            opacity: 0;
-            transform: scale(0);
-            stroke-dasharray: 0 24;
-            stroke-dashoffset: 0;
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1);
-            stroke-dasharray: 12 24;
-            stroke-dashoffset: -12;
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1);
-            stroke-dasharray: 24 24;
-            stroke-dashoffset: -24;
-          }
-        }
-
-        .animate-fadeInScale {
-          animation: fadeInScale 0.3s ease-out;
-        }
-
-        .animate-bounceIn {
-          animation: bounceIn 0.6s ease-out;
-        }
-
-        .animate-checkmark {
-          animation: checkmark 0.5s ease-out;
-        }
-      `}</style>
     </div>
   )
 }
