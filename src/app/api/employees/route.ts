@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
 
+
+
 export async function GET(request: NextRequest) {
   try {
     // Optimize query by limiting JOINs and fetching only essential data for listing
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
     console.log(`   Salary: ${employeeData.salary}`)
     console.log(`   Status: ${employeeData.status}`)
     console.log(`   Gender: ${employeeData.gender}`)
-
+ 
     // Try to save to database using raw SQL
     try {
       console.log('🔄 Attempting to save employee to database...')
@@ -93,24 +95,27 @@ export async function POST(request: NextRequest) {
       const dateOfBirth = employeeData.dateOfBirth ? new Date(employeeData.dateOfBirth).toISOString().split('T')[0] : '1990-01-01'
       const cnicExpiryDate = employeeData.cnicExpiryDate ? new Date(employeeData.cnicExpiryDate).toISOString().split('T')[0] : '2030-12-31'
 
-      // Create grade record first with designation_id
+      // Find existing grade record by matching designation_id and employee_grade_type
       let gradeId = null
       if (employeeData.grade) {
         const designationId = parseInt(employeeData.designation_id) || 1
 
-        // Always create a new grade record for each employee with their designation_id
-        await prisma.$executeRaw`
-          INSERT INTO grades (employee_grade_type, designation_id, status, date, time)
-          VALUES (${employeeData.grade}, ${designationId}, 1, ${new Date().toISOString().split('T')[0]}, ${new Date().toTimeString().split(' ')[0]})
-        `
-
-        // Get the newly created grade id
-        const newGrade = await prisma.$queryRaw`
-          SELECT id FROM grades WHERE employee_grade_type = ${employeeData.grade} AND designation_id = ${designationId} ORDER BY id DESC LIMIT 1
+        // Find existing grade record that matches both designation_id and employee_grade_type
+        const existingGrade = await prisma.$queryRaw`
+          SELECT id FROM grades
+          WHERE designation_id = ${designationId}
+          AND employee_grade_type = ${employeeData.grade}
+          AND status = 1
+          LIMIT 1
         ` as any[]
 
-        if (newGrade.length > 0) {
-          gradeId = newGrade[0].id
+        if (existingGrade.length > 0) {
+          gradeId = existingGrade[0].id
+          console.log('✅ Found existing grade:', employeeData.grade, 'for designation:', designationId, 'with ID:', gradeId)
+        } else {
+          console.log('⚠️ No matching grade found for:', employeeData.grade, 'and designation:', designationId)
+          // Set gradeId to null if no matching grade found
+          gradeId = null
         }
       }
 
