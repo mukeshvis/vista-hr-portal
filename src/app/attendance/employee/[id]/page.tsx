@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { TopNavigation } from "@/components/top-navigation"
 import {
   Users,
   Calendar,
@@ -12,9 +13,7 @@ import {
   XCircle,
   Clock,
   ArrowLeft,
-  CalendarDays,
-  Settings,
-  Plus
+  CalendarDays
 } from "lucide-react"
 
 interface AttendanceData {
@@ -31,16 +30,29 @@ interface Holiday {
   type: 'national' | 'company'
 }
 
+interface WeeklyData {
+  weekNumber: number
+  monday: { timeIn: string; timeOut: string; hours: string; status: string }
+  tuesday: { timeIn: string; timeOut: string; hours: string; status: string }
+  wednesday: { timeIn: string; timeOut: string; hours: string; status: string }
+  thursday: { timeIn: string; timeOut: string; hours: string; status: string }
+  friday: { timeIn: string; timeOut: string; hours: string; status: string }
+  totalHours: string
+}
+
 export default function EmployeeAttendancePage() {
   const params = useParams()
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
   const employeeId = params.id as string
   const employeeName = searchParams.get('name') || 'Employee'
 
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [attendanceData, setAttendanceData] = useState<AttendanceData[]>([])
+  const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [loading, setLoading] = useState(true)
+  const [weeklyLoading, setWeeklyLoading] = useState(true)
   // Get holidays from localStorage or use defaults
   const [holidays] = useState<Holiday[]>(() => {
     if (typeof window !== 'undefined') {
@@ -235,8 +247,48 @@ export default function EmployeeAttendancePage() {
     }
   }
 
+  // Fetch weekly attendance data from API
+  const fetchWeeklyData = async () => {
+    try {
+      setWeeklyLoading(true)
+
+      const response = await fetch('/api/attendance/weekly', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          employeeId,
+          year: selectedYear,
+          month: selectedMonth
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch weekly attendance data')
+      }
+
+      const result = await response.json()
+      console.log('Weekly API Response:', result)
+
+      if (result.success && result.data) {
+        setWeeklyData(result.data)
+      } else {
+        console.error('Failed to fetch weekly data:', result.error)
+        setWeeklyData([])
+      }
+
+    } catch (error) {
+      console.error('Error fetching weekly data:', error)
+      setWeeklyData([])
+    } finally {
+      setWeeklyLoading(false)
+    }
+  }
+
   useEffect(() => {
     fetchAttendanceData()
+    fetchWeeklyData()
   }, [selectedYear, selectedMonth, employeeId])
 
   const monthNames = [
@@ -278,6 +330,7 @@ export default function EmployeeAttendancePage() {
 
   const expectedHours = workedDays * 8
   const hoursStatus = totalHoursWorked >= expectedHours ? 'Excellent' : totalHoursWorked >= expectedHours * 0.9 ? 'Good' : 'Below Expected'
+
 
   // Get calendar layout
   const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1).getDay()
@@ -321,115 +374,65 @@ export default function EmployeeAttendancePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* Enhanced Header */}
-      <div className="bg-gradient-to-r from-blue-100 to-purple-200 shadow-xl">
-        <div className="container mx-auto px-6 py-8">
+      {/* Top Navigation */}
+      <TopNavigation session={session} />
+
+      {/* Compact Header */}
+      <div className="bg-gradient-to-r from-blue-100 to-purple-200 shadow-md">
+        <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
-              <Button
-                variant="secondary"
+            <div className="flex items-center gap-3">
+              <button
                 onClick={() => window.close()}
-                className="flex items-center gap-2 bg-white/70 hover:bg-white/90 text-gray-700 border-gray-200 backdrop-blur-sm"
+                className="flex items-center gap-1 bg-black hover:bg-gray-700 text-white border border-black rounded-md text-xs px-3 h-7 cursor-pointer"
               >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Attendance
-              </Button>
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 bg-blue-200 rounded-full flex items-center justify-center shadow-sm">
-                  <Users className="h-8 w-8 text-blue-600" />
+                <ArrowLeft className="h-3 w-3" />
+                Back
+              </button>
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 bg-blue-200 rounded-full flex items-center justify-center shadow-sm">
+                  <Users className="h-5 w-5 text-blue-600" />
                 </div>
                 <div className="text-gray-800">
-                  <h1 className="text-4xl font-bold mb-1">{employeeName}</h1>
-                  <div className="flex items-center gap-4 text-gray-600">
-                    <span className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      ID: {employeeId}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {monthNames[selectedMonth]} {selectedYear}
-                    </span>
+                  <h1 className="text-xl font-bold">{employeeName}</h1>
+                  <div className="flex items-center gap-2 text-gray-600 text-xs">
+                    <span>ID: {employeeId}</span>
+                    <span>•</span>
+                    <span>{monthNames[selectedMonth]} {selectedYear}</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Quick Stats in Header */}
-            <div className="hidden md:flex items-center gap-6 text-gray-700">
-              <div className="text-center bg-white/50 px-4 py-3 rounded-lg backdrop-blur-sm">
-                <div className="text-2xl font-bold text-gray-800">{presentPercentage}%</div>
-                <div className="text-gray-600 text-sm">Attendance</div>
+            {/* Compact Stats */}
+            <div className="hidden md:flex items-center gap-3 text-gray-700">
+              <div className="text-center bg-white/50 px-2 py-1 rounded backdrop-blur-sm">
+                <div className="text-lg font-bold text-gray-800">{presentPercentage}%</div>
+                <div className="text-gray-600 text-xs">Attendance</div>
               </div>
-              <div className="text-center bg-white/50 px-4 py-3 rounded-lg backdrop-blur-sm">
-                <div className="text-2xl font-bold text-gray-800">{workedDays}</div>
-                <div className="text-gray-600 text-sm">Days Worked</div>
+              <div className="text-center bg-white/50 px-2 py-1 rounded backdrop-blur-sm">
+                <div className="text-lg font-bold text-gray-800">{workedDays}</div>
+                <div className="text-gray-600 text-xs">Days</div>
               </div>
-              <div className="text-center bg-white/50 px-4 py-3 rounded-lg backdrop-blur-sm">
-                <div className="text-2xl font-bold text-gray-800">{totalHoursWorked.toFixed(0)}h</div>
-                <div className="text-gray-600 text-sm">Total Hours</div>
+              <div className="text-center bg-white/50 px-2 py-1 rounded backdrop-blur-sm">
+                <div className="text-lg font-bold text-gray-800">{totalHoursWorked.toFixed(0)}h</div>
+                <div className="text-gray-600 text-xs">Hours</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <main className="container mx-auto px-6 py-6 space-y-8">
-        {/* Enhanced Date Filter */}
-        <Card className="border-0 shadow-lg bg-gradient-to-r from-white to-blue-50 min-h-[120px] ">
-          <CardContent className="px-8 py-8 flex items-center justify-center">
-            <div className="flex items-center justify-between w-full mt-4">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center shadow-sm">
-                  <Calendar className="h-6 w-6 text-purple-600" />
-                </div>
-                <div className="flex flex-col justify-center">
-                  <span className="text-2xl font-semibold text-gray-900">Date Filter</span>
-                  <p className="text-base text-gray-500 mt-1">Select month and year to view attendance</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-center gap-6">
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm font-semibold text-gray-700 text-start pl-1">Year:</label>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                    className="border-2 border-gray-200 rounded-lg px-4 py-2 bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all w-[150px]"
-                  >
-                    {years.map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col  gap-1">
-                  <label className="text-sm font-semibold text-gray-700 text-start pl-1">Month:</label>
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                    className="border-2 border-gray-200 rounded-lg px-4 py-2 bg-white focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all w-[180px]"
-                  >
-                    {monthNames.map((month, index) => (
-                      <option key={index} value={index}>{month}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Enhanced Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 transform hover:scale-105 transition-all duration-200">
+      <main className="container mx-auto px-4 py-3 space-y-4">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100 hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-blue-600 font-medium mb-1">Total Days</p>
-                  <p className="text-4xl font-bold mb-2 text-blue-800">{totalDays}</p>
-                  <div className="flex items-center gap-1 text-blue-500 text-sm">
-                    <CalendarDays className="h-3 w-3" />
-                    Working Days
-                  </div>
+                  <p className="text-blue-600 font-medium text-sm">Total Days</p>
+                  <p className="text-3xl font-bold text-blue-800 mt-2">{totalDays}</p>
+                  <p className="text-blue-500 text-sm mt-1">Working Days</p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                   <CalendarDays className="h-6 w-6 text-blue-600" />
@@ -438,16 +441,13 @@ export default function EmployeeAttendancePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100 transform hover:scale-105 transition-all duration-200">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100 hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-green-600 font-medium mb-1">Present</p>
-                  <p className="text-4xl font-bold mb-2 text-green-800">{presentDays + lateDays}</p>
-                  <div className="flex items-center gap-2 text-green-500 text-sm">
-                    <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                    {presentPercentage}% Attendance
-                  </div>
+                  <p className="text-green-600 font-medium text-sm">Present</p>
+                  <p className="text-3xl font-bold text-green-800 mt-2">{presentDays + lateDays}</p>
+                  <p className="text-green-500 text-sm mt-1">{presentPercentage}%</p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                   <CheckCircle className="h-6 w-6 text-green-600" />
@@ -456,16 +456,13 @@ export default function EmployeeAttendancePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100 transform hover:scale-105 transition-all duration-200">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100 hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-purple-600 font-medium mb-1">Total Hours</p>
-                  <p className="text-4xl font-bold mb-2 text-purple-800">{totalHoursWorked.toFixed(0)}h</p>
-                  <div className="flex items-center gap-1 text-purple-500 text-sm">
-                    <Clock className="h-3 w-3" />
-                    {hoursStatus}
-                  </div>
+                  <p className="text-purple-600 font-medium text-sm">Total Hours</p>
+                  <p className="text-3xl font-bold text-purple-800 mt-2">{totalHoursWorked.toFixed(0)}h</p>
+                  <p className="text-purple-500 text-sm mt-1">{hoursStatus}</p>
                 </div>
                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
                   <Clock className="h-6 w-6 text-purple-600" />
@@ -474,16 +471,13 @@ export default function EmployeeAttendancePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-red-50 to-red-100 transform hover:scale-105 transition-all duration-200">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-red-50 to-red-100 hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-red-600 font-medium mb-1">Absent</p>
-                  <p className="text-4xl font-bold mb-2 text-red-800">{absentDays}</p>
-                  <div className="flex items-center gap-1 text-red-500 text-sm">
-                    <XCircle className="h-3 w-3" />
-                    Missing Days
-                  </div>
+                  <p className="text-red-600 font-medium text-sm">Absent</p>
+                  <p className="text-3xl font-bold text-red-800 mt-2">{absentDays}</p>
+                  <p className="text-red-500 text-sm mt-1">Missing Days</p>
                 </div>
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                   <XCircle className="h-6 w-6 text-red-600" />
@@ -492,6 +486,179 @@ export default function EmployeeAttendancePage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Date Filter */}
+        <div className="bg-gray-50 p-4 rounded-lg mb-4">
+          <div className="flex flex-wrap items-center justify-end gap-4">
+            <div className="flex items-center gap-2">
+              <label htmlFor="year" className="text-sm font-medium text-gray-700">
+                Year:
+              </label>
+              <select
+                id="year"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="px-3 py-2 border-0 rounded-md bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {Array.from({ length: 10 }, (_, i) => {
+                  const year = new Date().getFullYear() - 5 + i
+                  return (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  )
+                })}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="month" className="text-sm font-medium text-gray-700">
+                Month:
+              </label>
+              <select
+                id="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                className="px-3 py-2 border-0 rounded-md bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {Array.from({ length: 12 }, (_, i) => (
+                  <option key={i} value={i}>
+                    {new Date(0, i).toLocaleString('default', { month: 'long' })}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button
+              onClick={() => {
+                const currentDate = new Date()
+                setSelectedYear(currentDate.getFullYear())
+                setSelectedMonth(currentDate.getMonth())
+              }}
+              variant="outline"
+              size="sm"
+              className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+            >
+              <Calendar className="h-4 w-4 mr-2" />
+              Current Month
+            </Button>
+          </div>
+        </div>
+
+        {/* Weekly Hours Summary */}
+        <Card className="border-2 border-gray-300 shadow-lg bg-white">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-600" />
+              Weekly Hours Summary
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-300">
+                    <th className="text-left py-2 px-3 font-medium text-gray-800 bg-gray-50 text-sm">Employee</th>
+                    <th className="text-center py-2 px-3 font-medium text-blue-800 bg-blue-50 text-sm">Monday</th>
+                    <th className="text-center py-2 px-3 font-medium text-green-800 bg-green-50 text-sm">Tuesday</th>
+                    <th className="text-center py-2 px-3 font-medium text-orange-800 bg-orange-50 text-sm">Wednesday</th>
+                    <th className="text-center py-2 px-3 font-medium text-purple-800 bg-purple-50 text-sm">Thursday</th>
+                    <th className="text-center py-2 px-3 font-medium text-indigo-800 bg-indigo-50 text-sm">Friday</th>
+                    <th className="text-center py-2 px-3 font-medium text-rose-800 bg-rose-50 text-sm">Total Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {weeklyLoading ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-gray-500">
+                        Loading weekly data...
+                      </td>
+                    </tr>
+                  ) : weeklyData.length > 0 ? (
+                    weeklyData.slice().reverse().map((week, weekIndex) => (
+                      <tr key={weekIndex} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
+                        <td className="py-2 px-3">
+                          <div className="font-medium text-gray-900 text-sm">
+                            {employeeName}
+                            <div className="text-xs text-gray-500">Week {week.weekNumber}</div>
+                          </div>
+                        </td>
+
+                        {/* Monday */}
+                        <td className="py-2 px-3 text-center">
+                          <div className="text-xs">
+                            <div className="font-medium text-blue-800">{week.monday.hours}</div>
+                            <div className="text-blue-600">{week.monday.timeIn} - {week.monday.timeOut}</div>
+                          </div>
+                        </td>
+
+                        {/* Tuesday */}
+                        <td className="py-2 px-3 text-center">
+                          <div className="text-xs">
+                            <div className="font-medium text-green-800">{week.tuesday.hours}</div>
+                            <div className="text-green-600">{week.tuesday.timeIn} - {week.tuesday.timeOut}</div>
+                          </div>
+                        </td>
+
+                        {/* Wednesday */}
+                        <td className="py-2 px-3 text-center">
+                          <div className="text-xs">
+                            <div className="font-medium text-orange-800">{week.wednesday.hours}</div>
+                            <div className="text-orange-600">{week.wednesday.timeIn} - {week.wednesday.timeOut}</div>
+                          </div>
+                        </td>
+
+                        {/* Thursday */}
+                        <td className="py-2 px-3 text-center">
+                          <div className="text-xs">
+                            <div className="font-medium text-purple-800">{week.thursday.hours}</div>
+                            <div className="text-purple-600">{week.thursday.timeIn} - {week.thursday.timeOut}</div>
+                          </div>
+                        </td>
+
+                        {/* Friday */}
+                        <td className="py-2 px-3 text-center">
+                          <div className="text-xs">
+                            <div className="font-medium text-indigo-800">{week.friday.hours}</div>
+                            <div className="text-indigo-600">{week.friday.timeIn} - {week.friday.timeOut}</div>
+                          </div>
+                        </td>
+
+                        {/* Total Hours */}
+                        <td className="py-2 px-3 text-center">
+                          {(() => {
+                            // Parse total hours to determine color
+                            const totalHoursText = week.totalHours || '0h'
+                            const hoursMatch = totalHoursText.match(/(\d+)h\s*(\d+)?m?/)
+                            const hours = hoursMatch ? parseInt(hoursMatch[1]) : 0
+                            const minutes = hoursMatch && hoursMatch[2] ? parseInt(hoursMatch[2]) : 0
+                            const totalHoursDecimal = hours + (minutes / 60)
+
+                            const isLowHours = totalHoursDecimal < 40
+
+                            return (
+                              <div className={`font-bold text-sm px-2 py-1 rounded ${
+                                isLowHours
+                                  ? 'text-red-600 bg-red-50'
+                                  : 'text-green-600 bg-green-50'
+                              }`}>
+                                {week.totalHours}
+                              </div>
+                            )
+                          })()}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-gray-500">
+                        No weekly data available
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Calendar View */}
         <Card className="border-2 border-gray-300 shadow-lg bg-white">
