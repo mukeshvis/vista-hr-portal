@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,13 +30,20 @@ interface Holiday {
   type: 'national' | 'company'
 }
 
+interface DayData {
+  timeIn: string
+  timeOut: string
+  hours: string
+  status: string
+}
+
 interface WeeklyData {
   weekNumber: number
-  monday: { timeIn: string; timeOut: string; hours: string; status: string }
-  tuesday: { timeIn: string; timeOut: string; hours: string; status: string }
-  wednesday: { timeIn: string; timeOut: string; hours: string; status: string }
-  thursday: { timeIn: string; timeOut: string; hours: string; status: string }
-  friday: { timeIn: string; timeOut: string; hours: string; status: string }
+  monday: DayData
+  tuesday: DayData
+  wednesday: DayData
+  thursday: DayData
+  friday: DayData
   totalHours: string
 }
 
@@ -53,23 +60,48 @@ export default function EmployeeAttendancePage() {
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([])
   const [loading, setLoading] = useState(true)
   const [weeklyLoading, setWeeklyLoading] = useState(true)
-  // Get holidays from localStorage or use defaults
-  const [holidays] = useState<Holiday[]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('hrPortalHolidays')
-      if (stored) {
-        return JSON.parse(stored)
+  // Get holidays from database
+  const [holidays, setHolidays] = useState<Holiday[]>([])
+
+  // Fetch holidays from database
+  const fetchHolidays = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/holidays?year=${selectedYear}`)
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('🎉 Holidays loaded:', result)
+
+        if (result.success && result.data) {
+          const formattedHolidays = result.data.map((holiday: any) => {
+            // Timezone-safe date formatting
+            const holidayDate = new Date(holiday.holiday_date)
+            const year = holidayDate.getFullYear()
+            const month = String(holidayDate.getMonth() + 1).padStart(2, '0')
+            const day = String(holidayDate.getDate()).padStart(2, '0')
+            return {
+              date: `${year}-${month}-${day}`,
+              name: holiday.holiday_name,
+              type: holiday.holiday_type
+            }
+          })
+          setHolidays(formattedHolidays)
+        }
       }
+    } catch (error) {
+      console.error('Error fetching holidays:', error)
+      // Fallback to default holidays
+      setHolidays([
+        { date: '2025-01-01', name: 'New Year', type: 'national' },
+        { date: '2025-08-14', name: 'Independence Day', type: 'national' },
+        { date: '2025-09-10', name: 'Test Holiday', type: 'national' },
+        { date: '2025-12-25', name: 'Christmas', type: 'national' }
+      ])
     }
-    return [
-      { date: '2025-01-01', name: 'New Year', type: 'national' },
-      { date: '2025-08-14', name: 'Independence Day', type: 'national' },
-      { date: '2025-12-25', name: 'Christmas', type: 'national' }
-    ]
-  })
+  }, [selectedYear])
 
   // Fetch real attendance data from API
-  const fetchAttendanceData = async () => {
+  const fetchAttendanceData = useCallback(async () => {
     try {
       setLoading(true)
 
@@ -147,8 +179,65 @@ export default function EmployeeAttendancePage() {
           return recordDate.toDateString() === targetDate.toDateString()
         })
 
-        if (dayRecords.length > 0) {
-          // Employee was present - find check in and check out times
+        // Check if this is a future date
+        const dayDate = new Date(date)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0) // Reset time for accurate comparison
+        const isFutureDate = dayDate > today
+
+        // Check if it's weekend (Saturday = 6, Sunday = 0)
+        const dayOfWeek = new Date(date).getDay()
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+
+        // Check if it's a holiday
+        const isHoliday = holidays.some(holiday => holiday.date === date)
+        const holidayInfo = holidays.find(holiday => holiday.date === date)
+
+        if (date === '2025-09-10') {
+          console.log(`🔍 Checking 2025-09-10: isHoliday=${isHoliday}, holidays:`, holidays)
+        }
+
+        // Priority check: Future > Weekend > Holiday > Present/Absent
+        if (isFutureDate) {
+          // Future date - don't count in any stats
+          processedData.push({
+            date,
+            status: 'Future' as any,
+            timeIn: '-',
+            timeOut: '-',
+            totalTime: 'Upcoming'
+          })
+        } else if (isWeekend) {
+          // Weekend - don't count in any stats
+          processedData.push({
+            date,
+            status: 'Weekend' as any,
+            timeIn: 'Weekend',
+            timeOut: 'Weekend',
+            totalTime: 'Off Day'
+          })
+        } else if (isHoliday) {
+          // Holiday - NEVER count in working days, even if employee was present
+          const checkIn = dayRecords.find((r: any) => r.state === 'Check In')
+          const checkOut = dayRecords.find((r: any) => r.state === 'Check Out')
+
+          processedData.push({
+            date,
+            status: 'Holiday' as any,
+            timeIn: checkIn ? new Date(checkIn.punch_time).toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            }) : 'Holiday',
+            timeOut: checkOut ? new Date(checkOut.punch_time).toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            }) : 'Holiday',
+            totalTime: holidayInfo?.name || 'Holiday'
+          })
+        } else if (dayRecords.length > 0) {
+          // Employee was present on a working day - find check in and check out times
           const checkIn = dayRecords.find((r: any) => r.state === 'Check In')
           const checkOut = dayRecords.find((r: any) => r.state === 'Check Out')
 
@@ -186,54 +275,11 @@ export default function EmployeeAttendancePage() {
             })() : undefined
           })
         } else {
-          // Check if this is a future date
-          const dayDate = new Date(date)
-          const today = new Date()
-          today.setHours(0, 0, 0, 0) // Reset time for accurate comparison
-          const isFutureDate = dayDate > today
-
-          // Check if it's weekend (Saturday = 6, Sunday = 0)
-          const dayOfWeek = new Date(date).getDay()
-          const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-
-          // Check if it's a holiday
-          const isHoliday = holidays.some(holiday => holiday.date === date)
-          const holidayInfo = holidays.find(holiday => holiday.date === date)
-
-          if (isFutureDate) {
-            // Future date - don't count in any stats
-            processedData.push({
-              date,
-              status: 'Future' as any,
-              timeIn: '-',
-              timeOut: '-',
-              totalTime: 'Upcoming'
-            })
-          } else if (isWeekend) {
-            // Weekend - don't count in any stats
-            processedData.push({
-              date,
-              status: 'Weekend' as any,
-              timeIn: 'Weekend',
-              timeOut: 'Weekend',
-              totalTime: 'Off Day'
-            })
-          } else if (isHoliday) {
-            // Holiday - don't count as absent
-            processedData.push({
-              date,
-              status: 'Holiday' as any,
-              timeIn: 'Holiday',
-              timeOut: 'Holiday',
-              totalTime: holidayInfo?.name || 'Holiday'
-            })
-          } else {
-            // Employee was absent on weekday
-            processedData.push({
-              date,
-              status: 'Absent'
-            })
-          }
+          // Employee was absent on weekday
+          processedData.push({
+            date,
+            status: 'Absent'
+          })
         }
       }
 
@@ -245,10 +291,10 @@ export default function EmployeeAttendancePage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedYear, selectedMonth, employeeId, holidays])
 
   // Fetch weekly attendance data from API
-  const fetchWeeklyData = async () => {
+  const fetchWeeklyData = useCallback(async () => {
     try {
       setWeeklyLoading(true)
 
@@ -284,12 +330,84 @@ export default function EmployeeAttendancePage() {
     } finally {
       setWeeklyLoading(false)
     }
+  }, [employeeId, selectedYear, selectedMonth])
+
+  // Helper function to check if a date is a holiday
+  const isHolidayDate = (dateStr: string) => {
+    return holidays.some(holiday => holiday.date === dateStr)
   }
 
+  // Helper function to get holiday name for a date
+  const getHolidayName = (dateStr: string) => {
+    const holiday = holidays.find(holiday => holiday.date === dateStr)
+    return holiday ? holiday.name : 'Holiday'
+  }
+
+  // Helper function to calculate the date for a specific day in a week
+  const calculateWeekDate = useCallback((weekNumber: number, dayOffset: number) => {
+    const firstDay = new Date(selectedYear, selectedMonth, 1)
+    const firstMonday = new Date(firstDay)
+    while (firstMonday.getDay() !== 1) {
+      firstMonday.setDate(firstMonday.getDate() + 1)
+      if (firstMonday.getMonth() !== selectedMonth) {
+        firstMonday.setDate(firstDay.getDate() - ((firstDay.getDay() + 6) % 7))
+        break
+      }
+    }
+    const targetDate = new Date(firstMonday)
+    targetDate.setDate(targetDate.getDate() + ((weekNumber - 1) * 7) + dayOffset)
+    return targetDate
+  }, [selectedYear, selectedMonth])
+
+  // Helper function to get day status and display info
+  const getDayInfo = useCallback((dayData: DayData, weekNumber: number, dayOffset: number) => {
+    const dayDate = calculateWeekDate(weekNumber, dayOffset)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const isPast = dayDate < today
+    const isFuture = dayDate > today
+    const dateStr = dayDate.toISOString().split('T')[0]
+    const isHoliday = isHolidayDate(dateStr)
+
+    // Determine status
+    let hourColor = 'text-green-800'
+    let timeColor = 'text-green-600'
+    let displayText = dayData.hours
+
+    if (dayData.timeIn === 'Holiday' && dayData.timeOut === 'Holiday') {
+      hourColor = 'text-blue-800'
+      timeColor = 'text-blue-600'
+      displayText = dayData.hours // Holiday name
+    } else if (dayData.hours === '0h' && isPast && isHoliday) {
+      hourColor = 'text-blue-800'
+      timeColor = 'text-blue-600'
+      displayText = getHolidayName(dateStr)
+    } else if (dayData.hours === '0h' && isPast) {
+      hourColor = 'text-red-800'
+      timeColor = 'text-red-600'
+      displayText = 'Absent'
+    } else if (dayData.hours === '0h' && isFuture) {
+      hourColor = 'text-orange-800'
+      timeColor = 'text-orange-600'
+    }
+
+    return { hourColor, timeColor, displayText, timeIn: dayData.timeIn, timeOut: dayData.timeOut }
+  }, [calculateWeekDate, isHolidayDate, getHolidayName])
+
+  // Load holidays first when year changes
   useEffect(() => {
-    fetchAttendanceData()
-    fetchWeeklyData()
-  }, [selectedYear, selectedMonth, employeeId])
+    fetchHolidays()
+  }, [selectedYear, fetchHolidays])
+
+  // Load attendance data when holidays are ready
+  useEffect(() => {
+    if (holidays.length > 0) {
+      fetchAttendanceData()
+      fetchWeeklyData()
+    }
+  }, [holidays, selectedMonth, employeeId, fetchAttendanceData, fetchWeeklyData])
+
+
 
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -309,6 +427,11 @@ export default function EmployeeAttendancePage() {
   const absentDays = workingDays.filter(d => d.status === 'Absent').length
   const workedDays = presentDays + lateDays
   const presentPercentage = totalDays > 0 ? (workedDays / totalDays * 100).toFixed(1) : '0'
+
+  console.log('📊 Attendance Stats:', {
+    absent: absentDays,
+    holidaysCount: attendanceData.filter(d => d.status === 'Holiday').length
+  })
 
   // Calculate total hours worked
   const totalHoursWorked = workingDays.reduce((total, day) => {
@@ -353,16 +476,18 @@ export default function EmployeeAttendancePage() {
     })
   }
 
+  // Keep all days showing actual hours (including 0h) - no "Absent" text
+
   const getDateStyle = (status: string) => {
     switch (status) {
       case 'Present':
         return 'bg-green-200 text-green-800 border border-green-300'
       case 'Late':
-        return 'bg-yellow-200 text-yellow-800 border border-yellow-300'
+        return 'bg-green-100 text-green-700 border border-green-300'
       case 'Absent':
         return 'bg-red-200 text-red-800 border border-red-300'
       case 'Weekend':
-        return 'bg-blue-200 text-blue-800 border border-blue-300'
+        return 'bg-slate-200 text-slate-800 border border-slate-300'
       case 'Holiday':
         return 'bg-orange-200 text-orange-800 border border-orange-300'
       case 'Future':
@@ -584,42 +709,67 @@ export default function EmployeeAttendancePage() {
 
                         {/* Monday */}
                         <td className="py-2 px-3 text-center">
-                          <div className="text-xs">
-                            <div className="font-medium text-blue-800">{week.monday.hours}</div>
-                            <div className="text-blue-600">{week.monday.timeIn} - {week.monday.timeOut}</div>
-                          </div>
+                          {(() => {
+                            const info = getDayInfo(week.monday, week.weekNumber, 0)
+                            return (
+                              <div className="text-xs">
+                                <div className={`font-medium ${info.hourColor}`}>{info.displayText}</div>
+                                <div className={info.timeColor}>{info.timeIn} - {info.timeOut}</div>
+                              </div>
+                            )
+                          })()}
                         </td>
 
                         {/* Tuesday */}
                         <td className="py-2 px-3 text-center">
-                          <div className="text-xs">
-                            <div className="font-medium text-green-800">{week.tuesday.hours}</div>
-                            <div className="text-green-600">{week.tuesday.timeIn} - {week.tuesday.timeOut}</div>
-                          </div>
+                          {(() => {
+                            const info = getDayInfo(week.tuesday, week.weekNumber, 1)
+                            return (
+                              <div className="text-xs">
+                                <div className={`font-medium ${info.hourColor}`}>{info.displayText}</div>
+                                <div className={info.timeColor}>{info.timeIn} - {info.timeOut}</div>
+                              </div>
+                            )
+                          })()}
                         </td>
 
                         {/* Wednesday */}
                         <td className="py-2 px-3 text-center">
-                          <div className="text-xs">
-                            <div className="font-medium text-orange-800">{week.wednesday.hours}</div>
-                            <div className="text-orange-600">{week.wednesday.timeIn} - {week.wednesday.timeOut}</div>
-                          </div>
+                          {(() => {
+                            const info = getDayInfo(week.wednesday, week.weekNumber, 2)
+                            return (
+                              <div className="text-xs">
+                                <div className={`font-medium ${info.hourColor}`}>{info.displayText}</div>
+                                <div className={info.timeColor}>{info.timeIn} - {info.timeOut}</div>
+                              </div>
+                            )
+                          })()}
                         </td>
 
                         {/* Thursday */}
                         <td className="py-2 px-3 text-center">
-                          <div className="text-xs">
-                            <div className="font-medium text-purple-800">{week.thursday.hours}</div>
-                            <div className="text-purple-600">{week.thursday.timeIn} - {week.thursday.timeOut}</div>
-                          </div>
+                          {(() => {
+                            const info = getDayInfo(week.thursday, week.weekNumber, 3)
+                            return (
+                              <div className="text-xs">
+                                <div className={`font-medium ${info.hourColor}`}>{info.displayText}</div>
+                                <div className={info.timeColor}>{info.timeIn} - {info.timeOut}</div>
+                              </div>
+                            )
+                          })()}
                         </td>
 
                         {/* Friday */}
                         <td className="py-2 px-3 text-center">
-                          <div className="text-xs">
-                            <div className="font-medium text-indigo-800">{week.friday.hours}</div>
-                            <div className="text-indigo-600">{week.friday.timeIn} - {week.friday.timeOut}</div>
-                          </div>
+                          {(() => {
+                            const info = getDayInfo(week.friday, week.weekNumber, 4)
+                            return (
+                              <div className="text-xs">
+                                <div className={`font-medium ${info.hourColor}`}>{info.displayText}</div>
+                                <div className={info.timeColor}>{info.timeIn} - {info.timeOut}</div>
+                              </div>
+                            )
+                          })()}
                         </td>
 
                         {/* Total Hours */}
@@ -631,6 +781,8 @@ export default function EmployeeAttendancePage() {
                             const hours = hoursMatch ? parseInt(hoursMatch[1]) : 0
                             const minutes = hoursMatch && hoursMatch[2] ? parseInt(hoursMatch[2]) : 0
                             const totalHoursDecimal = hours + (minutes / 60)
+
+                            // Remove the absent logic - just show the hours
 
                             const isLowHours = totalHoursDecimal < 40
 
@@ -711,12 +863,12 @@ export default function EmployeeAttendancePage() {
                     <span className="text-sm text-gray-700">Present</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded-full bg-yellow-500"></div>
-                    <span className="text-sm text-gray-700">Late</span>
-                  </div>
-                  <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded-full bg-red-500"></div>
                     <span className="text-sm text-gray-700">Absent</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-orange-500"></div>
+                    <span className="text-sm text-gray-700">Holiday</span>
                   </div>
                 </div>
               </div>

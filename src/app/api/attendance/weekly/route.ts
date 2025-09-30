@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { PrismaClient } from '@prisma/client'
+
+const prisma = new PrismaClient()
 
 interface DayData {
   timeIn: string
@@ -18,6 +21,7 @@ interface WeekData {
 }
 
 export async function POST(request: NextRequest) {
+  let prismaConnected = false
   try {
     const { employeeId, year, month } = await request.json()
 
@@ -78,8 +82,9 @@ export async function POST(request: NextRequest) {
       record.user_id === employeeId || record.user_id === parseInt(employeeId)
     )
 
-    // Calculate weekly summary
-    const weeklyData = calculateWeeklyData(employeeData, year, month)
+    // Calculate weekly summary (this will use Prisma)
+    prismaConnected = true
+    const weeklyData = await calculateWeeklyData(employeeData, year, month)
 
     return NextResponse.json({
       success: true,
@@ -92,10 +97,56 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to fetch weekly attendance data' },
       { status: 500 }
     )
+  } finally {
+    if (prismaConnected) {
+      await prisma.$disconnect()
+    }
   }
 }
 
-function calculateWeeklyData(attendanceData: any[], year: number, month: number): WeekData[] {
+async function calculateWeeklyData(attendanceData: any[], year: number, month: number): Promise<WeekData[]> {
+  // Fetch holidays for the year
+  const holidays = await prisma.holidays.findMany({
+    where: {
+      status: 1,
+      holiday_date: {
+        gte: new Date(year, 0, 1),
+        lte: new Date(year, 11, 31)
+      }
+    }
+  })
+
+  // Helper function to check if a date is a holiday (timezone-safe)
+  const isHolidayDate = (dateStr: string) => {
+    console.log(`🔍 Checking if ${dateStr} is a holiday`)
+    const isHol = holidays.some(holiday => {
+      const holidayDate = new Date(holiday.holiday_date)
+      const year = holidayDate.getFullYear()
+      const month = String(holidayDate.getMonth() + 1).padStart(2, '0')
+      const day = String(holidayDate.getDate()).padStart(2, '0')
+      const formattedDate = `${year}-${month}-${day}`
+      console.log(`📅 Comparing ${dateStr} with holiday ${formattedDate} (${holiday.holiday_name})`)
+      return formattedDate === dateStr
+    })
+    console.log(`✅ ${dateStr} is holiday: ${isHol}`)
+    return isHol
+  }
+
+  // Helper function to get holiday name (timezone-safe)
+  const getHolidayName = (dateStr: string) => {
+    console.log(`🎯 Getting holiday name for ${dateStr}`)
+    const holiday = holidays.find(holiday => {
+      const holidayDate = new Date(holiday.holiday_date)
+      const year = holidayDate.getFullYear()
+      const month = String(holidayDate.getMonth() + 1).padStart(2, '0')
+      const day = String(holidayDate.getDate()).padStart(2, '0')
+      const formattedDate = `${year}-${month}-${day}`
+      return formattedDate === dateStr
+    })
+    const name = holiday ? holiday.holiday_name : 'Holiday'
+    console.log(`🏷️ Holiday name for ${dateStr}: ${name}`)
+    return name
+  }
   const weeks: WeekData[] = []
 
   // Get the first day of the month
@@ -192,27 +243,25 @@ function calculateWeeklyData(attendanceData: any[], year: number, month: number)
           minute: '2-digit'
         })
 
-        const timeOut = sortedRecords.length > 1 ?
-          new Date(lastRecord.punch_time).toLocaleTimeString('en-US', {
+        let timeOut = '--'
+        let hoursWorked = 0
+
+        if (sortedRecords.length > 1) {
+          // Has check-out record
+          timeOut = new Date(lastRecord.punch_time).toLocaleTimeString('en-US', {
             hour12: false,
             hour: '2-digit',
             minute: '2-digit'
-          }) :
-          // If only one record, assume 8-hour day
-          new Date(new Date(firstRecord.punch_time).getTime() + 8 * 60 * 60 * 1000)
-            .toLocaleTimeString('en-US', {
-              hour12: false,
-              hour: '2-digit',
-              minute: '2-digit'
-            })
+          })
+          const timeInMs = new Date(firstRecord.punch_time).getTime()
+          const timeOutMs = new Date(lastRecord.punch_time).getTime()
+          hoursWorked = Math.max(0, (timeOutMs - timeInMs) / (1000 * 60 * 60))
+        } else {
+          // Only check-in, no check-out - mark as incomplete
+          timeOut = 'N/A'
+          hoursWorked = 0
+        }
 
-        // Calculate hours worked
-        const timeInMs = new Date(firstRecord.punch_time).getTime()
-        const timeOutMs = sortedRecords.length > 1 ?
-          new Date(lastRecord.punch_time).getTime() :
-          timeInMs + (8 * 60 * 60 * 1000) // 8 hours default
-
-        const hoursWorked = Math.max(0, (timeOutMs - timeInMs) / (1000 * 60 * 60))
         const hours = Math.floor(hoursWorked)
         const minutes = Math.round((hoursWorked - hours) * 60)
 
@@ -225,8 +274,24 @@ function calculateWeeklyData(attendanceData: any[], year: number, month: number)
         }
 
         weeklyTotalMinutes += Math.round(hoursWorked * 60)
+      } else {
+        // No attendance records for this day - check if it's a holiday
+        console.log(`🗓️ Processing ${weekdays[dayOffset]} ${dateStr} - No attendance records`)
+        if (isHolidayDate(dateStr)) {
+          // It's a holiday
+          console.log(`🎉 ${dateStr} is a holiday - setting holiday data`)
+          const dayName = weekdays[dayOffset] as keyof WeekData
+          if (dayName in weekData && typeof weekData[dayName] === 'object' && dayName !== 'weekNumber' && dayName !== 'totalHours') {
+            (weekData[dayName] as DayData).timeIn = 'Holiday';
+            (weekData[dayName] as DayData).timeOut = 'Holiday';
+            (weekData[dayName] as DayData).hours = getHolidayName(dateStr);
+            (weekData[dayName] as DayData).status = 'Holiday';
+          }
+        } else {
+          console.log(`❌ ${dateStr} is NOT a holiday - keeping as absent`)
+        }
+        // If no records and not a future date and not a holiday, keep default absent status (already set in weekData initialization)
       }
-      // If no records and not a future date, keep default absent status (already set in weekData initialization)
     }
 
     // Convert total minutes to hours

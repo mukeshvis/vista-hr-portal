@@ -374,3 +374,21 @@ model emp_empstatus {
   // Relationship - commented out until we add relation field to employee
   // employees             employee[]
 }
+
+// Holidays table for managing company holidays
+model holidays {
+  id                    Int        @id @default(autoincrement())
+  holiday_name          String     @db.VarChar(255)
+  holiday_date          DateTime   @db.Date
+  holiday_type          String     @db.VarChar(50) // 'national', 'company', 'religious', etc.
+  description           String?    @db.Text
+  is_recurring          Boolean    @default(false)
+  status                Int        @default(1)
+  created_by            String?    @db.VarChar(100)
+  created_at            DateTime   @default(now())
+  updated_at            DateTime   @updatedAt
+  company_id            Int?
+
+  @@index([holiday_date])
+  @@index([holiday_type])
+}

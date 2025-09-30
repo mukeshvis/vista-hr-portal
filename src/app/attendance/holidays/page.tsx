@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge"
 import { TopNavigation } from "@/components/top-navigation"
 import {
   Calendar,
-  Settings,
   Plus,
   ArrowLeft,
   Trash2,
@@ -19,77 +18,161 @@ import {
 } from "lucide-react"
 
 interface Holiday {
-  date: string
-  name: string
-  type: 'national' | 'company'
+  id?: number
+  holiday_date: string
+  holiday_name: string
+  holiday_type: 'national' | 'company'
+  description?: string
+  is_recurring?: boolean
+  status?: number
 }
 
 export default function HolidayManagementPage() {
   const { data: session } = useSession()
 
-  // Default holidays - avoid localStorage in initial state to prevent hydration issues
-  const [holidays, setHolidays] = useState<Holiday[]>([
-    { date: '2025-01-01', name: 'New Year', type: 'national' },
-    { date: '2025-08-14', name: 'Independence Day', type: 'national' },
-    { date: '2025-12-25', name: 'Christmas', type: 'national' }
-  ])
-
+  const [holidays, setHolidays] = useState<Holiday[]>([])
   const [editingHoliday, setEditingHoliday] = useState<{index: number, holiday: Holiday} | null>(null)
   const [showAddModal, setShowAddModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Load holidays from localStorage after component mounts
-  useEffect(() => {
-    const stored = localStorage.getItem('hrPortalHolidays')
-    if (stored) {
-      try {
-        setHolidays(JSON.parse(stored))
-      } catch (error) {
-        console.error('Error loading holidays from localStorage:', error)
+  // Load holidays from database
+  const fetchHolidays = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      const response = await fetch('/api/holidays')
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch holidays')
       }
-    }
-  }, [])
 
-  // Save holidays to localStorage whenever holidays change
-  useEffect(() => {
-    localStorage.setItem('hrPortalHolidays', JSON.stringify(holidays))
-  }, [holidays])
-
-  const addHoliday = () => {
-    const date = (document.getElementById('modalHolidayDate') as HTMLInputElement)?.value
-    const name = (document.getElementById('modalHolidayName') as HTMLInputElement)?.value
-    const type = (document.getElementById('modalHolidayType') as HTMLSelectElement)?.value as 'national' | 'company'
-
-    if (date && name) {
-      const newHoliday = { date, name, type }
-      setHolidays([...holidays, newHoliday].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()))
-
-      // Clear inputs and close modal
-      ;(document.getElementById('modalHolidayDate') as HTMLInputElement).value = ''
-      ;(document.getElementById('modalHolidayName') as HTMLInputElement).value = ''
-      setShowAddModal(false)
+      const data = await response.json()
+      if (data.success) {
+        setHolidays(data.data)
+      } else {
+        throw new Error(data.error || 'Failed to fetch holidays')
+      }
+    } catch (error) {
+      console.error('Error fetching holidays:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load holidays')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const removeHoliday = (index: number) => {
-    setHolidays(holidays.filter((_, i) => i !== index))
+  // Load holidays on component mount
+  useEffect(() => {
+    fetchHolidays()
+  }, [])
+
+  const addHoliday = async () => {
+    const date = (document.getElementById('modalHolidayDate') as HTMLInputElement)?.value
+    const name = (document.getElementById('modalHolidayName') as HTMLInputElement)?.value
+    const type = (document.getElementById('modalHolidayType') as HTMLSelectElement)?.value as 'national' | 'company'
+    const description = (document.getElementById('modalHolidayDescription') as HTMLInputElement)?.value
+
+    if (date && name) {
+      try {
+        const response = await fetch('/api/holidays', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            holiday_name: name,
+            holiday_date: date,
+            holiday_type: type,
+            description: description || null,
+            created_by: session?.user?.name || 'user'
+          })
+        })
+
+        const data = await response.json()
+
+        if (data.success) {
+          // Refresh holidays list
+          await fetchHolidays()
+
+          // Clear inputs and close modal
+          ;(document.getElementById('modalHolidayDate') as HTMLInputElement).value = ''
+          ;(document.getElementById('modalHolidayName') as HTMLInputElement).value = ''
+          ;(document.getElementById('modalHolidayDescription') as HTMLInputElement).value = ''
+          setShowAddModal(false)
+        } else {
+          setError(data.error || 'Failed to create holiday')
+        }
+      } catch (error) {
+        console.error('Error creating holiday:', error)
+        setError('Failed to create holiday')
+      }
+    }
+  }
+
+  const removeHoliday = async (index: number) => {
+    const holiday = holidays[index]
+    if (!holiday.id) return
+
+    try {
+      const response = await fetch(`/api/holidays?id=${holiday.id}`, {
+        method: 'DELETE'
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        // Refresh holidays list
+        await fetchHolidays()
+      } else {
+        setError(data.error || 'Failed to delete holiday')
+      }
+    } catch (error) {
+      console.error('Error deleting holiday:', error)
+      setError('Failed to delete holiday')
+    }
   }
 
   const editHoliday = (index: number) => {
     setEditingHoliday({ index, holiday: holidays[index] })
   }
 
-  const updateHoliday = () => {
+  const updateHoliday = async () => {
     if (editingHoliday) {
       const date = (document.getElementById('editHolidayDate') as HTMLInputElement)?.value
       const name = (document.getElementById('editHolidayName') as HTMLInputElement)?.value
       const type = (document.getElementById('editHolidayType') as HTMLSelectElement)?.value as 'national' | 'company'
+      const description = (document.getElementById('editHolidayDescription') as HTMLInputElement)?.value
 
-      if (date && name) {
-        const updatedHolidays = [...holidays]
-        updatedHolidays[editingHoliday.index] = { date, name, type }
-        setHolidays(updatedHolidays.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()))
-        setEditingHoliday(null)
+      if (date && name && editingHoliday.holiday.id) {
+        try {
+          const response = await fetch('/api/holidays', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              id: editingHoliday.holiday.id,
+              holiday_name: name,
+              holiday_date: date,
+              holiday_type: type,
+              description: description || null
+            })
+          })
+
+          const data = await response.json()
+
+          if (data.success) {
+            // Refresh holidays list
+            await fetchHolidays()
+            setEditingHoliday(null)
+          } else {
+            setError(data.error || 'Failed to update holiday')
+          }
+        } catch (error) {
+          console.error('Error updating holiday:', error)
+          setError('Failed to update holiday')
+        }
       }
     }
   }
@@ -100,9 +183,9 @@ export default function HolidayManagementPage() {
 
   // Filter holidays based on search term
   const filteredHolidays = holidays.filter(holiday =>
-    holiday.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    holiday.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    holiday.date.includes(searchTerm)
+    holiday.holiday_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    holiday.holiday_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    holiday.holiday_date.includes(searchTerm)
   )
 
 
@@ -209,6 +292,15 @@ export default function HolidayManagementPage() {
                     <option value="company">Company Holiday</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Description (Optional)</label>
+                  <input
+                    type="text"
+                    id="modalHolidayDescription"
+                    placeholder="Enter holiday description"
+                    className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white focus:border-green-500 focus:ring-1 focus:ring-green-200 transition-all"
+                  />
+                </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <Button
                     variant="outline"
@@ -255,7 +347,7 @@ export default function HolidayManagementPage() {
                   <input
                     type="date"
                     id="editHolidayDate"
-                    defaultValue={editingHoliday.holiday.date}
+                    defaultValue={editingHoliday.holiday.holiday_date}
                     className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 transition-all"
                   />
                 </div>
@@ -264,7 +356,7 @@ export default function HolidayManagementPage() {
                   <input
                     type="text"
                     id="editHolidayName"
-                    defaultValue={editingHoliday.holiday.name}
+                    defaultValue={editingHoliday.holiday.holiday_name}
                     placeholder="Enter holiday name"
                     className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 transition-all"
                   />
@@ -273,12 +365,22 @@ export default function HolidayManagementPage() {
                   <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
                   <select
                     id="editHolidayType"
-                    defaultValue={editingHoliday.holiday.type}
+                    defaultValue={editingHoliday.holiday.holiday_type}
                     className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 transition-all"
                   >
                     <option value="national">National Holiday</option>
                     <option value="company">Company Holiday</option>
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Description (Optional)</label>
+                  <input
+                    type="text"
+                    id="editHolidayDescription"
+                    defaultValue={editingHoliday.holiday.description || ''}
+                    placeholder="Enter holiday description"
+                    className="w-full border border-gray-200 rounded-md px-2 py-1.5 text-sm bg-white focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 transition-all"
+                  />
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <Button
@@ -300,10 +402,38 @@ export default function HolidayManagementPage() {
           </div>
         )}
 
+        {/* Error Display */}
+        {error && (
+          <Card className="border border-red-300 shadow-md bg-red-50">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2 text-red-700">
+                <X className="h-4 w-4" />
+                <span className="text-sm font-medium">{error}</span>
+                <Button
+                  onClick={() => setError(null)}
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto p-1 h-6 w-6"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Holidays Table */}
         <Card className="border border-gray-300 shadow-md bg-white">
           <CardContent className="p-3">
-            {filteredHolidays.length > 0 ? (
+            {loading ? (
+              <div className="py-8 text-center">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm animate-pulse">
+                  <Calendar className="h-6 w-6 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">Loading holidays...</h3>
+                <p className="text-sm text-gray-600">Please wait while we fetch the holiday data.</p>
+              </div>
+            ) : filteredHolidays.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
                   <thead>
@@ -317,28 +447,31 @@ export default function HolidayManagementPage() {
                   <tbody>
                     {filteredHolidays.map((holiday, index) => {
                       // Find the original index in the holidays array for proper editing/deleting
-                      const originalIndex = holidays.findIndex(h => h.date === holiday.date && h.name === holiday.name)
+                      const originalIndex = holidays.findIndex(h => h.holiday_date === holiday.holiday_date && h.holiday_name === holiday.holiday_name)
                       // Simple date formatting
-                      const [year, month, day] = holiday.date.split('-')
+                      const [year, month, day] = holiday.holiday_date.split('-')
                       const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
                         'July', 'August', 'September', 'October', 'November', 'December']
                       const formattedDate = `${parseInt(day)} ${monthNames[parseInt(month) - 1]} ${year}`
 
                       return (
-                        <tr key={index} className="border-b border-gray-300 hover:bg-gray-50 transition-colors">
+                        <tr key={holiday.id || index} className="border-b border-gray-300 hover:bg-gray-50 transition-colors">
                           <td className="py-2 px-3">
-                            <div className="font-medium text-gray-900 text-sm">{holiday.name}</div>
+                            <div className="font-medium text-gray-900 text-sm">{holiday.holiday_name}</div>
+                            {holiday.description && (
+                              <div className="text-xs text-gray-500 mt-1">{holiday.description}</div>
+                            )}
                           </td>
                           <td className="py-2 px-3">
                             <Badge
-                              variant={holiday.type === 'national' ? 'default' : 'secondary'}
+                              variant={holiday.holiday_type === 'national' ? 'default' : 'secondary'}
                               className={`px-2 py-0.5 text-xs font-medium ${
-                                holiday.type === 'national'
+                                holiday.holiday_type === 'national'
                                   ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
                                   : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                               }`}
                             >
-                              {holiday.type === 'national' ? 'National' : 'Company'}
+                              {holiday.holiday_type === 'national' ? 'National' : 'Company'}
                             </Badge>
                           </td>
                           <td className="py-2 px-3">
