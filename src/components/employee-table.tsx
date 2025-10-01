@@ -54,7 +54,9 @@ interface EmployeeProfile {
   address: string
   permanentAddress: string
   maritalStatus: string
+  maritalStatusId: number
   employmentStatus: string
+  employmentStatusId: number
   nationality: string
   cnic: string
   bankAccount: string
@@ -149,7 +151,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         employmentStatusResponse,
         employeeResponse
       ] = await Promise.all([
-        fetch('/api/designations'),
+        fetch('/api/designations?forSelect=true'),
         fetch('/api/employees/managers'),
         fetch('/api/marital-status'),
         fetch('/api/employment-status?forSelect=true'),
@@ -159,8 +161,11 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
       // Process all responses
       if (designationResponse.ok) {
         const designationsData = await designationResponse.json()
+        console.log('✅ Designations API Response:', designationsData)
         console.log('✅ Designations loaded:', designationsData.length, 'items')
         setDesignations(designationsData)
+      } else {
+        console.error('❌ Designations API failed:', designationResponse.status)
       }
 
       if (managersResponse.ok) {
@@ -211,17 +216,48 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
     const requiredFields = [
       { field: 'name', label: 'Employee Name' },
       { field: 'email', label: 'Email' },
-      { field: 'salary', label: 'Monthly Salary' }
+      { field: 'phone', label: 'Phone Number' },
+      { field: 'designationId', label: 'Designation' },
+      { field: 'departmentId', label: 'Department' },
+      { field: 'joiningDate', label: 'Joining Date' },
+      { field: 'salary', label: 'Monthly Salary' },
+      { field: 'gender', label: 'Gender' },
+      { field: 'address', label: 'Residential Address' },
+      { field: 'permanentAddress', label: 'Permanent Address' },
+      { field: 'maritalStatusId', label: 'Marital Status' },
+      { field: 'employmentStatusId', label: 'Employment Type' },
+      { field: 'nationality', label: 'Nationality' },
+      { field: 'cnic', label: 'CNIC' },
+      { field: 'fatherName', label: 'Father Name' },
+      { field: 'dateOfBirth', label: 'Date of Birth' }
     ]
 
     // Check each required field
     for (const { field, label } of requiredFields) {
       const value = editData[field as keyof EmployeeProfile]
 
-      if (!value || (typeof value === 'string' && value.trim() === '') || value === 0) {
-        setErrorMessage(`${label} is required. Please fill in this field.`)
-        setShowErrorPopup(true)
-        return
+      // Special handling for different field types
+      if (field === 'maritalStatusId' || field === 'employmentStatusId' || field === 'designationId' || field === 'departmentId') {
+        // For ID fields, check if it's null, undefined, or empty string
+        if (value === null || value === undefined || value === '') {
+          setErrorMessage(`${label} is required. Please fill in this field.`)
+          setShowErrorPopup(true)
+          return
+        }
+      } else if (field === 'salary') {
+        // For salary, check if it's <= 0
+        if (!value || Number(value) <= 0) {
+          setErrorMessage(`${label} is required. Please fill in this field.`)
+          setShowErrorPopup(true)
+          return
+        }
+      } else {
+        // For string fields
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          setErrorMessage(`${label} is required. Please fill in this field.`)
+          setShowErrorPopup(true)
+          return
+        }
       }
     }
 
@@ -478,8 +514,8 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       <Label htmlFor="employmentStatus">Employment Type</Label>
                       <SearchableSelect
                         options={employmentStatuses}
-                        value={editData.employmentStatus}
-                        onValueChange={(value) => handleInputChange('employmentStatus', value)}
+                        value={editData.employmentStatusId?.toString() || ''}
+                        onValueChange={(value) => handleInputChange('employmentStatusId', value)}
                         placeholder="Select employment type..."
                         searchPlaceholder="Search employment types..."
                       />
@@ -593,7 +629,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                             <div className="max-h-48 overflow-y-auto">
                               {designations
                                 .filter(option =>
-                                  option.label.toLowerCase().includes(designationSearch.toLowerCase())
+                                  option?.label?.toLowerCase().includes(designationSearch.toLowerCase())
                                 )
                                 .map((option) => (
                                 <div
@@ -634,7 +670,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                               ))}
 
                               {designations.filter(option =>
-                                option.label.toLowerCase().includes(designationSearch.toLowerCase())
+                                option?.label?.toLowerCase().includes(designationSearch.toLowerCase())
                               ).length === 0 && (
                                 <div className="px-3 py-2 text-gray-500 text-sm bg-white">
                                   No designations found

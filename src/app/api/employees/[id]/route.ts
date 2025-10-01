@@ -345,7 +345,7 @@ export async function PUT(
           residential_address = ${updateData.address || 'N/A'},
           permanent_address = ${updateData.permanentAddress || 'N/A'},
           emp_marital_status = ${maritalStatusId},
-          emp_employementstatus_id = ${updateData.employmentStatus ? parseInt(updateData.employmentStatus) : null},
+          emp_employementstatus_id = ${updateData.employmentStatusId ? parseInt(updateData.employmentStatusId.toString()) : null},
           nationality = ${updateData.nationality || 'N/A'},
           emp_cnic = ${updateData.cnic || 'N/A'},
           emp_cnic_expiry_date = ${formattedCnicExpiryDate},
