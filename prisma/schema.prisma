@@ -7,78 +7,60 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Essential User Authentication Model
-model User {
+model attendance {
+  id                 Int       @id @default(autoincrement())
+  emp_id             String?   @db.VarChar(50)
+  attendance_date    DateTime? @db.Date
+  day                String?   @db.VarChar(10)
+  month              String?   @db.VarChar(10)
+  year               String?   @db.VarChar(10)
+  clock_in           String?   @db.VarChar(20)
+  clock_out          String?   @db.VarChar(20)
+  work_remotely      Int?
+  neglect_attendance String?   @default("no") @db.VarChar(20)
+  neglect_early      String?   @default("no") @db.VarChar(20)
+  late               String?   @db.VarChar(10)
+  absent             String?   @db.VarChar(10)
+  status             Int?      @default(1)
+  remarks            String?   @db.Text
+  username           String?   @db.VarChar(50)
+  date               DateTime? @db.Date
+  time               DateTime? @db.Time(0)
+}
+
+model department {
   id              Int      @id @default(autoincrement())
-  emp_id          String?  @db.VarChar(50)
-  acc_type        String   @db.VarChar(50)
-  name            String?  @db.VarChar(255)
-  username        String   @db.VarChar(255)
-  email           String   @db.VarChar(60)
-  password        String   @db.VarChar(60)
-  identity        String?  @db.VarChar(200)
-  password_status Int?     @default(0)
+  department_name String   @db.VarChar(100)
   status          Int      @default(1)
-  remember_token  String   @db.VarChar(60)
-  timestamps      DateTime @default(now()) @db.Timestamp(0)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Date
-  createdAt       DateTime @map("created_at") @db.Date
-  company_id      Int
-  dbName          String   @db.VarChar(255)
-  role_no         String   @db.VarChar(50)
-
-  // NextAuth.js relations
-  accounts Account[]
-  sessions Session[]
-
-  @@map("users")
+  username        String   @db.LongText
+  date            DateTime @db.Date
+  time            String   @db.VarChar(12)
+  branch_id       Int
 }
 
-// NextAuth.js required models
-model Account {
-  id                String  @id @default(cuid())
-  userId            Int     @map("user_id")
-  type              String
-  provider          String
-  providerAccountId String  @map("provider_account_id")
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
+model designation {
+  id               Int      @id @default(autoincrement())
+  designation_name String   @db.VarChar(100)
+  status           Int      @default(1)
+  username         String   @db.VarChar(100)
+  date             DateTime @db.Date
+  time             String   @db.VarChar(50)
 }
 
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique @map("session_token")
-  userId       Int      @map("user_id")
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
+model emp_empstatus {
+  id            Int      @id @default(autoincrement())
+  job_type_name String   @db.VarChar(255)
+  status        Int      @default(1)
+  username      String   @db.VarChar(150)
+  date          DateTime @db.Date
+  time          String   @db.VarChar(15)
+  company_id    Int
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-  @@map("verificationtokens")
-}
-
-// Core HR Models - Essential for HR Portal
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model employee {
   id                       Int       @id @default(autoincrement())
   leaves_policy_id         Int
-  leavePolicy              leave_policy @relation(fields: [leaves_policy_id], references: [id])
   active                   Int       @default(1)
   eobi_id                  Int       @default(0)
   provident_fund_id        Int?
@@ -92,12 +74,8 @@ model employee {
   emp_name                 String    @db.VarChar(100)
   emp_father_name          String    @db.VarChar(100)
   working_hours_policy_id  Int?
-  workingHoursPolicy       working_hours_policy? @relation(fields: [working_hours_policy_id], references: [id])
   reporting_manager        Int?
-  reportingManager         employee? @relation("EmployeeReportsTo", fields: [reporting_manager], references: [id])
-  subordinates             employee[] @relation("EmployeeReportsTo")
   emp_department_id        Int
-  empDepartment            department @relation(fields: [emp_department_id], references: [id])
   employee_project_id      Int?
   emp_grade_id             Int?
   emp_date_of_birth        DateTime  @db.Date
@@ -154,40 +132,67 @@ model employee {
   @@index([emp_no], map: "emr_no")
 }
 
-model department {
-  id              Int        @id @default(autoincrement())
-  department_name String     @db.VarChar(100)
-  status          Int        @default(1)
-  username        String     @db.LongText
-  date            DateTime   @db.Date
-  time            String     @db.VarChar(12)
-  branch_id       Int
-
-  // Relationship
-  employees       employee[]
+model grades {
+  id                  Int       @id @default(autoincrement())
+  company_id          Int?
+  category            String?   @db.VarChar(100)
+  designation_id      Int?
+  employee_grade_type String?   @db.VarChar(100)
+  status              Int?      @default(1)
+  username            String?   @db.VarChar(100)
+  date                DateTime? @db.Date
+  time                String?   @db.VarChar(50)
 }
 
-model attendance {
-  id                 Int       @id @default(autoincrement())
-  emp_id             String?   @db.VarChar(50)
-  attendance_date    DateTime? @db.Date
-  day                String?   @db.VarChar(10)
-  month              String?   @db.VarChar(10)
-  year               String?   @db.VarChar(10)
-  clock_in           String?   @db.VarChar(20)
-  clock_out          String?   @db.VarChar(20)
-  work_remotely      Int?
-  neglect_attendance String?   @default("no") @db.VarChar(20)
-  neglect_early      String?   @default("no") @db.VarChar(20)
-  late               String?   @db.VarChar(10)
-  absent             String?   @db.VarChar(10)
-  status             Int?      @default(1)
-  remarks            String?   @db.Text
-  username           String?   @db.VarChar(50)
-  date               DateTime? @db.Date
-  time               DateTime? @db.Time(0)
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model holidays {
+  id           Int      @id @default(autoincrement())
+  holiday_name String   @db.VarChar(255)
+  holiday_date DateTime @db.Date
+  holiday_type String   @db.VarChar(50)
+  description  String?  @db.Text
+  is_recurring Boolean  @default(false)
+  status       Int      @default(1)
+  created_by   String?  @db.VarChar(100)
+  created_at   DateTime @default(now()) @db.DateTime(0)
+  updated_at   DateTime @default(now()) @db.DateTime(0)
+  company_id   Int?
+
+  @@index([holiday_date], map: "idx_holiday_date")
+  @@index([holiday_type], map: "idx_holiday_type")
 }
 
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model leaves_policy {
+  id                      Int?
+  leaves_policy_name      String? @db.Text
+  policy_date_from        String? @db.Text
+  policy_date_till        String? @db.Text
+  total_leaves            Int?
+  fullday_deduction_rate  Float?
+  halfday_deduction_rate  Float?
+  per_hour_deduction_rate Float?
+  terms_conditions        String? @db.Text
+  username                String? @db.Text
+  company_id              Int?
+  status                  Int?
+  time                    String? @db.Text
+  date                    String? @db.Text
+
+  @@ignore
+}
+
+model marital_status {
+  id                  Int      @id @default(autoincrement())
+  marital_status_name String   @db.VarChar(100)
+  status              Int      @default(1)
+  username            String   @db.LongText
+  date                DateTime @db.Date
+  time                String   @db.VarChar(12)
+  company_id          Int
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
 model payroll_data {
   id                      Int       @id @default(autoincrement())
   emp_id                  String?   @db.VarChar(50)
@@ -278,117 +283,38 @@ model payslip {
   payable_salary           Int?
 }
 
-
-// Designation table for mapping designation_id
-model designation {
-  id                Int      @id @default(autoincrement())
-  designation_name  String   @db.VarChar(100)
-  status           Int      @default(1)
-  username         String   @db.VarChar(100)
-  date             DateTime @db.Date
-  time             String   @db.VarChar(50)
+model users {
+  id              Int      @id @default(autoincrement())
+  emp_id          String?  @db.VarChar(50)
+  acc_type        String   @db.VarChar(50)
+  name            String?  @db.VarChar(255)
+  username        String   @db.VarChar(255)
+  email           String   @db.VarChar(60)
+  password        String   @db.VarChar(60)
+  identity        String?  @db.VarChar(200)
+  password_status Int?     @default(0)
+  status          Int      @default(1)
+  remember_token  String   @db.VarChar(60)
+  timestamps      DateTime @default(now()) @db.Timestamp(0)
+  updated_at      DateTime @db.Date
+  created_at      DateTime @db.Date
+  company_id      Int
+  dbName          String   @db.VarChar(255)
+  role_no         String   @db.VarChar(50)
 }
 
-// Grades table for mapping emp_grade_id
-model grades {
-  id                   Int      @id @default(autoincrement())
-  employee_grade_type  String?  @db.VarChar(100)
-  category             String?  @db.VarChar(100)
-  company_id           Int?
-  designation_id       Int?
-  status               Int?     @default(1)
-  username             String?  @db.VarChar(100)
-  date                 DateTime? @db.Date
-  time                 String?  @db.VarChar(50)
-}
-
-// Working Hours Policy table for mapping working_hours_policy_id
 model working_hours_policy {
-  id                    Int        @id @default(autoincrement())
-  policy_name           String     @db.VarChar(100)
-  start_time            String     @db.VarChar(10)
-  end_time              String     @db.VarChar(10)
-  break_start_time      String?    @db.VarChar(10)
-  break_end_time        String?    @db.VarChar(10)
-  total_hours           Decimal    @db.Decimal(4, 2)
-  break_duration        Int?       @default(0)
-  late_arrival_grace    Int?       @default(0)
-  early_departure_grace Int?       @default(0)
-  overtime_rate         Decimal?   @db.Decimal(5, 2)
-  weekend_days          String?    @db.VarChar(20)
-  status                Int        @default(1)
-  created_by            String?    @db.VarChar(100)
-  date                  DateTime   @db.Date
-  time                  String     @db.VarChar(50)
-
-  // Relationship
-  employees             employee[]
-}
-
-// Leave Policy table for mapping leaves_policy_id
-model leave_policy {
-  id                    Int        @id @default(autoincrement())
-  policy_name           String     @db.VarChar(100)
-  annual_leave_days     Int        @default(0)
-  emergency_leave_days  Int        @default(0)
-  medical_leave_days    Int        @default(0)
-  maternity_leave_days  Int        @default(0)
-  paternity_leave_days  Int        @default(0)
-  casual_leave_days     Int        @default(0)
-  carry_forward_limit   Int        @default(0)
-  encashment_allowed    Int        @default(0)
-  probation_leave_days  Int        @default(0)
-  status                Int        @default(1)
-  created_by            String?    @db.VarChar(100)
-  date                  DateTime   @db.Date
-  time                  String     @db.VarChar(50)
-
-  // Relationship
-  employees             employee[]
-}
-
-// Marital Status table for mapping emp_marital_status
-model marital_status {
-  id                    Int        @id @default(autoincrement())
-  marital_status_name   String     @db.VarChar(100)
-  status                Int        @default(1)
-  username              String     @db.LongText
-  date                  DateTime   @db.Date
-  time                  String     @db.VarChar(12)
-  company_id            Int
-
-  // Relationship - commented out until we add relation field to employee
-  // employees             employee[]
-}
-
-// Employment Status table for mapping emp_employementstatus_id
-model emp_empstatus {
-  id                    Int        @id @default(autoincrement())
-  job_type_name         String     @db.VarChar(100)
-  status                Int        @default(1)
-  username              String     @db.LongText
-  date                  DateTime   @db.Date
-  time                  String     @db.VarChar(12)
-  company_id            Int
-
-  // Relationship - commented out until we add relation field to employee
-  // employees             employee[]
-}
-
-// Holidays table for managing company holidays
-model holidays {
-  id                    Int        @id @default(autoincrement())
-  holiday_name          String     @db.VarChar(255)
-  holiday_date          DateTime   @db.Date
-  holiday_type          String     @db.VarChar(50) // 'national', 'company', 'religious', etc.
-  description           String?    @db.Text
-  is_recurring          Boolean    @default(false)
-  status                Int        @default(1)
-  created_by            String?    @db.VarChar(100)
-  created_at            DateTime   @default(now())
-  updated_at            DateTime   @updatedAt
-  company_id            Int?
-
-  @@index([holiday_date])
-  @@index([holiday_type])
+  id                        Int      @id @default(autoincrement())
+  company_id                Int?
+  working_hours_policy      String   @db.Text
+  repoting_time             String?  @db.VarChar(100)
+  deduction_amount_late_day Int?
+  start_working_hours_time  String   @db.VarChar(30)
+  end_working_hours_time    String   @db.VarChar(30)
+  working_hours_grace_time  Int
+  half_day_time             String   @db.VarChar(30)
+  username                  String   @db.VarChar(150)
+  date                      DateTime @db.Date
+  time                      String   @db.VarChar(30)
+  status                    Int      @default(1)
 }

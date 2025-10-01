@@ -139,8 +139,8 @@ export default function EmployeeAttendancePage() {
       }
 
       const apiData = await response.json()
-      console.log('API Response:', apiData)
-      console.log('API Data type:', typeof apiData, 'Is array:', Array.isArray(apiData))
+      console.log('✅ API Response received')
+      console.log('📊 Total records in response:', Array.isArray(apiData) ? apiData.length : (apiData.data ? apiData.data.length : 0))
 
       // Handle different API response structures
       let attendanceRecords = []
@@ -155,14 +155,24 @@ export default function EmployeeAttendancePage() {
         )
       }
 
-      console.log('Attendance records:', attendanceRecords)
-
       // Filter data for this specific employee using pin_auto (employeeId)
       const employeeAttendance = attendanceRecords.filter((record: any) =>
         record.user_id && record.user_id.toString() === employeeId.toString()
       )
 
-      console.log('Filtered employee attendance:', employeeAttendance)
+      console.log('👤 Employee attendance records:', employeeAttendance.length)
+
+      // Check specifically for October 1st
+      const oct1 = employeeAttendance.filter((r: any) => {
+        if (!r.punch_time) return false
+        const d = new Date(r.punch_time).toISOString().split('T')[0]
+        return d === '2025-10-01'
+      })
+      if (oct1.length > 0) {
+        console.log('🎯 Oct 1st check-ins found:', oct1)
+      } else {
+        console.log('❌ No Oct 1st check-ins for this employee')
+      }
 
       // Convert API data to our format
       const processedData: AttendanceData[] = []
@@ -174,16 +184,39 @@ export default function EmployeeAttendancePage() {
         // Find attendance records for this date
         const dayRecords = employeeAttendance.filter((record: any) => {
           if (!record.punch_time) return false
-          const recordDate = new Date(record.punch_time)
-          const targetDate = new Date(date)
-          return recordDate.toDateString() === targetDate.toDateString()
+
+          // Parse the punch_time string which is in format "2025-10-01 09:01:00 AM"
+          const punchTimeStr = record.punch_time
+          const recordDateStr = punchTimeStr.split(' ')[0] // Get "2025-10-01"
+
+          const match = recordDateStr === date
+          if (date === '2025-10-01' && match) {
+            console.log('✅ Oct 1st record MATCHED!', record)
+          }
+          return match
         })
+
+        if (date === '2025-10-01') {
+          console.log(`🔍 Processing Oct 1st: dayRecords.length = ${dayRecords.length}`)
+        }
 
         // Check if this is a future date
         const dayDate = new Date(date)
         const today = new Date()
         today.setHours(0, 0, 0, 0) // Reset time for accurate comparison
+
+        // Also reset dayDate to midnight for fair comparison
+        dayDate.setHours(0, 0, 0, 0)
+
         const isFutureDate = dayDate > today
+
+        if (date === '2025-10-01') {
+          console.log('📅 Date comparison:', {
+            dayDate: dayDate.toISOString(),
+            today: today.toISOString(),
+            isFuture: dayDate > today
+          })
+        }
 
         // Check if it's weekend (Saturday = 6, Sunday = 0)
         const dayOfWeek = new Date(date).getDay()
@@ -193,13 +226,20 @@ export default function EmployeeAttendancePage() {
         const isHoliday = holidays.some(holiday => holiday.date === date)
         const holidayInfo = holidays.find(holiday => holiday.date === date)
 
-        if (date === '2025-09-10') {
-          console.log(`🔍 Checking 2025-09-10: isHoliday=${isHoliday}, holidays:`, holidays)
+        if (date === '2025-10-01') {
+          console.log(`🔍 Oct 1st conditions:`, {
+            isFutureDate,
+            isWeekend,
+            dayOfWeek,
+            isHoliday,
+            dayRecordsLength: dayRecords.length
+          })
         }
 
         // Priority check: Future > Weekend > Holiday > Present/Absent
         if (isFutureDate) {
           // Future date - don't count in any stats
+          if (date === '2025-10-01') console.log('❌ Oct 1st marked as FUTURE')
           processedData.push({
             date,
             status: 'Future' as any,
@@ -209,6 +249,7 @@ export default function EmployeeAttendancePage() {
           })
         } else if (isWeekend) {
           // Weekend - don't count in any stats
+          if (date === '2025-10-01') console.log('❌ Oct 1st marked as WEEKEND')
           processedData.push({
             date,
             status: 'Weekend' as any,
@@ -217,6 +258,7 @@ export default function EmployeeAttendancePage() {
             totalTime: 'Off Day'
           })
         } else if (isHoliday) {
+          if (date === '2025-10-01') console.log('❌ Oct 1st marked as HOLIDAY')
           // Holiday - NEVER count in working days, even if employee was present
           const checkIn = dayRecords.find((r: any) => r.state === 'Check In')
           const checkOut = dayRecords.find((r: any) => r.state === 'Check Out')
@@ -238,6 +280,7 @@ export default function EmployeeAttendancePage() {
           })
         } else if (dayRecords.length > 0) {
           // Employee was present on a working day - find check in and check out times
+          if (date === '2025-10-01') console.log('✅ Oct 1st going to PRESENT logic')
           const checkIn = dayRecords.find((r: any) => r.state === 'Check In')
           const checkOut = dayRecords.find((r: any) => r.state === 'Check Out')
 
@@ -276,11 +319,22 @@ export default function EmployeeAttendancePage() {
           })
         } else {
           // Employee was absent on weekday
+          if (date === '2025-10-01') console.log('❌ Oct 1st marked as ABSENT')
           processedData.push({
             date,
             status: 'Absent'
           })
         }
+      }
+
+      console.log('✅ Processed attendance data:', processedData.length, 'days')
+
+      // Check Oct 1st specifically
+      const oct1Data = processedData.find(d => d.date === '2025-10-01')
+      if (oct1Data) {
+        console.log('🎯 Oct 1st in calendar:', oct1Data)
+      } else {
+        console.log('❌ Oct 1st NOT in processed data!')
       }
 
       setAttendanceData(processedData)
@@ -298,6 +352,8 @@ export default function EmployeeAttendancePage() {
     try {
       setWeeklyLoading(true)
 
+      console.log('🔍 Fetching weekly data for:', { employeeId, year: selectedYear, month: selectedMonth })
+
       const response = await fetch('/api/attendance/weekly', {
         method: 'POST',
         headers: {
@@ -310,12 +366,15 @@ export default function EmployeeAttendancePage() {
         })
       })
 
+      console.log('📡 Weekly API Response Status:', response.status)
+
       if (!response.ok) {
+        console.error('❌ Weekly API failed with status:', response.status)
         throw new Error('Failed to fetch weekly attendance data')
       }
 
       const result = await response.json()
-      console.log('Weekly API Response:', result)
+      console.log('✅ Weekly API Response:', result)
 
       if (result.success && result.data) {
         setWeeklyData(result.data)
@@ -394,18 +453,17 @@ export default function EmployeeAttendancePage() {
     return { hourColor, timeColor, displayText, timeIn: dayData.timeIn, timeOut: dayData.timeOut }
   }, [calculateWeekDate, isHolidayDate, getHolidayName])
 
-  // Load holidays first when year changes
+  // Load holidays and attendance data together
   useEffect(() => {
-    fetchHolidays()
-  }, [selectedYear, fetchHolidays])
-
-  // Load attendance data when holidays are ready
-  useEffect(() => {
-    if (holidays.length > 0) {
+    const loadData = async () => {
+      await fetchHolidays()
+      // Always fetch attendance, don't wait for holidays to have data
       fetchAttendanceData()
       fetchWeeklyData()
     }
-  }, [holidays, selectedMonth, employeeId, fetchAttendanceData, fetchWeeklyData])
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear, selectedMonth, employeeId])
 
 
 
@@ -429,8 +487,13 @@ export default function EmployeeAttendancePage() {
   const presentPercentage = totalDays > 0 ? (workedDays / totalDays * 100).toFixed(1) : '0'
 
   console.log('📊 Attendance Stats:', {
+    totalRecords: attendanceData.length,
     absent: absentDays,
-    holidaysCount: attendanceData.filter(d => d.status === 'Holiday').length
+    present: presentDays,
+    late: lateDays,
+    holidaysCount: attendanceData.filter(d => d.status === 'Holiday').length,
+    weekends: attendanceData.filter(d => d.status === 'Weekend').length,
+    loading: loading
   })
 
   // Calculate total hours worked

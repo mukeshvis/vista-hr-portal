@@ -21,6 +21,7 @@ const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "text-blue-500" },
   { name: "Employees", href: "/employees", icon: Users, color: "text-green-500" },
   { name: "Attendance", href: "/attendance", icon: Clock, color: "text-orange-500" },
+  { name: "Working Hours", href: "/working-hours", icon: Clock, color: "text-orange-600" },
   { name: "Payroll", href: "/payroll", icon: DollarSign, color: "text-emerald-500" },
   { name: "Leaves", href: "/leaves", icon: Calendar, color: "text-purple-500" },
   { name: "Reports", href: "/reports", icon: FileText, color: "text-red-500" },

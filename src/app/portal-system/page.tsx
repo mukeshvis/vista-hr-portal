@@ -10,7 +10,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select"
 import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { GraduationCap, Plus, Search, Edit, Trash2, Building2 } from "lucide-react"
+import { GraduationCap, Plus, Search, Edit, Trash2, Building2, Clock } from "lucide-react"
 
 interface PortalSystemProps {}
 
@@ -42,6 +42,20 @@ interface Designation {
 
 interface NewDesignation {
   designation_name: string
+}
+
+interface WorkingHoursPolicy {
+  id: number
+  working_hours_policy: string
+  start_working_hours_time: string
+  end_working_hours_time: string
+  status: number
+}
+
+interface NewWorkingHoursPolicy {
+  working_hours_policy: string
+  start_working_hours_time: string
+  end_working_hours_time: string
 }
 
 export default function PortalSystemPage() {
@@ -82,6 +96,21 @@ export default function PortalSystemPage() {
   const [isDesignationDialogOpen, setIsDesignationDialogOpen] = useState(false)
   const [isEditDesignationDialogOpen, setIsEditDesignationDialogOpen] = useState(false)
   const [editingDesignation, setEditingDesignation] = useState<Designation | null>(null)
+
+  // Working Hours Policy State
+  const [workingHoursPolicies, setWorkingHoursPolicies] = useState<WorkingHoursPolicy[]>([])
+  const [filteredPolicies, setFilteredPolicies] = useState<WorkingHoursPolicy[]>([])
+  const [policySearchTerm, setPolicySearchTerm] = useState('')
+  const [isLoadingPolicies, setIsLoadingPolicies] = useState(false)
+  const [newPolicy, setNewPolicy] = useState<NewWorkingHoursPolicy>({
+    working_hours_policy: '',
+    start_working_hours_time: '',
+    end_working_hours_time: ''
+  })
+  const [isAddingPolicy, setIsAddingPolicy] = useState(false)
+  const [isPolicyDialogOpen, setIsPolicyDialogOpen] = useState(false)
+  const [isEditPolicyDialogOpen, setIsEditPolicyDialogOpen] = useState(false)
+  const [editingPolicy, setEditingPolicy] = useState<WorkingHoursPolicy | null>(null)
 
   // Confirmation Dialog State
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
@@ -547,6 +576,194 @@ export default function PortalSystemPage() {
     }
   }
 
+  // Fetch working hours policies
+  const fetchWorkingHoursPolicies = useCallback(async () => {
+    try {
+      setIsLoadingPolicies(true)
+      const response = await fetch('/api/working-hours')
+      console.log('📡 API Response status:', response.status)
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('📦 API Response data:', result)
+        const data = result.data || []
+        setWorkingHoursPolicies(data)
+        setFilteredPolicies(data)
+        console.log('✅ Working hours policies loaded:', data.length)
+      } else {
+        const errorText = await response.text()
+        console.error('❌ Failed to fetch working hours policies. Status:', response.status, 'Error:', errorText)
+        setWorkingHoursPolicies([])
+        setFilteredPolicies([])
+      }
+    } catch (error) {
+      console.error('❌ Error fetching working hours policies:', error)
+      setWorkingHoursPolicies([])
+      setFilteredPolicies([])
+    } finally {
+      setIsLoadingPolicies(false)
+    }
+  }, [])
+
+  // Handle policy search
+  const handlePolicySearch = (value: string) => {
+    setPolicySearchTerm(value)
+    if (value.trim() === '') {
+      setFilteredPolicies(workingHoursPolicies)
+    } else {
+      const filtered = workingHoursPolicies.filter(policy =>
+        policy.working_hours_policy.toLowerCase().includes(value.toLowerCase())
+      )
+      setFilteredPolicies(filtered)
+    }
+  }
+
+  // Handle policy input changes
+  const handlePolicyInputChange = (field: keyof NewWorkingHoursPolicy, value: string) => {
+    setNewPolicy(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Handle add working hours policy
+  const handleAddPolicy = async () => {
+    if (!newPolicy.working_hours_policy || newPolicy.working_hours_policy.trim() === '') {
+      setErrorMessage('Policy name is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    try {
+      setIsAddingPolicy(true)
+
+      const response = await fetch('/api/working-hours', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          working_hours_policy: newPolicy.working_hours_policy.trim(),
+        }),
+      })
+
+      if (response.ok) {
+        setSuccessMessage(`Policy "${newPolicy.working_hours_policy}" added successfully!`)
+        setShowSuccessPopup(true)
+
+        setIsPolicyDialogOpen(false)
+        setNewPolicy({
+          working_hours_policy: '',
+          start_working_hours_time: '',
+          end_working_hours_time: ''
+        })
+        fetchWorkingHoursPolicies()
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(errorData.error || 'Failed to add policy')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error adding policy:', error)
+      setErrorMessage('Something went wrong while adding policy')
+      setShowErrorPopup(true)
+    } finally {
+      setIsAddingPolicy(false)
+    }
+  }
+
+  // Handle edit policy
+  const handleEditPolicy = (policy: WorkingHoursPolicy) => {
+    setEditingPolicy(policy)
+    setNewPolicy({
+      working_hours_policy: policy.working_hours_policy,
+      start_working_hours_time: policy.start_working_hours_time,
+      end_working_hours_time: policy.end_working_hours_time
+    })
+    setIsEditPolicyDialogOpen(true)
+  }
+
+  // Handle update policy
+  const handleUpdatePolicy = async () => {
+    if (!editingPolicy) return
+
+    if (!newPolicy.working_hours_policy || newPolicy.working_hours_policy.trim() === '') {
+      setErrorMessage('Policy name is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    try {
+      setIsAddingPolicy(true)
+
+      const response = await fetch('/api/working-hours', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: editingPolicy.id,
+          working_hours_policy: newPolicy.working_hours_policy.trim(),
+        }),
+      })
+
+      if (response.ok) {
+        setSuccessMessage(`Policy "${newPolicy.working_hours_policy}" updated successfully!`)
+        setShowSuccessPopup(true)
+
+        setIsEditPolicyDialogOpen(false)
+        setEditingPolicy(null)
+        setNewPolicy({
+          working_hours_policy: '',
+          start_working_hours_time: '',
+          end_working_hours_time: ''
+        })
+        fetchWorkingHoursPolicies()
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(errorData.error || 'Failed to update policy')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error updating policy:', error)
+      setErrorMessage('Something went wrong while updating policy')
+      setShowErrorPopup(true)
+    } finally {
+      setIsAddingPolicy(false)
+    }
+  }
+
+  // Handle delete policy
+  const handleDeletePolicy = (policyId: number, policyName: string) => {
+    showConfirmDialog(
+      'Delete Working Hours Policy',
+      `Are you sure you want to delete the policy "${policyName}"? This action cannot be undone.`,
+      () => performDeletePolicy(policyId),
+      'Delete',
+      'Cancel'
+    )
+  }
+
+  // Perform actual policy deletion
+  const performDeletePolicy = async (policyId: number) => {
+    try {
+      const response = await fetch(`/api/working-hours?id=${policyId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        setSuccessMessage('Policy deleted successfully!')
+        setShowSuccessPopup(true)
+        fetchWorkingHoursPolicies()
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(errorData.error || 'Failed to delete policy')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error deleting policy:', error)
+      setErrorMessage('Something went wrong while deleting policy')
+      setShowErrorPopup(true)
+    }
+  }
+
   // Load data on component mount
   useEffect(() => {
     fetchDesignations()
@@ -554,7 +771,10 @@ export default function PortalSystemPage() {
     if (activeTab === 'designations') {
       fetchDesignationsData()
     }
-  }, [fetchDesignations, fetchGrades, fetchDesignationsData, activeTab])
+    if (activeTab === 'working-hours') {
+      fetchWorkingHoursPolicies()
+    }
+  }, [fetchDesignations, fetchGrades, fetchDesignationsData, fetchWorkingHoursPolicies, activeTab])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -589,6 +809,20 @@ export default function PortalSystemPage() {
               >
                 <Building2 className="h-5 w-5 inline mr-2" />
                 Designations Management
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('working-hours')
+                  fetchWorkingHoursPolicies() // Load policies when tab is clicked
+                }}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'working-hours'
+                    ? 'border-emerald-500 text-emerald-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <Clock className="h-5 w-5 inline mr-2" />
+                Working Hours Policy
               </button>
             </nav>
           </div>
@@ -819,6 +1053,108 @@ export default function PortalSystemPage() {
                         <td colSpan={4} className="px-6 py-8 text-center">
                           <div className="text-gray-500">
                             {designationSearchTerm ? 'No designations found matching your search.' : 'No designations available. Add your first designation!'}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Working Hours Policy Tab Content */}
+        {activeTab === 'working-hours' && (
+          <div className="space-y-6">
+            {/* Search and Add Section */}
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  placeholder="Search policies..."
+                  value={policySearchTerm}
+                  onChange={(e) => handlePolicySearch(e.target.value)}
+                  className="pl-10 pr-28"
+                />
+                <Button
+                  onClick={() => setIsPolicyDialogOpen(true)}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-emerald-600 hover:bg-emerald-700 h-7 px-3 text-xs"
+                  size="sm"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Policy
+                </Button>
+              </div>
+            </div>
+
+            {/* Policies Table */}
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-300">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        ID
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Policy Name
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-300">
+                    {isLoadingPolicies ? (
+                      <tr>
+                        <td colSpan={3} className="px-6 py-8 text-center">
+                          <div className="flex items-center justify-center space-x-2 text-gray-500">
+                            <div className="animate-spin rounded-full h-6 w-6 border-2 border-emerald-500 border-t-transparent"></div>
+                            <span>Loading policies...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredPolicies.length > 0 ? (
+                      filteredPolicies.map((policy) => (
+                        <tr key={policy.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {policy.id}
+                            </div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {policy.working_hours_policy}
+                            </div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex justify-end space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditPolicy(policy)}
+                                className="text-emerald-600 hover:text-emerald-800"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeletePolicy(policy.id, policy.working_hours_policy)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={3} className="px-6 py-8 text-center">
+                          <div className="text-gray-500">
+                            {policySearchTerm ? 'No policies found matching your search.' : 'No policies available. Add your first policy!'}
                           </div>
                         </td>
                       </tr>
@@ -1062,6 +1398,98 @@ export default function PortalSystemPage() {
                     setEditingDesignation(null)
                     setNewDesignation({
                       designation_name: ''
+                    })
+                  }}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Working Hours Policy Dialog */}
+        <Dialog open={isPolicyDialogOpen} onOpenChange={setIsPolicyDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-emerald-600" />
+                Add New Working Hours Policy
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                {/* Policy Name */}
+                <Label htmlFor="working_hours_policy">Policy Name *</Label>
+                <Input
+                  id="working_hours_policy"
+                  value={newPolicy.working_hours_policy}
+                  onChange={(e) => handlePolicyInputChange('working_hours_policy', e.target.value)}
+                  placeholder="e.g., Standard Shift, Night Shift"
+                  required
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={handleAddPolicy}
+                  disabled={isAddingPolicy}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {isAddingPolicy ? 'Adding...' : 'Add Policy'}
+                </Button>
+                <Button
+                  onClick={() => setIsPolicyDialogOpen(false)}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Working Hours Policy Dialog */}
+        <Dialog open={isEditPolicyDialogOpen} onOpenChange={setIsEditPolicyDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit className="h-5 w-5 text-emerald-600" />
+                Edit Working Hours Policy
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div>
+                {/* Policy Name */}
+                <Label htmlFor="edit-working_hours_policy">Policy Name *</Label>
+                <Input
+                  id="edit-working_hours_policy"
+                  value={newPolicy.working_hours_policy}
+                  onChange={(e) => handlePolicyInputChange('working_hours_policy', e.target.value)}
+                  placeholder="e.g., Standard Shift, Night Shift"
+                  required
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={handleUpdatePolicy}
+                  disabled={isAddingPolicy}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {isAddingPolicy ? 'Updating...' : 'Update Policy'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setIsEditPolicyDialogOpen(false)
+                    setEditingPolicy(null)
+                    setNewPolicy({
+                      working_hours_policy: '',
+                      start_working_hours_time: '',
+                      end_working_hours_time: ''
                     })
                   }}
                   variant="outline"

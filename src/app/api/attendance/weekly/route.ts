@@ -153,19 +153,15 @@ async function calculateWeeklyData(attendanceData: any[], year: number, month: n
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
 
-  // Find the first Monday that's either in the month or the Monday of the week containing the first day
+  // Find the Monday of the week that contains the first day of the month
+  // This ensures we capture partial weeks at the start of the month
   let currentDate = new Date(firstDay)
+  const firstDayOfWeek = currentDate.getDay()
 
-  // If the first day is not Monday, go to the first Monday of the month
-  while (currentDate.getDay() !== 1) {
-    currentDate.setDate(currentDate.getDate() + 1)
-    // If we go beyond the month while looking for Monday, go back to previous Monday
-    if (currentDate.getMonth() !== month) {
-      currentDate = new Date(firstDay)
-      const daysFromMonday = (currentDate.getDay() + 6) % 7
-      currentDate.setDate(currentDate.getDate() - daysFromMonday)
-      break
-    }
+  // If first day is not Monday (1), go back to the Monday of that week
+  if (firstDayOfWeek !== 1) {
+    const daysToGoBack = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1 // Sunday = 0, so go back 6 days
+    currentDate.setDate(currentDate.getDate() - daysToGoBack)
   }
 
   console.log(`Month ${month + 1}/${year}: First day is ${firstDay.toDateString()}, starting from Monday: ${currentDate.toDateString()}`)
