@@ -23,17 +23,12 @@ export async function GET() {
     ` as CountResult[]
 
     // Get today's attendance statistics from user_attendance table
-    const today = new Date()
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
-
-    // Get distinct employees who checked in today
+    // Use DATE() to compare dates in database's local timezone
     const presentToday = await prisma.$queryRaw`
       SELECT COUNT(DISTINCT user_id) as count
       FROM user_attendance
       WHERE state = 'Check In'
-      AND punch_time >= ${todayStart}
-      AND punch_time <= ${todayEnd}
+      AND DATE(punch_time) = CURDATE()
     ` as CountResult[]
 
     // Get departments count and list from department table (all departments)

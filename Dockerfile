@@ -38,6 +38,13 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
+# Set timezone to Asia/Karachi (Pakistan)
+ENV TZ=Asia/Karachi
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/Asia/Karachi /etc/localtime && \
+    echo "Asia/Karachi" > /etc/timezone && \
+    apk del tzdata
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
