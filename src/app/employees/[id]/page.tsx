@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -60,6 +61,7 @@ interface EmployeeProfile {
 }
 
 export default function EmployeeProfilePage() {
+  const { data: session } = useSession()
   const params = useParams()
   const router = useRouter()
   const [employee, setEmployee] = useState<EmployeeProfile | null>(null)
@@ -117,7 +119,7 @@ export default function EmployeeProfilePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <TopNavigation session={null} />
+        <TopNavigation session={session} />
         <main className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -133,7 +135,7 @@ export default function EmployeeProfilePage() {
   if (error || !employee) {
     return (
       <div className="min-h-screen bg-background">
-        <TopNavigation session={null} />
+        <TopNavigation session={session} />
         <main className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -360,14 +362,7 @@ export default function EmployeeProfilePage() {
                   <Clock className="h-4 w-4 text-indigo-500" />
                   <div>
                     <p className="text-sm text-muted-foreground">Working Hours Policy</p>
-                    <p className="font-medium">
-                      {employee.workingHoursPolicy === '1' && 'Operations Division (G2 to G4)'}
-                      {employee.workingHoursPolicy === '2' && 'Operations Division (G2 to G4) --2'}
-                      {employee.workingHoursPolicy === '3' && 'Rating Division (G3 to G5)'}
-                      {employee.workingHoursPolicy === '4' && 'All Division (G6)'}
-                      {employee.workingHoursPolicy === '5' && 'All Division (G7)'}
-                      {!['1', '2', '3', '4', '5'].includes(employee.workingHoursPolicy) && employee.workingHoursPolicy}
-                    </p>
+                    <p className="font-medium">{employee.workingHoursPolicy}</p>
                   </div>
                 </div>
               )}

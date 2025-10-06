@@ -1,10 +1,10 @@
 import { prisma } from "../prisma"
-import { User } from "@prisma/client"
+import { users } from "@prisma/client"
 import bcrypt from "bcryptjs"
 
-export async function getUserByEmail(email: string): Promise<User | null> {
+export async function getUserByEmail(email: string): Promise<users | null> {
   try {
-    const user = await prisma.user.findFirst({
+    const user = await prisma.users.findFirst({
       where: {
         email,
         status: 1, // Only active users
@@ -17,9 +17,9 @@ export async function getUserByEmail(email: string): Promise<User | null> {
   }
 }
 
-export async function getUserByUsername(username: string): Promise<User | null> {
+export async function getUserByUsername(username: string): Promise<users | null> {
   try {
-    const user = await prisma.user.findFirst({
+    const user = await prisma.users.findFirst({
       where: {
         username,
         status: 1, // Only active users
@@ -32,9 +32,9 @@ export async function getUserByUsername(username: string): Promise<User | null> 
   }
 }
 
-export async function getUserById(id: number): Promise<User | null> {
+export async function getUserById(id: number): Promise<users | null> {
   try {
-    const user = await prisma.user.findUnique({
+    const user = await prisma.users.findUnique({
       where: {
         id,
       },
@@ -49,10 +49,12 @@ export async function getUserById(id: number): Promise<User | null> {
 export async function validateUserCredentials(
   usernameOrEmail: string,
   password: string
-): Promise<User | null> {
+): Promise<users | null> {
   try {
+    console.log('🔍 Looking up user:', usernameOrEmail)
+
     // First find the user by username or email
-    const user = await prisma.user.findFirst({
+    const user = await prisma.users.findFirst({
       where: {
         OR: [
           { username: usernameOrEmail },
@@ -63,16 +65,36 @@ export async function validateUserCredentials(
     })
 
     if (!user) {
+      console.log('❌ No active user found with username/email:', usernameOrEmail)
+
+      // Check if user exists but is inactive
+      const inactiveUser = await prisma.users.findFirst({
+        where: {
+          OR: [
+            { username: usernameOrEmail },
+            { email: usernameOrEmail }
+          ],
+        },
+      })
+
+      if (inactiveUser) {
+        console.log('⚠️ User exists but status is:', inactiveUser.status)
+      }
+
       return null
     }
+
+    console.log('✅ User found:', user.username, 'with status:', user.status)
 
     // Check if password matches using bcrypt
     const isPasswordValid = await bcrypt.compare(password, user.password)
 
     if (isPasswordValid) {
+      console.log('✅ Password is valid')
       return user
     }
 
+    console.log('❌ Password is invalid')
     return null
   } catch (error) {
     console.error("Error validating user credentials:", error)
@@ -90,17 +112,17 @@ export async function hashPassword(password: string): Promise<string> {
   }
 }
 
-export async function getAllUsers(): Promise<User[]> {
+export async function getAllUsers(): Promise<users[]> {
   try {
-    const users = await prisma.user.findMany({
+    const allUsers = await prisma.users.findMany({
       where: {
         status: 1, // Only active users
       },
       orderBy: {
-        createdAt: "desc",
+        created_at: "desc",
       },
     })
-    return users
+    return allUsers
   } catch (error) {
     console.error("Error fetching all users:", error)
     return []

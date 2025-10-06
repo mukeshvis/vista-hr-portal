@@ -72,13 +72,15 @@ export async function GET(
         e.username,
         e.working_hours_policy_id,
         e.leaves_policy_id,
-        COALESCE(lp.leaves_policy_name, 'N/A') as leave_policy_name
+        COALESCE(lp.leaves_policy_name, 'N/A') as leave_policy_name,
+        COALESCE(whp.working_hours_policy, 'N/A') as working_hours_policy_name
       FROM employee e
       LEFT JOIN designation d ON e.designation_id = d.id
       LEFT JOIN department dept ON e.emp_department_id = dept.id
       LEFT JOIN employee rm ON e.reporting_manager = rm.id
       LEFT JOIN grades g ON e.emp_grade_id = g.id
       LEFT JOIN leaves_policy lp ON e.leaves_policy_id = lp.id
+      LEFT JOIN working_hours_policy whp ON e.working_hours_policy_id = whp.id
       LEFT JOIN marital_status ms ON e.emp_marital_status = ms.id
       LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
       WHERE e.id = ${employeeId}
@@ -138,7 +140,8 @@ export async function GET(
       professionalEmail: employeeData.professionalEmail || 'N/A',
       branch: employeeData.branch || 'N/A',
       username: employeeData.username || 'N/A',
-      workingHoursPolicy: employeeData.working_hours_policy_id ? employeeData.working_hours_policy_id.toString() : 'N/A',
+      workingHoursPolicy: employeeData.working_hours_policy_name || 'N/A',
+      workingHoursPolicyId: employeeData.working_hours_policy_id || null,
       leavePolicy: employeeData.leave_policy_name || 'N/A',
       grade: employeeData.grade_name || 'N/A'
     }
@@ -337,7 +340,7 @@ export async function PUT(
           emp_department_id = ${Number(departmentId) || null},
           reporting_manager = ${Number(updateData.reportingManagerId) || null},
           emp_grade_id = ${gradeId},
-          working_hours_policy_id = ${updateData.workingHoursPolicy ? parseInt(updateData.workingHoursPolicy) : null},
+          working_hours_policy_id = ${updateData.workingHoursPolicyId ? parseInt(updateData.workingHoursPolicyId.toString()) : null},
           leaves_policy_id = ${leavePolicyId},
           emp_salary = ${Number(updateData.salary)},
           active = ${updateData.status === 'Active' ? 1 : 0},
@@ -404,13 +407,15 @@ export async function PUT(
           e.username,
           e.working_hours_policy_id,
           e.leaves_policy_id,
-          COALESCE(lp.leaves_policy_name, 'N/A') as leave_policy_name
+          COALESCE(lp.leaves_policy_name, 'N/A') as leave_policy_name,
+          COALESCE(whp.working_hours_policy, 'N/A') as working_hours_policy_name
         FROM employee e
         LEFT JOIN designation d ON e.designation_id = d.id
         LEFT JOIN department dept ON e.emp_department_id = dept.id
         LEFT JOIN employee rm ON e.reporting_manager = rm.id
         LEFT JOIN grades g ON e.emp_grade_id = g.id
         LEFT JOIN leaves_policy lp ON e.leaves_policy_id = lp.id
+        LEFT JOIN working_hours_policy whp ON e.working_hours_policy_id = whp.id
         LEFT JOIN marital_status ms ON e.emp_marital_status = ms.id
         LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
         WHERE e.id = ${employeeId}
@@ -467,7 +472,8 @@ export async function PUT(
       professionalEmail: employeeData.professionalEmail || 'N/A',
       branch: employeeData.branch || 'N/A',
       username: employeeData.username || 'N/A',
-      workingHoursPolicy: employeeData.working_hours_policy_id ? employeeData.working_hours_policy_id.toString() : 'N/A',
+      workingHoursPolicy: employeeData.working_hours_policy_name || 'N/A',
+      workingHoursPolicyId: employeeData.working_hours_policy_id || null,
       leavePolicy: employeeData.leave_policy_name || 'N/A',
       grade: employeeData.grade_name || 'N/A'
     }

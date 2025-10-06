@@ -77,16 +77,17 @@ export default function AttendancePage() {
   }
 
   // Fetch attendance logs for both start and end date
-  const fetchAttendanceLogs = async (date: string) => {
+  const fetchAttendanceLogs = async (date: string, forceRefresh = false) => {
     try {
       const formattedDate = formatDateForAPI(date)
 
-      console.log(`Fetching attendance for date:`, date)
+      console.log(`Fetching attendance for date:`, date, `(force_refresh: ${forceRefresh})`)
       console.log(`Formatted date for API:`, formattedDate)
 
       const requestBody = {
         start_date: formattedDate,
-        end_date: formattedDate
+        end_date: formattedDate,
+        force_refresh: forceRefresh
       }
 
       console.log(`Sending POST request body:`, requestBody)
@@ -101,7 +102,7 @@ export default function AttendancePage() {
 
       if (response.ok) {
         const result = await response.json()
-        console.log(`Attendance logs response:`, result)
+        console.log(`Attendance logs response (source: ${result.source}):`, result)
         return result.data || []
       } else {
         console.error(`Failed to fetch attendance logs:`, response.status, response.statusText)
@@ -179,21 +180,43 @@ export default function AttendancePage() {
   const extractTime = (punchTime: string) => {
     if (!punchTime) return '--'
     try {
-      // Format: "2025-09-25 05:11:00 PM"
-      const timePart = punchTime.split(' ').slice(1).join(' ') // "05:11:00 PM"
-      return timePart
+      // Handle both formats:
+      // 1. Database format: "2025-10-06 08:30:15" (24-hour)
+      // 2. API format: "2025-09-25 05:11:00 PM" (12-hour with AM/PM)
+
+      const parts = punchTime.split(' ')
+
+      if (parts.length >= 2) {
+        const timePart = parts[1] // "08:30:15" or "05:11:00"
+        const ampm = parts[2] // "PM" or undefined
+
+        if (ampm) {
+          // Already has AM/PM, return as is
+          return `${timePart} ${ampm}`
+        } else {
+          // Convert 24-hour to 12-hour format with AM/PM
+          const [hours, minutes, seconds] = timePart.split(':')
+          let hour = parseInt(hours)
+          const period = hour >= 12 ? 'PM' : 'AM'
+          hour = hour % 12 || 12 // Convert 0 to 12 for midnight
+          return `${String(hour).padStart(2, '0')}:${minutes}:${seconds} ${period}`
+        }
+      }
+
+      return '--'
     } catch {
       return '--'
     }
   }
 
   // Fetch employees data and attendance logs
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (forceRefresh = false) => {
     try {
       setLoading(true)
 
       console.log('=== Starting attendance fetch ===')
       console.log('Current selectedDate:', selectedDate)
+      console.log('Force refresh:', forceRefresh)
       console.log('Today\'s date:', new Date().toISOString().split('T')[0])
 
       // Fetch employees
@@ -209,7 +232,7 @@ export default function AttendancePage() {
       setEmployees(employeesData)
 
       // Fetch attendance logs for selected date
-      const attendanceLogs = await fetchAttendanceLogs(selectedDate)
+      const attendanceLogs = await fetchAttendanceLogs(selectedDate, forceRefresh)
 
       console.log('Total attendance logs count:', attendanceLogs.length)
       console.log('Attendance logs:', attendanceLogs)
@@ -385,7 +408,7 @@ export default function AttendancePage() {
                 </div>
                 <Button
                   className="bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
-                  onClick={fetchEmployees}
+                  onClick={() => fetchEmployees(false)}
                   disabled={loading}
                 >
                   {loading ? 'Loading...' : 'Refresh'}

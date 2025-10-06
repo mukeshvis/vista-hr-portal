@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
     const employees = await prisma.$queryRaw`
       SELECT
         e.id,
+        e.emp_id,
         e.emp_name as name,
         e.designation_id,
         e.emp_gender as gender,
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
     // Transform the data to match the expected format (simplified for faster loading)
     const formattedEmployees = employees.map(emp => ({
       id: emp.id.toString(),
+      empId: emp.emp_id,
       name: emp.name,
       designation: emp.designation,
       group: emp.group_level,

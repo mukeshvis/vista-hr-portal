@@ -26,6 +26,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select"
 
 interface Employee {
   id: string
+  empId?: string
   name: string
   designation: string
   group: string
@@ -72,6 +73,7 @@ interface EmployeeProfile {
   username: string
   grade: string
   workingHoursPolicy: string
+  workingHoursPolicyId?: number | null
   leavePolicy: string
 }
 
@@ -100,6 +102,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
   const managerRef = useRef<HTMLDivElement>(null)
   const [maritalStatusOptions, setMaritalStatusOptions] = useState<{id: number, name: string}[]>([])
   const [employmentStatuses, setEmploymentStatuses] = useState<{value: string, label: string}[]>([])
+  const [workingHoursPolicies, setWorkingHoursPolicies] = useState<{id: number, name: string}[]>([])
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [showErrorPopup, setShowErrorPopup] = useState(false)
@@ -149,12 +152,14 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         managersResponse,
         maritalStatusResponse,
         employmentStatusResponse,
+        workingHoursPolicyResponse,
         employeeResponse
       ] = await Promise.all([
         fetch('/api/designations?forSelect=true'),
         fetch('/api/employees/managers'),
         fetch('/api/marital-status'),
         fetch('/api/employment-status?forSelect=true'),
+        fetch('/api/working-hours'),
         fetch(`/api/employees/${employeeId}`)
       ])
 
@@ -184,6 +189,16 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         const employmentStatusData = await employmentStatusResponse.json()
         console.log('✅ Employment status options loaded:', employmentStatusData.length, 'items')
         setEmploymentStatuses(employmentStatusData)
+      }
+
+      if (workingHoursPolicyResponse.ok) {
+        const workingHoursData = await workingHoursPolicyResponse.json()
+        console.log('✅ Working hours policies loaded:', workingHoursData.data?.length || 0, 'items')
+        const policies = workingHoursData.data?.map((policy: any) => ({
+          id: policy.id,
+          name: policy.working_hours_policy
+        })) || []
+        setWorkingHoursPolicies(policies)
       }
 
       if (employeeResponse.ok) {
@@ -377,7 +392,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                     <span className="font-medium">{employee.name}</span>
                   </div>
                 </TableCell>
-                <TableCell className="py-2">{employee.id}</TableCell>
+                <TableCell className="py-2">{employee.empId || employee.id}</TableCell>
                 <TableCell className="py-2">{employee.designation}</TableCell>
                 <TableCell className="py-2">{employee.group}</TableCell>
                 <TableCell className="py-2">
@@ -734,22 +749,16 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                     <div>
                       <Label htmlFor="workingHoursPolicy">Working Hours Policy</Label>
                       <Select
-                        value={editData.workingHoursPolicy || ''}
-                        onValueChange={(value) => handleInputChange('workingHoursPolicy', value)}
+                        value={editData.workingHoursPolicyId?.toString() || ''}
+                        onValueChange={(value) => handleInputChange('workingHoursPolicyId', parseInt(value))}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select working hours policy..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white">
-                          {[
-                            { value: '1', label: 'Operations Division (G2 to G4)' },
-                            { value: '2', label: 'Operations Division (G2 to G4) --2' },
-                            { value: '3', label: 'Rating Division (G3 to G5)' },
-                            { value: '4', label: 'All Division (G6)' },
-                            { value: '5', label: 'All Division (G7)' }
-                          ].map((policy) => (
-                            <SelectItem key={policy.value} value={policy.value} className="bg-white hover:bg-gray-100">
-                              {policy.label}
+                          {workingHoursPolicies.map((policy) => (
+                            <SelectItem key={policy.id} value={policy.id.toString()} className="bg-white hover:bg-gray-100">
+                              {policy.name}
                             </SelectItem>
                           ))}
                         </SelectContent>

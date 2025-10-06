@@ -318,3 +318,31 @@ model working_hours_policy {
   time                      String   @db.VarChar(30)
   status                    Int      @default(1)
 }
+
+model user_attendance {
+  id           Int      @id @default(autoincrement())
+  user_id      String   @db.VarChar(50)
+  state        String   @db.VarChar(20)  // 'Check In' or 'Check Out'
+  punch_time   DateTime @db.DateTime
+  verify_mode  String?  @db.VarChar(50)
+  source       String?  @db.VarChar(50)  // 'external_api' or 'manual'
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@index([user_id])
+  @@index([punch_time])
+  @@index([state])
+}
+
+model external_employees {
+  id           Int      @id @default(autoincrement())
+  pin_manual   String?  @db.VarChar(50)
+  pin_auto     String   @unique @db.VarChar(50)
+  user_name    String   @db.VarChar(255)
+  password     String?  @db.VarChar(255)
+  privilege    String?  @db.VarChar(50)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@index([pin_auto])
+}

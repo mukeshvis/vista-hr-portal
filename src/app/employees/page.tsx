@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from 'next-auth/react'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { TopNavigation } from "@/components/top-navigation"
@@ -19,6 +20,7 @@ import { Search, Plus, User, Building, CreditCard } from "lucide-react"
 
 interface Employee {
   id: string
+  empId?: string
   name: string
   designation: string
   group: string
@@ -87,15 +89,6 @@ const gradeOptions = [
   'President & CEO'
 ]
 
-// Working Hours Policy options
-const workingHoursPolicyOptions = [
-  { value: '1', label: 'Operations Division (G2 to G4)' },
-  { value: '2', label: 'Operations Division (G2 to G4) --2' },
-  { value: '3', label: 'Rating Division (G3 to G5)' },
-  { value: '4', label: 'All Division (G6)' },
-  { value: '5', label: 'All Division (G7)' }
-]
-
 // Department options
 const departmentOptions = [
   'Rating Division',
@@ -139,6 +132,7 @@ function useDebounce(value: string, delay: number) {
 }
 
 export default function EmployeesPage() {
+  const { data: session } = useSession()
   const [allEmployees, setAllEmployees] = useState<Employee[]>([]) // All employees from API
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]) // Filtered by search
   const [displayedEmployees, setDisplayedEmployees] = useState<Employee[]>([]) // Current page
@@ -151,6 +145,7 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<EmployeeOption[]>([]) // Employees for reporting manager dropdown
   const [maritalStatusOptions, setMaritalStatusOptions] = useState<{id: number, name: string}[]>([]) // Marital status options from API
   const [employmentStatuses, setEmploymentStatuses] = useState<{value: string, label: string}[]>([]) // Employment status options from API
+  const [workingHoursPolicies, setWorkingHoursPolicies] = useState<{id: number, name: string}[]>([]) // Working hours policies from API
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [showErrorPopup, setShowErrorPopup] = useState(false)
@@ -275,6 +270,29 @@ export default function EmployeesPage() {
     }
   }, [])
 
+  // Fetch working hours policies
+  const fetchWorkingHoursPolicies = useCallback(async () => {
+    try {
+      console.log('🔄 Fetching working hours policies...')
+      const response = await fetch('/api/working-hours')
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Working hours policies fetched:', data.data?.length || 0, 'policies')
+        const policies = data.data?.map((policy: any) => ({
+          id: policy.id,
+          name: policy.working_hours_policy
+        })) || []
+        setWorkingHoursPolicies(policies)
+      } else {
+        console.error('Failed to fetch working hours policies')
+        setWorkingHoursPolicies([])
+      }
+    } catch (error) {
+      console.error('Error fetching working hours policies:', error)
+      setWorkingHoursPolicies([])
+    }
+  }, [])
+
   // Fetch employees for reporting manager dropdown
   const fetchEmployeesForReporting = useCallback(async () => {
     try {
@@ -367,8 +385,9 @@ export default function EmployeesPage() {
     fetchDesignations()
     fetchMaritalStatus()
     fetchEmploymentStatuses()
+    fetchWorkingHoursPolicies()
     fetchEmployeesForReporting()
-  }, [fetchAllEmployees, fetchDesignations, fetchMaritalStatus, fetchEmploymentStatuses, fetchEmployeesForReporting])
+  }, [fetchAllEmployees, fetchDesignations, fetchMaritalStatus, fetchEmploymentStatuses, fetchWorkingHoursPolicies, fetchEmployeesForReporting])
 
   // Handle page changes
   const handlePageChange = (page: number) => {
@@ -664,7 +683,7 @@ export default function EmployeesPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNavigation session={null} />
+      <TopNavigation session={session} />
 
       <main className="container mx-auto px-6 py-6">
         {/* Header Section */}
@@ -977,9 +996,9 @@ export default function EmployeesPage() {
                           <SelectValue placeholder="Select working hours policy..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white">
-                          {workingHoursPolicyOptions.map((policy) => (
-                            <SelectItem key={policy.value} value={policy.value} className="bg-white hover:bg-gray-100">
-                              {policy.label}
+                          {workingHoursPolicies.map((policy) => (
+                            <SelectItem key={policy.id} value={policy.id.toString()} className="bg-white hover:bg-gray-100">
+                              {policy.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1220,3 +1239,4 @@ export default function EmployeesPage() {
     </div>
   )
 }
+

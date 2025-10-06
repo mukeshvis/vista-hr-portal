@@ -15,8 +15,11 @@ export const authConfig = {
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
+          console.log('❌ Missing credentials')
           return null
         }
+
+        console.log('🔍 Attempting login for:', credentials.username)
 
         const user = await validateUserCredentials(
           credentials.username as string,
@@ -24,8 +27,11 @@ export const authConfig = {
         )
 
         if (!user) {
+          console.log('❌ User not found or invalid credentials for:', credentials.username)
           return null
         }
+
+        console.log('✅ User authenticated:', user.username)
 
         return {
           id: user.id.toString(),
