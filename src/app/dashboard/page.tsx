@@ -613,7 +613,7 @@ export default function DashboardPage() {
       {/* Dashboard Content */}
       <main className="container mx-auto px-6 py-6 space-y-6">
           {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
               <CardContent className="p-8 pt-10">
                 <div className="flex items-start justify-between">
@@ -677,28 +677,6 @@ export default function DashboardPage() {
                   </div>
                   <div className="w-12 h-12 bg-rose-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
                     <Calendar className="h-6 w-6 text-rose-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100">
-              <CardContent className="p-8 pt-10">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm font-medium text-slate-600">Payroll Status</p>
-                    </div>
-                    <p className="text-3xl font-bold text-slate-800">₹{(dashboardData.payrollAmount / 100000).toFixed(1)}L</p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <TrendingUp className="h-3 w-3 text-green-600" />
-                      <span className="text-xs font-medium text-green-600">
-                        Ready for processing
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">Monthly payroll</p>
-                  </div>
-                  <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                    <Banknote className="h-6 w-6 text-amber-600" />
                   </div>
                 </div>
               </CardContent>

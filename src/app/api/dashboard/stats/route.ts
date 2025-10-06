@@ -12,20 +12,28 @@ interface DepartmentResult {
 
 export async function GET() {
   try {
-    // Get total employee count
+    // Get total employee count from external_employees (attendance system)
     const totalEmployees = await prisma.$queryRaw`
-      SELECT COUNT(*) as count FROM employee
+      SELECT COUNT(*) as count FROM external_employees
     ` as CountResult[]
 
-    // Get active employees count (status = 1)
+    // Get total employees from external_employees (attendance system)
     const activeEmployees = await prisma.$queryRaw`
-      SELECT COUNT(*) as count FROM employee WHERE status = 1
+      SELECT COUNT(*) as count FROM external_employees
     ` as CountResult[]
 
-    // Get today's attendance statistics (if attendance table exists)
-    // For now, we'll calculate based on employee status
+    // Get today's attendance statistics from user_attendance table
+    const today = new Date()
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
+
+    // Get distinct employees who checked in today
     const presentToday = await prisma.$queryRaw`
-      SELECT COUNT(*) as count FROM employee WHERE status = 1
+      SELECT COUNT(DISTINCT user_id) as count
+      FROM user_attendance
+      WHERE state = 'Check In'
+      AND punch_time >= ${todayStart}
+      AND punch_time <= ${todayEnd}
     ` as CountResult[]
 
     // Get departments count and list from department table (all departments)
@@ -44,8 +52,11 @@ export async function GET() {
     const presentCount = Number(presentToday[0]?.count || 0)
     const deptCount = Number(departmentsCount[0]?.count || 0)
 
-    // Calculate attendance percentage
-    const attendancePercentage = totalCount > 0 ? ((presentCount / totalCount) * 100).toFixed(1) : '0.0'
+    // Calculate absent count (active employees - present today)
+    const absentCount = Math.max(0, activeCount - presentCount)
+
+    // Calculate attendance percentage based on active employees
+    const attendancePercentage = activeCount > 0 ? ((presentCount / activeCount) * 100).toFixed(1) : '0.0'
 
     // Format departments list
     const formattedDepartments = departmentsList.map((dept: DepartmentResult) => ({
@@ -53,7 +64,7 @@ export async function GET() {
       name: dept.department_name
     }))
 
-    // Mock some additional stats for now (can be enhanced later)
+    // Dashboard stats
     const stats = {
       totalEmployees: totalCount,
       activeEmployees: activeCount,
@@ -61,8 +72,7 @@ export async function GET() {
       attendancePercentage: `${attendancePercentage}%`,
       departments: deptCount,
       departmentsList: formattedDepartments,
-      // Mock data for other metrics (can be calculated from actual tables later)
-      absent: Math.max(0, totalCount - presentCount),
+      absent: absentCount, // Real absent count (active employees - present today)
       lateToday: Math.floor(totalCount * 0.05), // 5% assumption
       onLeave: Math.floor(totalCount * 0.02), // 2% assumption
       pendingLeaves: Math.floor(totalCount * 0.02), // 2% assumption
