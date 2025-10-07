@@ -1,8 +1,5 @@
 import type { NextAuthConfig } from "next-auth"
 import Credentials from "next-auth/providers/credentials"
-import { PrismaAdapter } from "@auth/prisma-adapter"
-import { prisma } from "@/lib/database/prisma"
-import { validateUserCredentials } from "@/lib/database/queries/user"
 
 export const authConfig = {
   // adapter: PrismaAdapter(prisma), // Comment out for credentials provider
@@ -20,6 +17,9 @@ export const authConfig = {
         }
 
         console.log('🔍 Attempting login for:', credentials.username)
+
+        // Import dynamically to avoid Edge Runtime issues
+        const { validateUserCredentials } = await import("@/lib/database/queries/user")
 
         const user = await validateUserCredentials(
           credentials.username as string,
