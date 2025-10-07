@@ -38,6 +38,9 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
+# Install openssl for Prisma (REQUIRED for Prisma to work)
+RUN apk add --no-cache openssl libc6-compat
+
 # Set timezone to Asia/Karachi (Pakistan)
 ENV TZ=Asia/Karachi
 RUN apk add --no-cache tzdata && \
@@ -51,10 +54,14 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copy only necessary files from builder
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
+
+# Set correct permissions
+RUN chown -R nextjs:nodejs /app
 
 # Switch to non-root user
 USER nextjs
@@ -62,10 +69,15 @@ USER nextjs
 # Runtime envs (can be overridden at container start)
 ENV NODE_ENV=production
 ENV ENABLE_SCHEDULER=false
-ENV PORT=5001
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
 # Expose port
-EXPOSE 5001
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start app
-CMD ["npm", "start"]
+CMD ["node", "server.js"]

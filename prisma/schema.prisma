@@ -301,6 +301,7 @@ model users {
   company_id      Int
   dbName          String   @db.VarChar(255)
   role_no         String   @db.VarChar(50)
+  user_level      Int      @default(0)
 }
 
 model working_hours_policy {

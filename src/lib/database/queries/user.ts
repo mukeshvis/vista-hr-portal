@@ -7,7 +7,7 @@ export async function getUserByEmail(email: string): Promise<users | null> {
     const user = await prisma.users.findFirst({
       where: {
         email,
-        status: 1, // Only active users
+        status: 1, // Only status 1 is active and allowed to login
       },
     })
     return user
@@ -22,7 +22,7 @@ export async function getUserByUsername(username: string): Promise<users | null>
     const user = await prisma.users.findFirst({
       where: {
         username,
-        status: 1, // Only active users
+        status: 1, // Only status 1 is active and allowed to login
       },
     })
     return user
@@ -60,7 +60,7 @@ export async function validateUserCredentials(
           { username: usernameOrEmail },
           { email: usernameOrEmail }
         ],
-        status: 1, // Only active users
+        status: 1, // Only status 1 is active and allowed to login
       },
     })
 
@@ -78,7 +78,7 @@ export async function validateUserCredentials(
       })
 
       if (inactiveUser) {
-        console.log('⚠️ User exists but status is:', inactiveUser.status)
+        console.log('⚠️ User exists but is inactive. Status:', inactiveUser.status, '(Only status 1 can login)')
       }
 
       return null
@@ -116,7 +116,7 @@ export async function getAllUsers(): Promise<users[]> {
   try {
     const allUsers = await prisma.users.findMany({
       where: {
-        status: 1, // Only active users
+        status: 1, // Only status 1 is active
       },
       orderBy: {
         created_at: "desc",

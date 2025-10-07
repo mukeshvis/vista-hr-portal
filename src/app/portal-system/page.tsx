@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from 'react'
+import { useSession } from "next-auth/react"
 import { TopNavigation } from "@/components/top-navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,7 +11,8 @@ import { SearchableSelect } from "@/components/ui/searchable-select"
 import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { GraduationCap, Plus, Search, Edit, Trash2, Building2, Clock } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { GraduationCap, Plus, Search, Edit, Trash2, Building2, Clock, UserCog, Badge, User, Mail, Briefcase, CheckCircle2, Eye, EyeOff } from "lucide-react"
 
 interface PortalSystemProps {}
 
@@ -58,8 +60,29 @@ interface NewWorkingHoursPolicy {
   end_working_hours_time: string
 }
 
+interface User {
+  id: number
+  emp_id: string | null
+  name: string | null
+  username: string
+  email: string
+  password: string
+  acc_type: string
+  status: number
+}
+
+interface NewUser {
+  emp_id: string
+  acc_type: string
+  name: string
+  username: string
+  email: string
+  password: string
+  status: number
+}
+
 export default function PortalSystemPage() {
-  const [session] = useState(null) // You can implement proper session handling
+  const { data: session } = useSession()
 
   // Tab Management
   const [activeTab, setActiveTab] = useState('grades')
@@ -111,6 +134,29 @@ export default function PortalSystemPage() {
   const [isPolicyDialogOpen, setIsPolicyDialogOpen] = useState(false)
   const [isEditPolicyDialogOpen, setIsEditPolicyDialogOpen] = useState(false)
   const [editingPolicy, setEditingPolicy] = useState<WorkingHoursPolicy | null>(null)
+
+  // User Management State
+  const [users, setUsers] = useState<User[]>([])
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([])
+  const [userSearchTerm, setUserSearchTerm] = useState('')
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false)
+  const [showActiveUsers, setShowActiveUsers] = useState(true)
+  const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false)
+  const [isEditUserDialogOpen, setIsEditUserDialogOpen] = useState(false)
+  const [isAddingUser, setIsAddingUser] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [newPasswordValue, setNewPasswordValue] = useState('')
+  const [newUser, setNewUser] = useState<NewUser>({
+    emp_id: '',
+    acc_type: 'user',
+    name: '',
+    username: '',
+    email: '',
+    password: '',
+    status: 1
+  })
 
   // Confirmation Dialog State
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false)
@@ -764,6 +810,333 @@ export default function PortalSystemPage() {
     }
   }
 
+  // Fetch users from API
+  const fetchUsers = useCallback(async (maintainFilter = false) => {
+    try {
+      setIsLoadingUsers(true)
+      const response = await fetch('/api/users')
+      console.log('📡 Users API Response status:', response.status)
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('📦 Users data:', data)
+        setUsers(data)
+
+        // Apply filter based on current checkbox state
+        if (maintainFilter && showActiveUsers) {
+          // Maintain current filter (show only active)
+          const activeUsers = data.filter((user: User) => user.status === 1)
+          setFilteredUsers(activeUsers)
+          console.log('✅ Users loaded:', data.length, 'Active:', activeUsers.length)
+        } else if (!maintainFilter) {
+          // Initial load - show only active users by default
+          const activeUsers = data.filter((user: User) => user.status === 1)
+          setFilteredUsers(activeUsers)
+          console.log('✅ Users loaded:', data.length, 'Active:', activeUsers.length)
+        } else {
+          // Show all users
+          setFilteredUsers(data)
+          console.log('✅ Users loaded:', data.length, 'All users shown')
+        }
+      } else {
+        const errorText = await response.text()
+        console.error('❌ Failed to fetch users. Status:', response.status, 'Error:', errorText)
+        setUsers([])
+        setFilteredUsers([])
+      }
+    } catch (error) {
+      console.error('❌ Error fetching users:', error)
+      setUsers([])
+      setFilteredUsers([])
+    } finally {
+      setIsLoadingUsers(false)
+    }
+  }, [showActiveUsers])
+
+  // Handle user search and filter
+  const handleUserSearch = (value: string) => {
+    setUserSearchTerm(value)
+    applyFilters(value, showActiveUsers)
+  }
+
+  // Handle status filter change
+  const handleStatusFilterChange = (activeChecked: boolean) => {
+    setShowActiveUsers(activeChecked)
+    applyFilters(userSearchTerm, activeChecked)
+  }
+
+  // Apply filters
+  const applyFilters = (searchTerm: string, showActive: boolean) => {
+    console.log('🔍 Applying filters - showActive:', showActive, 'searchTerm:', searchTerm)
+    console.log('📊 Total users:', users.length)
+
+    let filtered = users
+
+    // Filter by status - show only active users if checkbox is checked
+    if (showActive) {
+      filtered = filtered.filter(user => user.status === 1)
+      console.log('✅ Showing only active users:', filtered.length)
+    } else {
+      console.log('📋 Showing all users:', filtered.length)
+    }
+
+    // Filter by search term
+    if (searchTerm.trim() !== '') {
+      const beforeSearch = filtered.length
+      filtered = filtered.filter(user =>
+        user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.emp_id?.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      console.log('🔎 After search filter:', beforeSearch, '→', filtered.length)
+    }
+
+    console.log('📝 Final filtered users:', filtered.length)
+    setFilteredUsers(filtered)
+  }
+
+  // Handle new user input changes
+  const handleUserInputChange = (field: keyof NewUser, value: string | number) => {
+    setNewUser(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Handle add user
+  const handleAddUser = async () => {
+    // Validate all required fields
+    if (!newUser.emp_id || newUser.emp_id.trim() === '') {
+      setErrorMessage('Employee ID is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!newUser.name || newUser.name.trim() === '') {
+      setErrorMessage('Name is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!newUser.username || newUser.username.trim() === '') {
+      setErrorMessage('Username is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!newUser.email || newUser.email.trim() === '') {
+      setErrorMessage('Email is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newUser.email)) {
+      setErrorMessage('Please enter a valid email address.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!newUser.password || newUser.password.trim() === '') {
+      setErrorMessage('Password is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (newUser.password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters long.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    try {
+      setIsAddingUser(true)
+
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newUser),
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        setSuccessMessage(`User "${newUser.username}" added successfully!`)
+        setShowSuccessPopup(true)
+
+        // Close dialog and reset form
+        setIsAddUserDialogOpen(false)
+        setNewUser({
+          emp_id: '',
+          acc_type: 'user',
+          name: '',
+          username: '',
+          email: '',
+          password: '',
+          status: 1
+        })
+        fetchUsers(true) // Refresh the list with current filter maintained
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(errorData.error || 'Failed to add user')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error adding user:', error)
+      setErrorMessage('Something went wrong while adding user')
+      setShowErrorPopup(true)
+    } finally {
+      setIsAddingUser(false)
+    }
+  }
+
+  // Handle edit user
+  const handleEditUser = (user: User) => {
+    setEditingUser(user)
+    setShowPassword(false) // Reset password visibility
+    setShowNewPassword(false) // Reset new password visibility
+    setNewPasswordValue('') // Clear new password field
+    setNewUser({
+      emp_id: user.emp_id || '',
+      acc_type: user.acc_type,
+      name: user.name || '',
+      username: user.username,
+      email: user.email,
+      password: user.password, // Show existing hashed password
+      status: user.status
+    })
+    setIsEditUserDialogOpen(true)
+  }
+
+  // Handle delete user
+  const handleDeleteUser = (userId: number, username: string) => {
+    showConfirmation(
+      'Delete User',
+      `Are you sure you want to delete user "${username}"? This action cannot be undone.`,
+      () => performDeleteUser(userId),
+      'Delete',
+      'Cancel'
+    )
+  }
+
+  // Perform actual user deletion
+  const performDeleteUser = async (userId: number) => {
+    try {
+      const response = await fetch(`/api/users?id=${userId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        setSuccessMessage('User deleted successfully!')
+        setShowSuccessPopup(true)
+        fetchUsers(true) // Refresh the list with current filter maintained
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(errorData.error || 'Failed to delete user')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error)
+      setErrorMessage('Something went wrong while deleting user')
+      setShowErrorPopup(true)
+    }
+  }
+
+  // Handle update user
+  const handleUpdateUser = async () => {
+    if (!editingUser) return
+
+    // Validate all required fields
+    if (!newUser.emp_id || newUser.emp_id.trim() === '') {
+      setErrorMessage('Employee ID is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!newUser.name || newUser.name.trim() === '') {
+      setErrorMessage('Name is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!newUser.username || newUser.username.trim() === '') {
+      setErrorMessage('Username is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!newUser.email || newUser.email.trim() === '') {
+      setErrorMessage('Email is required.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newUser.email)) {
+      setErrorMessage('Please enter a valid email address.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    // New password is optional during edit - only validate if provided
+    if (newPasswordValue && newPasswordValue.trim() !== '' && newPasswordValue.length < 6) {
+      setErrorMessage('New password must be at least 6 characters long.')
+      setShowErrorPopup(true)
+      return
+    }
+
+    try {
+      setIsAddingUser(true)
+
+      const response = await fetch('/api/users', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: editingUser.id,
+          ...newUser,
+          password: newPasswordValue // Send new password if provided, empty otherwise
+        }),
+      })
+
+      if (response.ok) {
+        setSuccessMessage(`User "${newUser.username}" updated successfully!`)
+        setShowSuccessPopup(true)
+
+        // Close dialog and reset form
+        setIsEditUserDialogOpen(false)
+        setEditingUser(null)
+        setShowPassword(false)
+        setShowNewPassword(false)
+        setNewPasswordValue('')
+        setNewUser({
+          emp_id: '',
+          acc_type: 'user',
+          name: '',
+          username: '',
+          email: '',
+          password: '',
+          status: 1
+        })
+
+        // Refresh users list with current filter maintained
+        fetchUsers(true)
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(errorData.error || 'Failed to update user')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error updating user:', error)
+      setErrorMessage('Something went wrong while updating user')
+      setShowErrorPopup(true)
+    } finally {
+      setIsAddingUser(false)
+    }
+  }
+
   // Load data on component mount
   useEffect(() => {
     fetchDesignations()
@@ -774,7 +1147,10 @@ export default function PortalSystemPage() {
     if (activeTab === 'working-hours') {
       fetchWorkingHoursPolicies()
     }
-  }, [fetchDesignations, fetchGrades, fetchDesignationsData, fetchWorkingHoursPolicies, activeTab])
+    if (activeTab === 'users') {
+      fetchUsers()
+    }
+  }, [fetchDesignations, fetchGrades, fetchDesignationsData, fetchWorkingHoursPolicies, fetchUsers, activeTab])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -823,6 +1199,20 @@ export default function PortalSystemPage() {
               >
                 <Clock className="h-5 w-5 inline mr-2" />
                 Working Hours Policy
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('users')
+                  fetchUsers() // Load users when tab is clicked
+                }}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'users'
+                    ? 'border-emerald-500 text-emerald-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <UserCog className="h-5 w-5 inline mr-2" />
+                User Management
               </button>
             </nav>
           </div>
@@ -1155,6 +1545,187 @@ export default function PortalSystemPage() {
                         <td colSpan={3} className="px-6 py-8 text-center">
                           <div className="text-gray-500">
                             {policySearchTerm ? 'No policies found matching your search.' : 'No policies available. Add your first policy!'}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* User Management Tab Content */}
+        {activeTab === 'users' && (
+          <div className="space-y-6">
+            {/* Search and Filter Section */}
+            <div className="bg-white p-6 rounded-lg shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search by name, username, email, or employee ID..."
+                    value={userSearchTerm}
+                    onChange={(e) => handleUserSearch(e.target.value)}
+                    className="pl-10 pr-32"
+                  />
+                  <Button
+                    onClick={() => setIsAddUserDialogOpen(true)}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-emerald-600 hover:bg-emerald-700 h-8 px-3 text-xs"
+                    size="sm"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Add User
+                  </Button>
+                </div>
+
+                {/* Active Users Checkbox */}
+                <div className="flex items-center space-x-2 whitespace-nowrap">
+                  <Checkbox
+                    id="show-active"
+                    checked={showActiveUsers}
+                    onCheckedChange={(checked) => {
+                      console.log('Checkbox changed:', checked)
+                      handleStatusFilterChange(checked as boolean)
+                    }}
+                  />
+                  <label
+                    htmlFor="show-active"
+                    className="text-sm font-medium leading-none cursor-pointer select-none"
+                    onClick={() => {
+                      const newValue = !showActiveUsers
+                      console.log('Label clicked, new value:', newValue)
+                      handleStatusFilterChange(newValue)
+                    }}
+                  >
+                    Show Active Only
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* Users Table */}
+            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-300">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <Badge className="h-4 w-4 text-blue-500" />
+                          Employee ID
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-purple-500" />
+                          Name
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <UserCog className="h-4 w-4 text-indigo-500" />
+                          Username
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-orange-500" />
+                          Email
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <Briefcase className="h-4 w-4 text-teal-500" />
+                          Account Type
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          Status
+                        </div>
+                      </th>
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-300">
+                    {isLoadingUsers ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-8 text-center">
+                          <div className="flex items-center justify-center space-x-2 text-gray-500">
+                            <div className="animate-spin rounded-full h-6 w-6 border-2 border-emerald-500 border-t-transparent"></div>
+                            <span>Loading users...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : filteredUsers.length > 0 ? (
+                      filteredUsers.map((user) => (
+                        <tr key={user.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {user.emp_id || '-'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {user.name || '-'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {user.username}
+                            </div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {user.email}
+                            </div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {user.acc_type}
+                            </div>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              user.status === 1
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {user.status === 1 ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-2 whitespace-nowrap text-right text-sm font-medium">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleEditUser(user)}
+                                className="text-emerald-600 hover:text-emerald-800"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteUser(user.id, user.username)}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-8 text-center">
+                          <div className="text-gray-500">
+                            {userSearchTerm ? 'No users found matching your search.' : 'No users available.'}
                           </div>
                         </td>
                       </tr>
@@ -1535,6 +2106,324 @@ export default function PortalSystemPage() {
                   variant="outline"
                 >
                   {confirmationData?.cancelText || 'Cancel'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add User Dialog */}
+        <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserCog className="h-5 w-5 text-emerald-600" />
+                Add New User
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Employee ID */}
+                <div>
+                  <Label htmlFor="emp_id">Employee ID *</Label>
+                  <Input
+                    id="emp_id"
+                    value={newUser.emp_id}
+                    onChange={(e) => handleUserInputChange('emp_id', e.target.value)}
+                    placeholder="e.g., EMP001"
+                    required
+                  />
+                </div>
+
+                {/* Account Type */}
+                <div>
+                  <Label htmlFor="acc_type">Account Type *</Label>
+                  <select
+                    id="acc_type"
+                    value={newUser.acc_type}
+                    onChange={(e) => handleUserInputChange('acc_type', e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                {/* Name */}
+                <div>
+                  <Label htmlFor="name">Name *</Label>
+                  <Input
+                    id="name"
+                    value={newUser.name}
+                    onChange={(e) => handleUserInputChange('name', e.target.value)}
+                    placeholder="e.g., John Doe"
+                    required
+                  />
+                </div>
+
+                {/* Username */}
+                <div>
+                  <Label htmlFor="username">Username *</Label>
+                  <Input
+                    id="username"
+                    value={newUser.username}
+                    onChange={(e) => handleUserInputChange('username', e.target.value)}
+                    placeholder="e.g., johndoe"
+                    required
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => handleUserInputChange('email', e.target.value)}
+                    placeholder="e.g., john@example.com"
+                    required
+                  />
+                </div>
+
+                {/* Password */}
+                <div>
+                  <Label htmlFor="password">Password *</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => handleUserInputChange('password', e.target.value)}
+                    placeholder="Minimum 6 characters"
+                    required
+                  />
+                </div>
+
+                {/* Status */}
+                <div className="md:col-span-2">
+                  <Label htmlFor="status">Status *</Label>
+                  <select
+                    id="status"
+                    value={newUser.status}
+                    onChange={(e) => handleUserInputChange('status', parseInt(e.target.value))}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value={1}>Active</option>
+                    <option value={2}>Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={handleAddUser}
+                  disabled={isAddingUser}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {isAddingUser ? 'Adding...' : 'Add User'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setIsAddUserDialogOpen(false)
+                    setNewUser({
+                      emp_id: '',
+                      acc_type: 'user',
+                      name: '',
+                      username: '',
+                      email: '',
+                      password: '',
+                      status: 1
+                    })
+                  }}
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit User Dialog */}
+        <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Edit className="h-5 w-5 text-emerald-600" />
+                Edit User
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Employee ID */}
+                <div>
+                  <Label htmlFor="edit-emp_id">Employee ID *</Label>
+                  <Input
+                    id="edit-emp_id"
+                    value={newUser.emp_id}
+                    onChange={(e) => handleUserInputChange('emp_id', e.target.value)}
+                    placeholder="e.g., EMP001"
+                    required
+                  />
+                </div>
+
+                {/* Account Type */}
+                <div>
+                  <Label htmlFor="edit-acc_type">Account Type *</Label>
+                  <select
+                    id="edit-acc_type"
+                    value={newUser.acc_type}
+                    onChange={(e) => handleUserInputChange('acc_type', e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value="user">User</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+
+                {/* Name */}
+                <div>
+                  <Label htmlFor="edit-name">Name *</Label>
+                  <Input
+                    id="edit-name"
+                    value={newUser.name}
+                    onChange={(e) => handleUserInputChange('name', e.target.value)}
+                    placeholder="e.g., John Doe"
+                    required
+                  />
+                </div>
+
+                {/* Username */}
+                <div>
+                  <Label htmlFor="edit-username">Username *</Label>
+                  <Input
+                    id="edit-username"
+                    value={newUser.username}
+                    onChange={(e) => handleUserInputChange('username', e.target.value)}
+                    placeholder="e.g., johndoe"
+                    required
+                  />
+                </div>
+
+                {/* Email */}
+                <div>
+                  <Label htmlFor="edit-email">Email *</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => handleUserInputChange('email', e.target.value)}
+                    placeholder="e.g., john@example.com"
+                    required
+                  />
+                </div>
+
+                {/* Current Password (Read-only) */}
+                <div>
+                  <Label htmlFor="edit-current-password">Current Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-current-password"
+                      type={showPassword ? "text" : "password"}
+                      value={newUser.password}
+                      readOnly
+                      className="pr-10 bg-gray-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Click eye icon to view current password
+                  </p>
+                </div>
+
+                {/* New Password (Optional) */}
+                <div>
+                  <Label htmlFor="edit-new-password">New Password (Optional)</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-new-password"
+                      type={showNewPassword ? "text" : "password"}
+                      value={newPasswordValue}
+                      onChange={(e) => setNewPasswordValue(e.target.value)}
+                      placeholder="Enter new password to change"
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Leave empty to keep current password
+                  </p>
+                </div>
+
+                {/* Status */}
+                <div className="md:col-span-2">
+                  <Label htmlFor="edit-status">Status *</Label>
+                  <select
+                    id="edit-status"
+                    value={newUser.status}
+                    onChange={(e) => handleUserInputChange('status', parseInt(e.target.value))}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value={1}>Active</option>
+                    <option value={2}>Inactive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button
+                  onClick={handleUpdateUser}
+                  disabled={isAddingUser}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {isAddingUser ? 'Updating...' : 'Update User'}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setIsEditUserDialogOpen(false)
+                    setEditingUser(null)
+                    setShowPassword(false)
+                    setShowNewPassword(false)
+                    setNewPasswordValue('')
+                    setNewUser({
+                      emp_id: '',
+                      acc_type: 'user',
+                      name: '',
+                      username: '',
+                      email: '',
+                      password: '',
+                      status: 1
+                    })
+                  }}
+                  variant="outline"
+                >
+                  Cancel
                 </Button>
               </div>
             </div>
