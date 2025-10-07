@@ -21,14 +21,11 @@ COPY . .
 RUN npx prisma generate
 
 # Build Next.js app (dummy envs just for build)
-ARG NEXTAUTH_SECRET=dummy-secret
-ARG DATABASE_URL=mysql://user:pass@localhost:3306/db
-ARG NEXTAUTH_URL=http://localhost:3000
-ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
-ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
-ENV DATABASE_URL=$DATABASE_URL
-ENV NEXTAUTH_URL=$NEXTAUTH_URL
-ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXTAUTH_SECRET=dummy-build-secret-will-be-replaced-at-runtime
+ENV DATABASE_URL=mysql://user:pass@localhost:3306/db
+ENV NEXTAUTH_URL=http://localhost:3000
+ENV NEXT_PUBLIC_APP_URL=http://localhost:3000
+ENV SKIP_DB_CONNECTION=true
 
 RUN npm run build
 

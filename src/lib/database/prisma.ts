@@ -21,11 +21,16 @@ if (!globalForPrisma.prisma) {
   globalForPrisma.prisma = prisma
 }
 
-// Ensure connection on initialization
-prisma.$connect().catch((err) => {
-  console.error('❌ Failed to connect to database on startup:', err)
-  process.exit(1)
-})
+// Ensure connection on initialization (skip during build)
+if (process.env.NODE_ENV !== 'development' && process.env.SKIP_DB_CONNECTION !== 'true') {
+  prisma.$connect().catch((err) => {
+    console.error('❌ Failed to connect to database on startup:', err)
+    // Don't exit in production, let requests fail gracefully
+    if (process.env.NODE_ENV === 'production') {
+      console.error('⚠️ Database connection failed, will retry on next request')
+    }
+  })
+}
 
 // Test database connection
 export async function testDatabaseConnection() {
