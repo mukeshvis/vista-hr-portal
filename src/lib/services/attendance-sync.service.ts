@@ -1,4 +1,4 @@
-import cron from 'node-cron'
+import * as cron from 'node-cron'
 
 // Background sync service for attendance data
 export class AttendanceSyncService {
