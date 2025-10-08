@@ -1,6 +1,5 @@
 # ---------- Build Stage ----------
-FROM node:20-alpine AS builder
-
+FROM node:20-alpine 
 # Install necessary dependencies for Prisma
 RUN apk add --no-cache openssl libc6-compat
 
@@ -21,10 +20,10 @@ COPY . .
 RUN npx prisma generate
 
 # Build Next.js app (dummy envs just for build)
-ENV NEXTAUTH_SECRET=dummy-build-secret-will-be-replaced-at-runtime
-ENV DATABASE_URL=mysql://user:pass@localhost:3306/db
-ENV NEXTAUTH_URL=http://localhost:3000
-ENV NEXT_PUBLIC_APP_URL=http://localhost:3000
+ENV NEXTAUTH_SECRET="bda4f27e2e67a7c4a5d93e0f9e3b8b8e3dca9f6279f93baf237cd8769d3a9123"
+ENV DATABASE_URL="mysql://mukesh:mukesh%40vis123@db.vis.com.pk:3306/vis_company"
+ENV NEXTAUTH_URL="http://192.168.1.214:5001"
+ENV NEXT_PUBLIC_APP_URL="http://192.168.1.214:5001"
 ENV SKIP_DB_CONNECTION=true
 
 RUN npm run build
@@ -65,16 +64,15 @@ USER nextjs
 
 # Runtime envs (can be overridden at container start)
 ENV NODE_ENV=production
-ENV ENABLE_SCHEDULER=false
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+ENV ENABLE_SCHEDULER=true
+ENV NEXTAUTH_SECRET=
+ENV DATABASE_URL=
 
 # Expose port
-EXPOSE 3000
-
+EXPOSE 5001
+ENV PORT=5001
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
 
 # Start app
-CMD ["node", "server.js"]
+CMD ["npm", "start"]
