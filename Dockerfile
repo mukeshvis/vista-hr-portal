@@ -25,6 +25,8 @@ ENV DATABASE_URL="mysql://mukesh:mukesh%40vis123@db.vis.com.pk:3306/vis_company"
 ENV NEXTAUTH_URL="http://192.168.1.214:5001"
 ENV NEXT_PUBLIC_APP_URL="http://192.168.1.214:5001"
 ENV SKIP_DB_CONNECTION=true
+ENV ENABLE_SCHEDULER=false
+ENV NODE_ENV=production
 
 RUN npm run build
 
@@ -48,12 +50,10 @@ RUN apk add --no-cache tzdata && \
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy only necessary files from builder
-COPY --from=builder /app/public ./public
+# Copy only necessary files from builder (standalone mode)
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 
 # Set correct permissions
@@ -64,15 +64,18 @@ USER nextjs
 
 # Runtime envs (can be overridden at container start)
 ENV NODE_ENV=production
-ENV ENABLE_SCHEDULER=true
+ENV ENABLE_SCHEDULER=false
 ENV NEXTAUTH_SECRET=
 ENV DATABASE_URL=
 
 # Expose port
 EXPOSE 5001
 ENV PORT=5001
+ENV HOSTNAME="0.0.0.0"
+
 # Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:5001/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-
-# Start app
-CMD ["npm", "start"]
+# Start app (use node for standalone mode)
+CMD ["node", "server.js"]
