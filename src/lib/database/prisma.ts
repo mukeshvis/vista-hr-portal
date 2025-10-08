@@ -21,8 +21,11 @@ if (!globalForPrisma.prisma) {
   globalForPrisma.prisma = prisma
 }
 
-// Ensure connection on initialization (skip during build)
-if (process.env.NODE_ENV !== 'development' && process.env.SKIP_DB_CONNECTION !== 'true') {
+// Ensure connection on initialization (skip during build and development)
+const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build'
+const skipConnection = process.env.SKIP_DB_CONNECTION === 'true' || isBuildTime
+
+if (process.env.NODE_ENV !== 'development' && !skipConnection) {
   prisma.$connect().catch((err) => {
     console.error('❌ Failed to connect to database on startup:', err)
     // Don't exit in production, let requests fail gracefully
