@@ -1,5 +1,5 @@
 # ---------- Build Stage ----------
-FROM node:20-alpine 
+FROM node:20-alpine AS builder 
 # Install necessary dependencies for Prisma
 RUN apk add --no-cache openssl libc6-compat
 
