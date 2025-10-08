@@ -33,7 +33,9 @@ export class AttendanceSyncService {
 
       console.log(`\n🔄 [${now.toLocaleTimeString()}] Starting attendance sync for ${dateStr}...`)
 
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      // Use localhost for internal API calls (works in Docker)
+      const port = process.env.PORT || '3000'
+      const baseUrl = `http://localhost:${port}`
 
       const response = await fetch(`${baseUrl}/api/attendance/sync`, {
         method: 'POST',
