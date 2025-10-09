@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/database/prisma"
+import { prisma, executeWithRetry } from "@/lib/database/prisma"
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const forSelect = searchParams.get('forSelect')
 
-    // Fetch all employment statuses excluding deleted ones (status != -1)
-    const employmentStatuses = await prisma.$queryRaw`
-      SELECT id, job_type_name, status
-      FROM emp_empstatus
-      WHERE status != -1
-      ORDER BY job_type_name ASC
-    ` as any[]
+    // Fetch all employment statuses excluding deleted ones (status != -1) with auto-retry
+    const employmentStatuses = await executeWithRetry(async () => {
+      return await prisma.$queryRaw`
+        SELECT id, job_type_name, status
+        FROM emp_empstatus
+        WHERE status != -1
+        ORDER BY job_type_name ASC
+      ` as any[]
+    })
 
     if (forSelect === 'true') {
       // Format for SearchableSelect component

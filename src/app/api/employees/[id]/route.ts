@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/database/prisma'
+import { prisma, executeWithRetry } from '@/lib/database/prisma'
 
 export async function GET(
   request: NextRequest,
@@ -16,8 +16,9 @@ export async function GET(
       )
     }
 
-    // Fetch employee details with designation information using raw SQL
-    const employee = await prisma.$queryRaw`
+    // Fetch employee details with designation information using raw SQL with auto-retry
+    const employee = await executeWithRetry(async () => {
+      return await prisma.$queryRaw`
       SELECT
         e.id,
         e.emp_id,
@@ -86,6 +87,7 @@ export async function GET(
       WHERE e.id = ${employeeId}
       LIMIT 1
     ` as any[]
+    })
 
     if (employee.length === 0) {
       return NextResponse.json(
@@ -162,14 +164,8 @@ export async function GET(
       { error: 'Failed to fetch employee details' },
       { status: 500 }
     )
-  } finally {
-    // Ensure connections are properly cleaned up
-    try {
-      await prisma.$disconnect()
-    } catch (disconnectError) {
-      console.error('Error disconnecting from database:', disconnectError)
-    }
   }
+  // Note: Do not disconnect Prisma client - it maintains a connection pool
 }
 
 export async function PUT(
@@ -495,12 +491,6 @@ export async function PUT(
       { error: 'Failed to update employee' },
       { status: 500 }
     )
-  } finally {
-    // Ensure connections are properly cleaned up
-    try {
-      await prisma.$disconnect()
-    } catch (disconnectError) {
-      console.error('Error disconnecting from database:', disconnectError)
-    }
   }
+  // Note: Do not disconnect Prisma client - it maintains a connection pool
 }

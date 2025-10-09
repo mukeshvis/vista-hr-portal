@@ -56,14 +56,23 @@ async function connectWithRetry(retryCount = 0): Promise<boolean> {
   }
 }
 
-// Initialize connection (skip during build)
+// Initialize connection immediately (skip during build)
 const isBuildTime = process.env.NEXT_PHASE === 'phase-production-build'
 const skipConnection = process.env.SKIP_DB_CONNECTION === 'true' || isBuildTime
 
+// Force immediate connection on startup
 if (!skipConnection) {
-  connectWithRetry().catch((err) => {
-    console.error('⚠️ Initial database connection failed, will retry on next request')
-  })
+  // Connect immediately and block
+  ;(async () => {
+    try {
+      console.log('🚀 Initializing database connection on startup...')
+      await connectWithRetry()
+      console.log('✅ Database ready for queries')
+    } catch (error) {
+      console.error('❌ Failed to establish initial database connection:', error)
+      console.error('⚠️ Queries will fail until connection is established')
+    }
+  })()
 }
 
 // Ensure connection before query execution
@@ -93,6 +102,15 @@ export async function executeWithRetry<T>(
   operation: () => Promise<T>,
   retries = 2
 ): Promise<T> {
+  // ALWAYS ensure connection before executing query
+  if (!isConnected) {
+    console.log('⚠️ Database not connected, attempting to connect...')
+    const connected = await connectWithRetry()
+    if (!connected) {
+      throw new Error('Failed to establish database connection')
+    }
+  }
+
   try {
     return await operation()
   } catch (error: any) {
@@ -103,11 +121,14 @@ export async function executeWithRetry<T>(
       error.code === 'P1003' || // Database does not exist
       error.code === 'P1008' || // Operations timed out
       error.code === 'P1017' || // Server has closed the connection
+      error.name === 'PrismaClientUnknownRequestError' || // Engine not connected
+      error.message?.includes('Engine is not yet connected') ||
       error.message?.includes('Connection') ||
       error.message?.includes('ECONNREFUSED')
 
     if (isConnectionError && retries > 0) {
       console.error(`🔴 Database connection error, retrying... (${retries} attempts left)`)
+      console.error(`🔍 Error details: ${error.message}`)
       isConnected = false
 
       // Try to reconnect

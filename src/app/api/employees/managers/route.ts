@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/database/prisma'
+import { prisma, executeWithRetry } from '@/lib/database/prisma'
 
 interface ManagerResult {
   id: number
@@ -9,17 +9,19 @@ interface ManagerResult {
 
 export async function GET() {
   try {
-    // Fetch all employees who can be managers
-    const employees = await prisma.$queryRaw`
-      SELECT
-        e.id,
-        e.emp_name as name,
-        COALESCE(d.designation_name, 'Unknown') as designation
-      FROM employee e
-      LEFT JOIN designation d ON e.designation_id = d.id
-      WHERE e.status = 1
-      ORDER BY e.emp_name ASC
-    ` as ManagerResult[]
+    // Fetch all employees who can be managers with auto-retry
+    const employees = await executeWithRetry(async () => {
+      return await prisma.$queryRaw`
+        SELECT
+          e.id,
+          e.emp_name as name,
+          COALESCE(d.designation_name, 'Unknown') as designation
+        FROM employee e
+        LEFT JOIN designation d ON e.designation_id = d.id
+        WHERE e.status = 1
+        ORDER BY e.emp_name ASC
+      ` as ManagerResult[]
+    })
 
     // Transform the data to match the expected format for dropdown
     const formattedManagers = employees.map(emp => ({

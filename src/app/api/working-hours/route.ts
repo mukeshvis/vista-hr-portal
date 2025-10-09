@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/database/prisma"
+import { prisma, executeWithRetry } from "@/lib/database/prisma"
 
 export async function GET() {
   try {
     console.log('🔍 Fetching working hours policies...')
-    const workingHours = await prisma.working_hours_policy.findMany({
-      orderBy: { id: 'asc' }
+    const workingHours = await executeWithRetry(async () => {
+      return await prisma.working_hours_policy.findMany({
+        orderBy: { id: 'asc' }
+      })
     })
     console.log('✅ Found', workingHours.length, 'policies')
 
