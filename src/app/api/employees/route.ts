@@ -1,28 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/database/prisma'
+import { prisma, executeWithRetry } from '@/lib/database/prisma'
 
 
 
 export async function GET(request: NextRequest) {
   try {
     // Optimize query by limiting JOINs and fetching only essential data for listing
-    const employees = await prisma.$queryRaw`
-      SELECT
-        e.id,
-        e.emp_id,
-        e.emp_name as name,
-        e.designation_id,
-        e.emp_gender as gender,
-        e.active as status,
-        COALESCE(d.designation_name, 'Unknown') as designation,
-        COALESCE(g.employee_grade_type, 'N/A') as group_level
-      FROM employee e
-      LEFT JOIN designation d ON e.designation_id = d.id
-      LEFT JOIN grades g ON e.emp_grade_id = g.id
-      WHERE e.active = 1
-      ORDER BY e.emp_name ASC
-      LIMIT 1000
-    ` as any[]
+    // Using executeWithRetry for automatic reconnection on connection errors
+    const employees = await executeWithRetry(async () => {
+      return await prisma.$queryRaw`
+        SELECT
+          e.id,
+          e.emp_id,
+          e.emp_name as name,
+          e.designation_id,
+          e.emp_gender as gender,
+          e.active as status,
+          COALESCE(d.designation_name, 'Unknown') as designation,
+          COALESCE(g.employee_grade_type, 'N/A') as group_level
+        FROM employee e
+        LEFT JOIN designation d ON e.designation_id = d.id
+        LEFT JOIN grades g ON e.emp_grade_id = g.id
+        WHERE e.active = 1
+        ORDER BY e.emp_name ASC
+        LIMIT 1000
+      ` as any[]
+    })
 
     // Transform the data to match the expected format (simplified for faster loading)
     const formattedEmployees = employees.map(emp => ({

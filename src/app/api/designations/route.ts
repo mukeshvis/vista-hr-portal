@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/database/prisma"
+import { prisma, executeWithRetry } from "@/lib/database/prisma"
 
 export async function GET(request: Request) {
   try {
@@ -8,12 +8,15 @@ export async function GET(request: Request) {
     const forSelect = searchParams.get('forSelect')
 
     // Fetch all designations excluding deleted ones (status != 0)
-    const designations = await prisma.$queryRaw`
-      SELECT id, designation_name, status
-      FROM designation
-      WHERE status != 0
-      ORDER BY id ASC
-    ` as any[]
+    // Using executeWithRetry for automatic reconnection on connection errors
+    const designations = await executeWithRetry(async () => {
+      return await prisma.$queryRaw`
+        SELECT id, designation_name, status
+        FROM designation
+        WHERE status != 0
+        ORDER BY id ASC
+      ` as any[]
+    })
 
     console.log(`✅ Fetched ${designations.length} designations`)
 

@@ -363,13 +363,6 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
   }
 
   const handleDeleteClick = (employeeId: string, employeeName: string, employeeStatus?: string) => {
-    // Check if employee is active - active employees cannot be deleted
-    if (employeeStatus === 'Active') {
-      setErrorMessage(`Cannot delete active employee "${employeeName}". Please mark the employee as inactive first.`)
-      setShowErrorPopup(true)
-      return
-    }
-
     setDeletingEmployeeId(employeeId)
     setDeletingEmployeeName(employeeName)
     setIsDeleteDialogOpen(true)
@@ -507,7 +500,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-gray-700">
-              Are you sure you want to delete <strong>{deletingEmployeeName}</strong>? This will mark the employee as inactive.
+              Are you sure you want to delete <strong>{deletingEmployeeName}</strong>? This action will remove the employee from the active list.
             </p>
             <div className="flex justify-end gap-3 pt-4">
               <Button
