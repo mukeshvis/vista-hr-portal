@@ -72,18 +72,27 @@ export async function POST(request: NextRequest) {
 
     console.log('📅 Date/Time:', { dateStr, timeStr })
 
+    // Fetch employee's leave policy ID
+    console.log('🔍 Fetching employee leave policy...')
+    const employee = await prisma.$queryRaw`
+      SELECT leaves_policy_id FROM employee WHERE emp_id = ${data.empId} LIMIT 1
+    ` as any[]
+
+    const leavePolicyId = employee[0]?.leaves_policy_id || 1
+    console.log('📋 Employee leave policy ID:', leavePolicyId)
+
     // Insert leave application
     console.log('🔄 Inserting leave application...')
     const insertResult = await prisma.$executeRaw`
       INSERT INTO leave_application (
-        emp_id, leave_policy_id, company_id, leave_type, leave_day_type,
+        emp_id, company_id, leave_policy_id, leave_type, leave_day_type,
         reason, leave_address, approval_status, approved, approval_status_lm,
         status, username, date, time
       ) VALUES (
-        ${data.empId}, ${data.leavePolicyId || 1}, ${data.companyId || 1},
-        ${data.leaveType}, ${data.leaveDayType},
+        ${data.empId}, ${data.companyId || 1}, ${leavePolicyId},
+        ${data.leaveType}, ${data.leaveDayType.toString()},
         ${data.reason}, ${data.leaveAddress || 'N/A'},
-        1, 0, 1, 1,
+        0, 0, 0, 1,
         ${data.username || 'system'}, ${dateStr}, ${timeStr}
       )
     `
@@ -96,27 +105,40 @@ export async function POST(request: NextRequest) {
 
     console.log('📋 Inserting leave application data with ID:', leaveAppId)
 
-    // Get next ID for leave_application_data
-    const maxIdResult = await prisma.$queryRaw`
-      SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM leave_application_data
-    ` as any[]
-    const nextDataId = maxIdResult[0].next_id
-
-    console.log('🔢 Next leave_application_data ID:', nextDataId)
-
-    // Insert leave application data with explicit ID
+    // Insert leave application data - complete schema with all required columns
     await prisma.$executeRaw`
       INSERT INTO leave_application_data (
-        id, leave_policy_id, emp_id, leave_application_id, leave_type, leave_day_type,
-        no_of_days, from_date, to_date, date_of_return_to_work,
-        first_second_half, first_second_half_date,
-        status, username, date, time
+        leave_policy_id,
+        emp_id,
+        leave_application_id,
+        leave_type,
+        leave_day_type,
+        no_of_days,
+        from_date,
+        to_date,
+        date_of_return_to_work,
+        first_second_half,
+        first_second_half_date,
+        status,
+        username,
+        date,
+        time
       ) VALUES (
-        ${Number(nextDataId)}, ${data.leavePolicyId || 1}, ${data.empIdNum || 0}, ${Number(leaveAppId)},
-        ${data.leaveType}, ${data.leaveDayType},
-        ${data.numberOfDays}, ${data.fromDate}, ${data.toDate}, ${data.returnDate || data.toDate},
-        ${data.halfDayType || ''}, ${data.halfDayDate || ''},
-        1, ${data.username || 'system'}, ${dateStr}, ${timeStr}
+        ${leavePolicyId},
+        ${data.empIdNum || 0},
+        ${Number(leaveAppId)},
+        ${data.leaveType},
+        ${data.leaveDayType},
+        ${data.numberOfDays},
+        ${data.fromDate},
+        ${data.toDate},
+        ${data.returnDate || data.toDate},
+        ${data.halfDayType || ''},
+        ${data.halfDayDate || ''},
+        1,
+        ${data.username || 'system'},
+        ${dateStr},
+        ${timeStr}
       )
     `
 

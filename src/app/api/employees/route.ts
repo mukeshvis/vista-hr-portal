@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
       FROM employee e
       LEFT JOIN designation d ON e.designation_id = d.id
       LEFT JOIN grades g ON e.emp_grade_id = g.id
-      WHERE e.active IS NOT NULL
+      WHERE e.active = 1
       ORDER BY e.emp_name ASC
       LIMIT 1000
     ` as any[]
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(formattedEmployees)
   } catch (error) {
-    console.error('Error fetching employees:', error)
+    console.error('❌ Error fetching employees:', error)
 
     // Fallback to mock data if database query fails
     const mockEmployees = [
@@ -50,14 +50,8 @@ export async function GET(request: NextRequest) {
     ]
 
     return NextResponse.json(mockEmployees)
-  } finally {
-    // Ensure database connections are properly cleaned up
-    try {
-      await prisma.$disconnect()
-    } catch (disconnectError) {
-      console.error('Error disconnecting from database:', disconnectError)
-    }
   }
+  // Note: Do not disconnect Prisma client - it maintains a connection pool
 }
 
 export async function POST(request: NextRequest) {
@@ -262,6 +256,43 @@ export async function POST(request: NextRequest) {
     console.error('Error processing employee:', error)
     return NextResponse.json(
       { error: 'Failed to process employee data' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Employee ID is required' },
+        { status: 400 }
+      )
+    }
+
+    console.log('🗑️ Deleting employee with ID:', id)
+
+    // Soft delete by setting active = 0
+    await prisma.$executeRaw`
+      UPDATE employee
+      SET active = 0
+      WHERE id = ${parseInt(id)}
+    `
+
+    console.log('✅ Employee soft deleted successfully')
+
+    return NextResponse.json({
+      success: true,
+      message: 'Employee deleted successfully'
+    })
+
+  } catch (error) {
+    console.error('❌ Error deleting employee:', error)
+    return NextResponse.json(
+      { error: 'Failed to delete employee' },
       { status: 500 }
     )
   }

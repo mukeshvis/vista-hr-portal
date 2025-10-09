@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Edit, Eye, User, Building, CreditCard, ChevronDown, Check } from "lucide-react"
+import { Edit, Eye, User, Building, CreditCard, ChevronDown, Check, Trash2, AlertCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { MaleIcon } from "@/components/ui/male-icon"
 import { FemaleIcon } from "@/components/ui/female-icon"
@@ -107,6 +107,10 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
   const [successMessage, setSuccessMessage] = useState('')
   const [showErrorPopup, setShowErrorPopup] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null)
+  const [deletingEmployeeName, setDeletingEmployeeName] = useState<string>('')
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -358,6 +362,57 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
     }
   }
 
+  const handleDeleteClick = (employeeId: string, employeeName: string, employeeStatus?: string) => {
+    // Check if employee is active - active employees cannot be deleted
+    if (employeeStatus === 'Active') {
+      setErrorMessage(`Cannot delete active employee "${employeeName}". Please mark the employee as inactive first.`)
+      setShowErrorPopup(true)
+      return
+    }
+
+    setDeletingEmployeeId(employeeId)
+    setDeletingEmployeeName(employeeName)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingEmployeeId) return
+
+    setIsDeleting(true)
+
+    try {
+      const response = await fetch(`/api/employees?id=${deletingEmployeeId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        // Close dialog
+        setIsDeleteDialogOpen(false)
+
+        // Show success popup
+        setSuccessMessage(`Employee ${deletingEmployeeName} deleted successfully!`)
+        setShowSuccessPopup(true)
+
+        // Refresh the page after a delay to show the popup
+        setTimeout(() => {
+          window.location.reload()
+        }, 2000)
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(`Failed to delete employee: ${errorData.error || 'Unknown error'}`)
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error deleting employee:', error)
+      setErrorMessage(`Error deleting employee: ${error}`)
+      setShowErrorPopup(true)
+    } finally {
+      setIsDeleting(false)
+      setDeletingEmployeeId(null)
+      setDeletingEmployeeName('')
+    }
+  }
+
 
   return (
     <div className="w-full relative">
@@ -417,6 +472,16 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       <Eye className="h-4 w-4 mr-1 text-green-500" />
                       View
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-3 py-2 text-sm"
+                      onClick={() => handleDeleteClick(employee.id, employee.name, employee.status)}
+                      disabled={isPageLoading}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1 text-red-500" />
+                      Delete
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -430,6 +495,43 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
           )}
         </TableBody>
       </Table>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              Confirm Delete
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-700">
+              Are you sure you want to delete <strong>{deletingEmployeeName}</strong>? This will mark the employee as inactive.
+            </p>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteDialogOpen(false)
+                  setDeletingEmployeeId(null)
+                  setDeletingEmployeeName('')
+                }}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Employee Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>

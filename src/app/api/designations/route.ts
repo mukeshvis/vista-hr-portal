@@ -3,6 +3,7 @@ import { prisma } from "@/lib/database/prisma"
 
 export async function GET(request: Request) {
   try {
+    console.log('🔄 Fetching designations...')
     const { searchParams } = new URL(request.url)
     const forSelect = searchParams.get('forSelect')
 
@@ -14,25 +15,31 @@ export async function GET(request: Request) {
       ORDER BY id ASC
     ` as any[]
 
+    console.log(`✅ Fetched ${designations.length} designations`)
+
     if (forSelect === 'true') {
       // Format for SearchableSelect component
       const formattedDesignations = designations.map(designation => ({
         value: designation.id.toString(),
         label: designation.designation_name
       }))
+      console.log(`✅ Returning ${formattedDesignations.length} formatted designations for select`)
       return NextResponse.json(formattedDesignations)
     } else {
       // Return full designation data for table
       return NextResponse.json(designations)
     }
 
-  } catch (error) {
-    console.error("Error fetching designations:", error)
+  } catch (error: any) {
+    console.error("❌ Error fetching designations:", error)
+    console.error("❌ Error message:", error.message)
+    console.error("❌ Error stack:", error.stack)
     return NextResponse.json(
-      { error: "Failed to fetch designations" },
+      { error: "Failed to fetch designations", details: error.message },
       { status: 500 }
     )
   }
+  // Note: Do not disconnect Prisma client - it maintains a connection pool
 }
 
 export async function POST(request: Request) {

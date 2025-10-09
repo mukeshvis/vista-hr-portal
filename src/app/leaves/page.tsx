@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
 import { TopNavigation } from "@/components/top-navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Calendar, Plus, CheckCircle, XCircle, Clock, AlertCircle, Search, RefreshCw, User, Users, ClipboardList, FileText, Tag, CalendarDays, Hash, Timer, MessageSquare, CalendarClock, Activity, Eye, UserCheck } from "lucide-react"
+import { Calendar, Plus, CheckCircle, XCircle, Clock, AlertCircle, Search, RefreshCw, User, Users, ClipboardList, FileText, Tag, CalendarDays, Hash, Timer, MessageSquare, CalendarClock, Activity, Eye, UserCheck, Pencil, Trash2 } from "lucide-react"
 import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
 
@@ -82,6 +82,36 @@ export default function LeavesPage() {
   const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false)
   const [currentEmployeeManager, setCurrentEmployeeManager] = useState<string>('N/A')
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingApplication, setEditingApplication] = useState<LeaveApplication | null>(null)
+  const [editLeave, setEditLeave] = useState({
+    leaveType: '',
+    leaveDayType: '1',
+    fromDate: '',
+    toDate: '',
+    numberOfDays: 1,
+    halfDayType: '',
+    reason: ''
+  })
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deletingApplicationId, setDeletingApplicationId] = useState<number | null>(null)
+  const [deletingApplicationName, setDeletingApplicationName] = useState<string>('')
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isAddLeaveDialogOpen, setIsAddLeaveDialogOpen] = useState(false)
+  const [employeeList, setEmployeeList] = useState<any[]>([])
+  const [selectedEmployeeForAdd, setSelectedEmployeeForAdd] = useState<any>(null)
+  const [addLeaveData, setAddLeaveData] = useState({
+    empId: '',
+    empName: '',
+    managerName: '',
+    leaveType: '',
+    leaveDayType: '1',
+    fromDate: '',
+    toDate: '',
+    numberOfDays: 1,
+    halfDayType: '',
+    reason: ''
+  })
 
   const [newLeave, setNewLeave] = useState({
     leaveType: '',
@@ -264,7 +294,337 @@ export default function LeavesPage() {
     }
   }
 
-  const calculateDays = () => {
+  const handleEditClick = (application: LeaveApplication) => {
+    setEditingApplication(application)
+    setEditLeave({
+      leaveType: application.leave_type_id.toString(),
+      leaveDayType: application.leave_day_type.toString(),
+      fromDate: application.from_date,
+      toDate: application.to_date,
+      numberOfDays: application.no_of_days,
+      halfDayType: application.first_second_half || '',
+      reason: application.reason
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleDeleteClick = (application: LeaveApplication) => {
+    setDeletingApplicationId(application.id)
+    setDeletingApplicationName(application.employee_name || 'this application')
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deletingApplicationId) return
+
+    setIsDeleting(true)
+
+    // Optimistic UI update - immediately remove from list
+    const deletedId = deletingApplicationId
+    const previousAllApplications = [...allApplications]
+    const previousApplications = [...applications]
+    const previousPendingApplications = [...pendingApplications]
+
+    // Remove from UI immediately
+    setAllApplications(prev => prev.filter(app => app.id !== deletedId))
+    setApplications(prev => prev.filter(app => app.id !== deletedId))
+    setPendingApplications(prev => prev.filter(app => app.id !== deletedId))
+
+    // Close dialog immediately
+    setIsDeleteDialogOpen(false)
+
+    try {
+      const response = await fetch(`/api/leaves/applications/${deletedId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        // Success - show message and refresh to sync
+        setSuccessMessage('Leave application deleted successfully')
+        setShowSuccessPopup(true)
+        setDeletingApplicationId(null)
+        setDeletingApplicationName('')
+
+        // Refresh in background to sync
+        fetchEmployeeBalances()
+      } else {
+        // Rollback on error
+        setAllApplications(previousAllApplications)
+        setApplications(previousApplications)
+        setPendingApplications(previousPendingApplications)
+        setErrorMessage('Failed to delete leave application')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      // Rollback on error
+      setAllApplications(previousAllApplications)
+      setApplications(previousApplications)
+      setPendingApplications(previousPendingApplications)
+      console.error('Error deleting application:', error)
+      setErrorMessage('Failed to delete leave application')
+      setShowErrorPopup(true)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleEditSubmit = async () => {
+    if (!editingApplication) return
+
+    // Validation
+    if (!editLeave.leaveType) {
+      setErrorMessage('Please select a leave type')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!editLeave.fromDate || !editLeave.toDate) {
+      setErrorMessage('Please select from and to dates')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!editLeave.reason.trim()) {
+      setErrorMessage('Please provide a reason for leave')
+      setShowErrorPopup(true)
+      return
+    }
+
+    try {
+      setSubmitting(true)
+
+      const response = await fetch(`/api/leaves/applications/${editingApplication.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          leaveType: parseInt(editLeave.leaveType),
+          leaveDayType: parseInt(editLeave.leaveDayType),
+          fromDate: editLeave.fromDate,
+          toDate: editLeave.toDate,
+          numberOfDays: editLeave.numberOfDays,
+          halfDayType: editLeave.halfDayType,
+          halfDayDate: editLeave.leaveDayType === '2' ? editLeave.fromDate : '',
+          returnDate: editLeave.toDate,
+          reason: editLeave.reason,
+          leaveAddress: 'N/A'
+        })
+      })
+
+      if (response.ok) {
+        setSuccessMessage('Leave application updated successfully!')
+        setShowSuccessPopup(true)
+        setIsEditDialogOpen(false)
+        setEditingApplication(null)
+
+        // Refresh all data
+        await fetchApplications(currentEmpId)
+        await fetchAllApplications()
+        await fetchPendingApplications()
+      } else {
+        const error = await response.json()
+        setErrorMessage(error.details || error.error || 'Failed to update leave application')
+        setShowErrorPopup(true)
+      }
+    } catch (error: any) {
+      console.error('Error updating leave:', error)
+      setErrorMessage('Failed to update leave application: ' + error.message)
+      setShowErrorPopup(true)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const calculateEditDays = useCallback(() => {
+    if (!editLeave.fromDate || !editLeave.toDate) return
+
+    const from = new Date(editLeave.fromDate)
+    const to = new Date(editLeave.toDate)
+
+    // Calculate working days (excluding Saturday & Sunday)
+    let workingDays = 0
+    const currentDate = new Date(from)
+
+    while (currentDate <= to) {
+      const dayOfWeek = currentDate.getDay()
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        workingDays++
+      }
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+
+    if (editLeave.leaveDayType === '2') {
+      setEditLeave(prev => ({ ...prev, numberOfDays: workingDays / 2 }))
+    } else {
+      setEditLeave(prev => ({ ...prev, numberOfDays: workingDays }))
+    }
+  }, [editLeave.fromDate, editLeave.toDate, editLeave.leaveDayType])
+
+  useEffect(() => {
+    if (isEditDialogOpen) {
+      calculateEditDays()
+    }
+  }, [isEditDialogOpen, calculateEditDays])
+
+  // Fetch employees when Add Leave dialog opens
+  const fetchEmployees = async () => {
+    try {
+      console.log('🔄 Fetching employees...')
+      const res = await fetch('/api/leaves/employees')
+      if (res.ok) {
+        const data = await res.json()
+        console.log('✅ Employees fetched:', data.length)
+        setEmployeeList(data)
+      } else {
+        console.error('❌ Failed to fetch employees:', res.status)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching employees:', error)
+    }
+  }
+
+  const handleOpenAddLeaveDialog = () => {
+    setIsAddLeaveDialogOpen(true)
+    fetchEmployees()
+  }
+
+  const handleEmployeeSelect = (empId: string) => {
+    const employee = employeeList.find(emp => emp.emp_id === empId)
+    if (employee) {
+      setSelectedEmployeeForAdd(employee)
+      setAddLeaveData(prev => ({
+        ...prev,
+        empId: employee.emp_id,
+        empName: employee.emp_name,
+        managerName: employee.manager_name || 'N/A'
+      }))
+    }
+  }
+
+  const calculateAddLeaveDays = useCallback(() => {
+    if (!addLeaveData.fromDate || !addLeaveData.toDate) return
+
+    const from = new Date(addLeaveData.fromDate)
+    const to = new Date(addLeaveData.toDate)
+
+    let workingDays = 0
+    const currentDate = new Date(from)
+
+    while (currentDate <= to) {
+      const dayOfWeek = currentDate.getDay()
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        workingDays++
+      }
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+
+    if (addLeaveData.leaveDayType === '2') {
+      setAddLeaveData(prev => ({ ...prev, numberOfDays: workingDays / 2 }))
+    } else {
+      setAddLeaveData(prev => ({ ...prev, numberOfDays: workingDays }))
+    }
+  }, [addLeaveData.fromDate, addLeaveData.toDate, addLeaveData.leaveDayType])
+
+  useEffect(() => {
+    if (isAddLeaveDialogOpen) {
+      calculateAddLeaveDays()
+    }
+  }, [isAddLeaveDialogOpen, calculateAddLeaveDays])
+
+  const handleSubmitAddLeave = async () => {
+    // Validation
+    if (!addLeaveData.empId) {
+      setErrorMessage('Please select an employee')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!addLeaveData.leaveType) {
+      setErrorMessage('Please select a leave type')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!addLeaveData.fromDate || !addLeaveData.toDate) {
+      setErrorMessage('Please select from and to dates')
+      setShowErrorPopup(true)
+      return
+    }
+
+    if (!addLeaveData.reason.trim()) {
+      setErrorMessage('Please provide a reason for leave')
+      setShowErrorPopup(true)
+      return
+    }
+
+    try {
+      setSubmitting(true)
+
+      const empIdNum = addLeaveData.empId ? parseInt(addLeaveData.empId) : 0
+
+      const response = await fetch('/api/leaves/applications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          empId: addLeaveData.empId,
+          empIdNum: empIdNum,
+          leavePolicyId: selectedEmployeeForAdd?.leaves_policy_id || 1,
+          companyId: 1,
+          leaveType: parseInt(addLeaveData.leaveType),
+          leaveDayType: parseInt(addLeaveData.leaveDayType),
+          fromDate: addLeaveData.fromDate,
+          toDate: addLeaveData.toDate,
+          numberOfDays: addLeaveData.numberOfDays,
+          halfDayType: addLeaveData.halfDayType,
+          halfDayDate: addLeaveData.leaveDayType === '2' ? addLeaveData.fromDate : '',
+          returnDate: addLeaveData.toDate,
+          reason: addLeaveData.reason,
+          leaveAddress: 'N/A',
+          username: addLeaveData.empId
+        })
+      })
+
+      if (response.ok) {
+        setSuccessMessage('Leave added successfully for ' + addLeaveData.empName)
+        setShowSuccessPopup(true)
+        setIsAddLeaveDialogOpen(false)
+        setAddLeaveData({
+          empId: '',
+          empName: '',
+          managerName: '',
+          leaveType: '',
+          leaveDayType: '1',
+          fromDate: '',
+          toDate: '',
+          numberOfDays: 1,
+          halfDayType: '',
+          reason: ''
+        })
+        setSelectedEmployeeForAdd(null)
+
+        // Refresh all data
+        await fetchApplications(currentEmpId)
+        await fetchAllApplications()
+        await fetchPendingApplications()
+        await fetchEmployeeBalances()
+      } else {
+        const error = await response.json()
+        setErrorMessage(error.details || error.error || 'Failed to add leave')
+        setShowErrorPopup(true)
+      }
+    } catch (error: any) {
+      console.error('Error adding leave:', error)
+      setErrorMessage('Failed to add leave: ' + error.message)
+      setShowErrorPopup(true)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const calculateDays = useCallback(() => {
     if (!newLeave.fromDate || !newLeave.toDate) return
 
     const from = new Date(newLeave.fromDate)
@@ -289,13 +649,13 @@ export default function LeavesPage() {
     } else {
       setNewLeave(prev => ({ ...prev, numberOfDays: workingDays }))
     }
-  }
+  }, [newLeave.fromDate, newLeave.toDate, newLeave.leaveDayType])
 
   useEffect(() => {
     calculateDays()
-  }, [newLeave.fromDate, newLeave.toDate, newLeave.leaveDayType])
+  }, [calculateDays])
 
-  const handleInputChange = (field: string, value: any) => {
+  const handleInputChange = useCallback((field: string, value: any) => {
     if (field === 'leaveType') {
       // Check if the new leave type is Annual
       const selectedLeaveType = leaveTypes.find(lt => lt.id.toString() === value)
@@ -308,7 +668,12 @@ export default function LeavesPage() {
       }
     }
     setNewLeave(prev => ({ ...prev, [field]: value }))
-  }
+  }, [leaveTypes, newLeave.leaveDayType])
+
+  // Optimized handler for reason field
+  const handleReasonChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setNewLeave(prev => ({ ...prev, reason: e.target.value }))
+  }, [])
 
   const handleSubmitLeave = async () => {
     // Validation
@@ -438,20 +803,40 @@ export default function LeavesPage() {
       return <Badge variant="outline">N/A</Badge>
     }
 
-    const colors = [
-      'bg-emerald-100 text-emerald-700 hover:bg-emerald-200',
-      'bg-sky-100 text-sky-700 hover:bg-sky-200',
-      'bg-violet-100 text-violet-700 hover:bg-violet-200',
-      'bg-rose-100 text-rose-700 hover:bg-rose-200',
-      'bg-amber-100 text-amber-700 hover:bg-amber-200',
-      'bg-cyan-100 text-cyan-700 hover:bg-cyan-200',
-      'bg-fuchsia-100 text-fuchsia-700 hover:bg-fuchsia-200',
-      'bg-lime-100 text-lime-700 hover:bg-lime-200',
-    ]
+    // Specific colors for specific leave types
+    const lowerCaseName = leaveTypeName.toLowerCase()
+    let colorClass = ''
 
-    // Generate a consistent color based on the leave type name
-    const hash = leaveTypeName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-    const colorClass = colors[hash % colors.length]
+    if (lowerCaseName.includes('annual')) {
+      colorClass = 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+    } else if (lowerCaseName.includes('emergency')) {
+      colorClass = 'bg-red-100 text-red-700 hover:bg-red-200'
+    } else if (lowerCaseName.includes('medical') || lowerCaseName.includes('sick')) {
+      colorClass = 'bg-green-100 text-green-700 hover:bg-green-200'
+    } else if (lowerCaseName.includes('casual')) {
+      colorClass = 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+    } else if (lowerCaseName.includes('maternity') || lowerCaseName.includes('paternity')) {
+      colorClass = 'bg-pink-100 text-pink-700 hover:bg-pink-200'
+    } else if (lowerCaseName.includes('unpaid')) {
+      colorClass = 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+    } else if (lowerCaseName.includes('compensatory') || lowerCaseName.includes('comp')) {
+      colorClass = 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+    } else if (lowerCaseName.includes('bereavement')) {
+      colorClass = 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+    } else if (lowerCaseName.includes('study') || lowerCaseName.includes('education')) {
+      colorClass = 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'
+    } else {
+      // Fallback colors for any other leave types
+      const fallbackColors = [
+        'bg-amber-100 text-amber-700 hover:bg-amber-200',
+        'bg-lime-100 text-lime-700 hover:bg-lime-200',
+        'bg-teal-100 text-teal-700 hover:bg-teal-200',
+        'bg-orange-100 text-orange-700 hover:bg-orange-200',
+        'bg-violet-100 text-violet-700 hover:bg-violet-200',
+      ]
+      const hash = leaveTypeName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+      colorClass = fallbackColors[hash % fallbackColors.length]
+    }
 
     return <Badge className={`${colorClass} border-0`}>{leaveTypeName}</Badge>
   }
@@ -470,19 +855,33 @@ export default function LeavesPage() {
     )
   }
 
-  const filteredMyApplications = filterApplications(applications, searchTerm)
-  const filteredAllApplications = filterApplications(allApplications, allSearchTerm)
-  const filteredPendingApplications = filterApplications(pendingApplications, pendingSearchTerm)
+  const filteredMyApplications = useMemo(() =>
+    filterApplications(applications, searchTerm),
+    [applications, searchTerm]
+  )
 
-  const filteredEmployeeBalances = employeeBalances.filter(emp => {
-    if (!employeeSearchTerm.trim()) return true
-    const lowerSearch = employeeSearchTerm.toLowerCase()
-    return (
-      emp.employee_name?.toLowerCase().includes(lowerSearch) ||
-      emp.emp_id?.toLowerCase().includes(lowerSearch) ||
-      emp.department_name?.toLowerCase().includes(lowerSearch)
-    )
-  })
+  const filteredAllApplications = useMemo(() =>
+    filterApplications(allApplications, allSearchTerm),
+    [allApplications, allSearchTerm]
+  )
+
+  const filteredPendingApplications = useMemo(() =>
+    filterApplications(pendingApplications, pendingSearchTerm),
+    [pendingApplications, pendingSearchTerm]
+  )
+
+  const filteredEmployeeBalances = useMemo(() =>
+    employeeBalances.filter(emp => {
+      if (!employeeSearchTerm.trim()) return true
+      const lowerSearch = employeeSearchTerm.toLowerCase()
+      return (
+        emp.employee_name?.toLowerCase().includes(lowerSearch) ||
+        emp.emp_id?.toLowerCase().includes(lowerSearch) ||
+        emp.department_name?.toLowerCase().includes(lowerSearch)
+      )
+    }),
+    [employeeBalances, employeeSearchTerm]
+  )
 
   // Refresh all data
   const handleRefresh = async () => {
@@ -521,6 +920,13 @@ export default function LeavesPage() {
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               {isRefreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
+            <Button
+              onClick={handleOpenAddLeaveDialog}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Leave
             </Button>
             <Button onClick={() => setIsApplyDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -732,12 +1138,15 @@ export default function LeavesPage() {
                           <span className="text-gray-700 font-semibold">Status</span>
                         </div>
                       </TableHead>
+                      <TableHead>
+                        <span className="text-gray-700 font-semibold">Actions</span>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-12">
+                        <TableCell colSpan={9} className="text-center py-12">
                           <div className="flex flex-col items-center gap-2">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
                             <p className="text-muted-foreground text-sm">Loading applications...</p>
@@ -746,7 +1155,7 @@ export default function LeavesPage() {
                       </TableRow>
                     ) : filteredAllApplications.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                           {allSearchTerm ? 'No matching applications found' : 'No leave applications found'}
                         </TableCell>
                       </TableRow>
@@ -766,6 +1175,24 @@ export default function LeavesPage() {
                             {app.application_date ? new Date(app.application_date).toLocaleDateString('en-GB') : 'N/A'}
                           </TableCell>
                           <TableCell>{getStatusBadge(app.approval_status, app.approved)}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <button
+                                className="inline-flex items-center justify-center rounded-md h-7 px-2 text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors cursor-pointer"
+                                onClick={() => handleEditClick(app)}
+                                title="Edit application"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              <button
+                                className="inline-flex items-center justify-center rounded-md h-7 px-2 text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer"
+                                onClick={() => handleDeleteClick(app)}
+                                title="Delete application"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       ))
                     )}
@@ -1209,7 +1636,7 @@ export default function LeavesPage() {
               </Label>
               <Textarea
                 value={newLeave.reason}
-                onChange={(e) => handleInputChange('reason', e.target.value)}
+                onChange={handleReasonChange}
                 placeholder="Enter reason for leave..."
                 rows={3}
                 className="bg-white border-teal-200 focus:ring-teal-500"
@@ -1377,6 +1804,497 @@ export default function LeavesPage() {
           <div className="flex justify-end">
             <Button variant="outline" onClick={() => setIsEmployeeDialogOpen(false)}>
               Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Leave Dialog */}
+      <Dialog open={isAddLeaveDialogOpen} onOpenChange={setIsAddLeaveDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
+          <DialogHeader className="pb-4 border-b border-green-200">
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg">
+                <Plus className="h-6 w-6 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+                Add Leave for Employee
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-5 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="selectEmployee" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <User className="h-4 w-4 text-green-600" />
+                  Select Employee *
+                </Label>
+                <Select
+                  value={addLeaveData.empId}
+                  onValueChange={handleEmployeeSelect}
+                >
+                  <SelectTrigger className="bg-white border-green-200 focus:ring-green-500">
+                    <SelectValue placeholder="Search and select employee..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white max-h-[300px]">
+                    {employeeList
+                      .filter(emp => emp.emp_id && emp.emp_id.trim() !== '')
+                      .map((emp, index) => (
+                        <SelectItem key={`emp-${emp.id || emp.emp_id}-${index}`} value={emp.emp_id} className="bg-white hover:bg-green-50">
+                          {emp.emp_name} ({emp.emp_id})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="managerName" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <UserCheck className="h-4 w-4 text-blue-600" />
+                  Reporting Manager
+                </Label>
+                <Input
+                  type="text"
+                  value={addLeaveData.managerName}
+                  readOnly
+                  className="bg-blue-50 border-blue-200"
+                  placeholder="Auto-filled"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="addLeaveType" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Tag className="h-4 w-4 text-purple-600" />
+                  Leave Type *
+                </Label>
+                <Select
+                  value={addLeaveData.leaveType}
+                  onValueChange={(value) => setAddLeaveData(prev => ({ ...prev, leaveType: value }))}
+                >
+                  <SelectTrigger className="bg-white border-purple-200 focus:ring-purple-500">
+                    <SelectValue placeholder="Select leave type..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    {leaveTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id.toString()} className="bg-white hover:bg-purple-50">
+                        {type.leave_type_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="addLeaveDayType" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Timer className="h-4 w-4 text-indigo-600" />
+                  Leave Day Type *
+                </Label>
+                <Select
+                  value={addLeaveData.leaveDayType}
+                  onValueChange={(value) => setAddLeaveData(prev => ({ ...prev, leaveDayType: value }))}
+                >
+                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="1" className="bg-white hover:bg-indigo-50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        Full Day
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="2" className="bg-white hover:bg-indigo-50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                        Half Day
+                      </div>
+                    </SelectItem>
+                    {(() => {
+                      const selectedLeaveType = leaveTypes.find(lt => lt.id.toString() === addLeaveData.leaveType)
+                      const isAnnual = selectedLeaveType?.leave_type_name?.toLowerCase().includes('annual')
+                      return isAnnual ? (
+                        <SelectItem value="3" className="bg-white hover:bg-indigo-50">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                            Remote
+                          </div>
+                        </SelectItem>
+                      ) : null
+                    })()}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="addFromDate" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <CalendarDays className="h-4 w-4 text-green-600" />
+                  From Date *
+                </Label>
+                <Input
+                  type="date"
+                  value={addLeaveData.fromDate}
+                  onChange={(e) => setAddLeaveData(prev => ({ ...prev, fromDate: e.target.value }))}
+                  className="bg-white border-green-200 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="addToDate" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <CalendarDays className="h-4 w-4 text-red-600" />
+                  To Date *
+                </Label>
+                <Input
+                  type="date"
+                  value={addLeaveData.toDate}
+                  onChange={(e) => setAddLeaveData(prev => ({ ...prev, toDate: e.target.value }))}
+                  min={addLeaveData.fromDate}
+                  className="bg-white border-red-200 focus:ring-red-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Hash className="h-4 w-4 text-amber-600" />
+                  Number of Days
+                </Label>
+                <Input
+                  type="number"
+                  value={addLeaveData.numberOfDays}
+                  readOnly
+                  className="bg-amber-50 border-amber-200 font-semibold text-amber-700"
+                />
+              </div>
+            </div>
+
+            {addLeaveData.leaveDayType === '2' && (
+              <div className="space-y-2 bg-orange-50 p-4 rounded-lg border border-orange-200">
+                <Label htmlFor="addHalfDayType" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Clock className="h-4 w-4 text-orange-600" />
+                  Half Day Type
+                </Label>
+                <Select
+                  value={addLeaveData.halfDayType}
+                  onValueChange={(value) => setAddLeaveData(prev => ({ ...prev, halfDayType: value }))}
+                >
+                  <SelectTrigger className="bg-white border-orange-200 focus:ring-orange-500">
+                    <SelectValue placeholder="Select half day type..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="First" className="bg-white hover:bg-orange-50">First Half</SelectItem>
+                    <SelectItem value="Second" className="bg-white hover:bg-orange-50">Second Half</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="addReason" className="flex items-center gap-2 text-gray-700 font-medium">
+                <MessageSquare className="h-4 w-4 text-teal-600" />
+                Reason *
+              </Label>
+              <Textarea
+                value={addLeaveData.reason}
+                onChange={(e) => setAddLeaveData(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="Enter reason for leave..."
+                rows={3}
+                className="bg-white border-teal-200 focus:ring-teal-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-green-200">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddLeaveDialogOpen(false)
+                setAddLeaveData({
+                  empId: '',
+                  empName: '',
+                  managerName: '',
+                  leaveType: '',
+                  leaveDayType: '1',
+                  fromDate: '',
+                  toDate: '',
+                  numberOfDays: 1,
+                  halfDayType: '',
+                  reason: ''
+                })
+                setSelectedEmployeeForAdd(null)
+              }}
+              className="border-gray-300 hover:bg-gray-100"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitAddLeave}
+              disabled={submitting}
+              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg"
+            >
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Adding Leave...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Add Leave
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <span className="text-gray-900">Confirm Deletion</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="py-4">
+            <p className="text-gray-700 text-base leading-relaxed">
+              Are you sure you want to delete the leave application for{' '}
+              <span className="font-semibold text-gray-900">{deletingApplicationName}</span>?
+            </p>
+            <p className="text-sm text-red-600 mt-3 bg-red-50 p-3 rounded-md border border-red-200">
+              <strong>Warning:</strong> This action cannot be undone. The application and all its data will be permanently removed.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDeleteDialogOpen(false)
+                setDeletingApplicationId(null)
+                setDeletingApplicationName('')
+              }}
+              disabled={isDeleting}
+              className="border-gray-300 hover:bg-gray-100"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDeleteConfirm}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              {isDeleting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Application
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Leave Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+          <DialogHeader className="pb-4 border-b border-blue-200">
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg">
+                <Pencil className="h-6 w-6 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                Edit Leave Application
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-5 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editLeaveType" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Tag className="h-4 w-4 text-purple-600" />
+                  Leave Type *
+                </Label>
+                <Select
+                  value={editLeave.leaveType}
+                  onValueChange={(value) => setEditLeave(prev => ({ ...prev, leaveType: value }))}
+                >
+                  <SelectTrigger className="bg-white border-purple-200 focus:ring-purple-500">
+                    <SelectValue placeholder="Select leave type..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    {leaveTypes.map((type) => (
+                      <SelectItem key={type.id} value={type.id.toString()} className="bg-white hover:bg-purple-50">
+                        {type.leave_type_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editLeaveDayType" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Timer className="h-4 w-4 text-indigo-600" />
+                  Leave Day Type *
+                </Label>
+                <Select
+                  value={editLeave.leaveDayType}
+                  onValueChange={(value) => setEditLeave(prev => ({ ...prev, leaveDayType: value }))}
+                >
+                  <SelectTrigger className="bg-white border-indigo-200 focus:ring-indigo-500">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="1" className="bg-white hover:bg-indigo-50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        Full Day
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="2" className="bg-white hover:bg-indigo-50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                        Half Day
+                      </div>
+                    </SelectItem>
+                    {(() => {
+                      const selectedLeaveType = leaveTypes.find(lt => lt.id.toString() === editLeave.leaveType)
+                      const isAnnual = selectedLeaveType?.leave_type_name?.toLowerCase().includes('annual')
+                      return isAnnual ? (
+                        <SelectItem value="3" className="bg-white hover:bg-indigo-50">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                            Remote
+                          </div>
+                        </SelectItem>
+                      ) : null
+                    })()}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editFromDate" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <CalendarDays className="h-4 w-4 text-green-600" />
+                  From Date *
+                </Label>
+                <Input
+                  type="date"
+                  value={editLeave.fromDate}
+                  onChange={(e) => setEditLeave(prev => ({ ...prev, fromDate: e.target.value }))}
+                  className="bg-white border-green-200 focus:ring-green-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editToDate" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <CalendarDays className="h-4 w-4 text-red-600" />
+                  To Date *
+                </Label>
+                <Input
+                  type="date"
+                  value={editLeave.toDate}
+                  onChange={(e) => setEditLeave(prev => ({ ...prev, toDate: e.target.value }))}
+                  min={editLeave.fromDate}
+                  className="bg-white border-red-200 focus:ring-red-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Hash className="h-4 w-4 text-amber-600" />
+                  Number of Days
+                </Label>
+                <Input
+                  type="number"
+                  value={editLeave.numberOfDays}
+                  readOnly
+                  className="bg-amber-50 border-amber-200 font-semibold text-amber-700"
+                />
+              </div>
+            </div>
+
+            {editLeave.leaveDayType === '2' && (
+              <div className="space-y-2 bg-orange-50 p-4 rounded-lg border border-orange-200">
+                <Label htmlFor="editHalfDayType" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Clock className="h-4 w-4 text-orange-600" />
+                  Half Day Type
+                </Label>
+                <Select
+                  value={editLeave.halfDayType}
+                  onValueChange={(value) => setEditLeave(prev => ({ ...prev, halfDayType: value }))}
+                >
+                  <SelectTrigger className="bg-white border-orange-200 focus:ring-orange-500">
+                    <SelectValue placeholder="Select half day type..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-white">
+                    <SelectItem value="First" className="bg-white hover:bg-orange-50">First Half</SelectItem>
+                    <SelectItem value="Second" className="bg-white hover:bg-orange-50">Second Half</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="editReason" className="flex items-center gap-2 text-gray-700 font-medium">
+                <MessageSquare className="h-4 w-4 text-teal-600" />
+                Reason *
+              </Label>
+              <Textarea
+                value={editLeave.reason}
+                onChange={(e) => setEditLeave(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="Enter reason for leave..."
+                rows={3}
+                className="bg-white border-teal-200 focus:ring-teal-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-blue-200">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditDialogOpen(false)
+                setEditingApplication(null)
+              }}
+              className="border-gray-300 hover:bg-gray-100"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditSubmit}
+              disabled={submitting}
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
+            >
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Update Application
+                </>
+              )}
             </Button>
           </div>
         </DialogContent>

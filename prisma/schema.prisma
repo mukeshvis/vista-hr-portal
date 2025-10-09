@@ -380,13 +380,27 @@ model leave_application {
 }
 
 model leave_application_data {
-  id                      Int       @id @default(autoincrement())
-  leave_application_id    Int
-  from_date               String    @db.VarChar(20)
-  to_date                 String    @db.VarChar(20)
-  no_of_days              Decimal   @db.Decimal(10, 2)
-  first_second_half       String?   @db.VarChar(20)
-  first_second_half_date  String?   @db.VarChar(20)
+  id                        Int       @id @default(autoincrement())
+  leave_policy_id           Int?
+  emp_id                    Int?
+  leave_application_id      Int?
+  leave_id                  Int?
+  leave_type                Int?
+  leave_day_type            Int?
+  no_of_days                Float?    @db.Double
+  from_date                 String?   @db.Text
+  to_date                   String?   @db.Text
+  date_of_return_to_work    String?   @db.Text
+  first_second_half         String?   @db.Text
+  first_second_half_date    String?   @db.Text
+  short_leave_time_from     String?   @db.Text
+  short_leave_time_to       String?   @db.Text
+  short_leave_date          String?   @db.Text
+  view                      String?   @db.Text
+  status                    Int?
+  username                  String?   @db.Text
+  date                      String?   @db.Text
+  time                      String?   @db.Text
 
   @@index([leave_application_id])
 }

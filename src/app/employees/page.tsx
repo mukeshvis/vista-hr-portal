@@ -222,16 +222,19 @@ export default function EmployeesPage() {
   // Fetch designations from API
   const fetchDesignations = useCallback(async () => {
     try {
+      console.log('🔄 Fetching designations from frontend...')
       const response = await fetch('/api/designations?forSelect=true')
       if (response.ok) {
         const data = await response.json()
+        console.log(`✅ Designations loaded: ${data.length} items`)
         setDesignations(data)
       } else {
-        console.error('Failed to fetch designations')
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ Failed to fetch designations:', response.status, errorData)
         setDesignations([])
       }
-    } catch (error) {
-      console.error('Error fetching designations:', error)
+    } catch (error: any) {
+      console.error('❌ Error fetching designations:', error.message || error)
       setDesignations([])
     }
   }, [])
@@ -428,9 +431,8 @@ export default function EmployeesPage() {
         }
         break
       case 'email':
-        if (!value || (typeof value === 'string' && value.trim() === '')) {
-          error = 'This field is required'
-        } else if (typeof value === 'string') {
+        // Email is optional, only validate format if provided
+        if (value && typeof value === 'string' && value.trim() !== '') {
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
           if (!emailRegex.test(value)) {
             error = 'Please enter a valid email address'
@@ -512,7 +514,6 @@ export default function EmployeesPage() {
     const requiredFields = [
       { field: 'name', label: 'Full Name' },
       { field: 'empId', label: 'Employee ID' },
-      { field: 'email', label: 'Email' },
       { field: 'phone', label: 'Phone Number' },
       { field: 'designation', label: 'Designation' },
       { field: 'joiningDate', label: 'Joining Date' },
@@ -537,12 +538,14 @@ export default function EmployeesPage() {
       return false
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (newEmployee.email && !emailRegex.test(newEmployee.email)) {
-      setErrorMessage('Please enter a valid email address.')
-      setShowErrorPopup(true)
-      return false
+    // Validate email format (optional field)
+    if (newEmployee.email && newEmployee.email.trim() !== '') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(newEmployee.email)) {
+        setErrorMessage('Please enter a valid email address.')
+        setShowErrorPopup(true)
+        return false
+      }
     }
 
     // Validate phone number format (basic validation)
@@ -806,13 +809,12 @@ export default function EmployeesPage() {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="email">Email *</Label>
+                      <Label htmlFor="email">Email</Label>
                       <Input
                         id="email"
                         type="email"
                         value={newEmployee.email}
                         onChange={(e) => handleInputChange('email', e.target.value)}
-                        required
                         className={fieldErrors['email'] ? 'border-red-500 focus:border-red-500' : ''}
                       />
                       {fieldErrors['email'] && (
