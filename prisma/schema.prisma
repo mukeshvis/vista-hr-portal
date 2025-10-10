@@ -418,3 +418,36 @@ model leaves_data {
   @@index([leaves_policy_id])
   @@index([leave_type_id])
 }
+
+/// Remote work application model
+/// Rules: Max 4 remote days in 6 months, Max 2 remote days in 1 month
+/// Supports date ranges (from_date to to_date) with automatic working days calculation
+model remote_application {
+  id                 Int       @id @default(autoincrement())
+  emp_id             String    @db.VarChar(50)
+  employee_name      String    @db.VarChar(255)
+  from_date          DateTime  @db.Date
+  to_date            DateTime  @db.Date
+  number_of_days     Int       @default(1)
+  date               DateTime  @db.Date /// @deprecated Use from_date and to_date instead
+  reason             String?   @db.Text
+  application_date   DateTime  @default(now()) @db.DateTime(0)
+  approval_status    String    @default("Pending") @db.VarChar(50)
+  approved           Int       @default(0)
+  approved_by        String?   @db.VarChar(50)
+  approved_date      DateTime? @db.DateTime(0)
+  rejection_reason   String?   @db.Text
+  manager_id         Int?
+  manager_name       String?   @db.VarChar(255)
+  status             Int       @default(1)
+  created_at         DateTime  @default(now()) @db.Timestamp(0)
+  updated_at         DateTime  @updatedAt @db.Timestamp(0)
+
+  @@index([emp_id])
+  @@index([date])
+  @@index([from_date])
+  @@index([to_date])
+  @@index([approval_status])
+  @@index([approved])
+  @@index([application_date])
+}

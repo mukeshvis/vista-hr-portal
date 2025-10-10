@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Calendar, Plus, CheckCircle, XCircle, Clock, AlertCircle, Search, RefreshCw, User, Users, ClipboardList, FileText, Tag, CalendarDays, Hash, Timer, MessageSquare, CalendarClock, Activity, Eye, UserCheck, Pencil, Trash2 } from "lucide-react"
 import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 interface LeaveType {
   id: number
@@ -52,6 +53,9 @@ interface EmployeeLeaveBalance {
   total_used: number
   total_remaining: number
   total_applications: number
+  annual_used: number
+  sick_used: number
+  emergency_used: number
 }
 
 export default function LeavesPage() {
@@ -61,13 +65,62 @@ export default function LeavesPage() {
   const [allApplications, setAllApplications] = useState<LeaveApplication[]>([])
   const [pendingApplications, setPendingApplications] = useState<LeaveApplication[]>([])
   const [employeeBalances, setEmployeeBalances] = useState<EmployeeLeaveBalance[]>([])
+  const [remoteApplications, setRemoteApplications] = useState<any[]>([])
+  const [myRemoteApplications, setMyRemoteApplications] = useState<any[]>([])
+  const [pendingRemoteApplications, setPendingRemoteApplications] = useState<any[]>([])
+  const [employeeRemoteBalances, setEmployeeRemoteBalances] = useState<any[]>([])
+  const [loadingRemoteBalances, setLoadingRemoteBalances] = useState(false)
+  const [searchRemoteBalance, setSearchRemoteBalance] = useState('')
+  const [searchMyRemote, setSearchMyRemote] = useState('')
+  const [searchAllRemote, setSearchAllRemote] = useState('')
+  const [searchPendingRemote, setSearchPendingRemote] = useState('')
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM format
+  const [isEmployeeDetailsDialogOpen, setIsEmployeeDetailsDialogOpen] = useState(false)
+  const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState<any>(null)
   const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadingMy, setLoadingMy] = useState(false)
+  const [loadingAll, setLoadingAll] = useState(false)
+  const [loadingPending, setLoadingPending] = useState(false)
+  const [loadingBalances, setLoadingBalances] = useState(false)
+  const [loadingRemote, setLoadingRemote] = useState(false)
+  const [activeTab, setActiveTab] = useState('employees-leave-balance')
+  const [isApplyRemoteDialogOpen, setIsApplyRemoteDialogOpen] = useState(false)
+  const [isRemoteUsageDialogOpen, setIsRemoteUsageDialogOpen] = useState(false)
+  const [isAddRemoteDialogOpen, setIsAddRemoteDialogOpen] = useState(false)
+  const [isEditRemoteDialogOpen, setIsEditRemoteDialogOpen] = useState(false)
+  const [isDeleteRemoteDialogOpen, setIsDeleteRemoteDialogOpen] = useState(false)
+  const [editingRemoteApplication, setEditingRemoteApplication] = useState<any>(null)
+  const [deletingRemoteId, setDeletingRemoteId] = useState<number | null>(null)
+  const [remoteWorkData, setRemoteWorkData] = useState({
+    fromDate: '',
+    toDate: '',
+    numberOfDays: 1,
+    reason: ''
+  })
+  const [addRemoteData, setAddRemoteData] = useState({
+    empId: '',
+    empName: '',
+    managerName: '',
+    fromDate: '',
+    toDate: '',
+    numberOfDays: 1,
+    reason: ''
+  })
+  const [editRemoteData, setEditRemoteData] = useState({
+    fromDate: '',
+    toDate: '',
+    numberOfDays: 1,
+    reason: ''
+  })
+  const [selectedEmployeeForRemote, setSelectedEmployeeForRemote] = useState<string | null>(null)
+  const [remoteValidation, setRemoteValidation] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [showErrorPopup, setShowErrorPopup] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  const [showRemoteLimitReachedDialog, setShowRemoteLimitReachedDialog] = useState(false)
   const [currentEmpId, setCurrentEmpId] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [allSearchTerm, setAllSearchTerm] = useState('')
@@ -115,7 +168,7 @@ export default function LeavesPage() {
 
   const [newLeave, setNewLeave] = useState({
     leaveType: '',
-    leaveDayType: '1', // 1=Full Day, 2=Half Day, 3=Remote
+    leaveDayType: '1', // 1=Full Day, 2=Half Day
     fromDate: '',
     toDate: '',
     numberOfDays: 1,
@@ -157,6 +210,17 @@ export default function LeavesPage() {
       // Fetch employee balances
       await fetchEmployeeBalances()
 
+      // Fetch remote work applications
+      await fetchRemoteApplications('all')
+      await fetchRemoteApplications('my')
+      await fetchRemoteApplications('pending')
+
+      // Fetch employee remote balances
+      await fetchEmployeeRemoteBalances()
+
+      // Fetch remote work validation
+      await fetchRemoteValidation()
+
       // Fetch current employee's manager
       await fetchCurrentEmployeeManager(empId)
     } catch (error) {
@@ -182,6 +246,7 @@ export default function LeavesPage() {
 
   const fetchApplications = async (empId?: string) => {
     try {
+      setLoadingMy(true)
       const url = empId ? `/api/leaves/applications?empId=${empId}` : '/api/leaves/applications'
       const res = await fetch(url)
       if (res.ok) {
@@ -190,11 +255,14 @@ export default function LeavesPage() {
       }
     } catch (error) {
       console.error('Error fetching applications:', error)
+    } finally {
+      setLoadingMy(false)
     }
   }
 
   const fetchAllApplications = async () => {
     try {
+      setLoadingAll(true)
       const res = await fetch('/api/leaves/applications')
       if (res.ok) {
         const data = await res.json()
@@ -202,11 +270,14 @@ export default function LeavesPage() {
       }
     } catch (error) {
       console.error('Error fetching all applications:', error)
+    } finally {
+      setLoadingAll(false)
     }
   }
 
   const fetchPendingApplications = async () => {
     try {
+      setLoadingPending(true)
       const res = await fetch('/api/leaves/applications?status=0')
       if (res.ok) {
         const data = await res.json()
@@ -214,11 +285,14 @@ export default function LeavesPage() {
       }
     } catch (error) {
       console.error('Error fetching pending applications:', error)
+    } finally {
+      setLoadingPending(false)
     }
   }
 
   const fetchEmployeeBalances = async () => {
     try {
+      setLoadingBalances(true)
       console.log('🔄 Fetching employee balances...')
       const res = await fetch('/api/leaves/employees-balance')
       console.log('📡 Employee balance response status:', res.status)
@@ -231,6 +305,92 @@ export default function LeavesPage() {
       }
     } catch (error) {
       console.error('❌ Error fetching employee balances:', error)
+    } finally {
+      setLoadingBalances(false)
+    }
+  }
+
+  const fetchEmployeeRemoteBalances = async (month?: string) => {
+    try {
+      setLoadingRemoteBalances(true)
+      const monthParam = month || selectedMonth
+      console.log('🔄 Fetching employee remote balances for month:', monthParam)
+      const res = await fetch(`/api/remote-work/employee-balances?month=${monthParam}`)
+      if (res.ok) {
+        const data = await res.json()
+        console.log('✅ Employee remote balances fetched:', data.length, 'employees')
+        setEmployeeRemoteBalances(data)
+      } else {
+        console.error('❌ Failed to fetch employee remote balances:', res.status)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching employee remote balances:', error)
+    } finally {
+      setLoadingRemoteBalances(false)
+    }
+  }
+
+  const fetchRemoteApplications = async (type: 'my' | 'all' | 'pending' = 'all') => {
+    try {
+      setLoadingRemote(true)
+      let url = '/api/remote-work/applications?type=' + type
+      if (type === 'my') {
+        url += `&empId=${currentEmpId}`
+      }
+
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json()
+
+        if (type === 'my') {
+          setMyRemoteApplications(data)
+        } else if (type === 'pending') {
+          setPendingRemoteApplications(data)
+        } else {
+          setRemoteApplications(data)
+        }
+
+        console.log(`✅ Fetched ${data.length} ${type} remote applications`)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching remote applications:', error)
+    } finally {
+      setLoadingRemote(false)
+    }
+  }
+
+  const fetchRemoteValidation = async () => {
+    try {
+      if (!currentEmpId) return
+
+      const res = await fetch(`/api/remote-work/validate?empId=${currentEmpId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setRemoteValidation(data)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching remote validation:', error)
+    }
+  }
+
+  // Handle tab changes
+  const handleTabChange = async (value: string) => {
+    setActiveTab(value)
+
+    // Fetch data when switching tabs
+    if (value === 'my-applications') {
+      await fetchApplications(currentEmpId)
+    } else if (value === 'all-applications') {
+      await fetchAllApplications()
+    } else if (value === 'pending-approvals') {
+      await fetchPendingApplications()
+    } else if (value === 'employees-leave-balance') {
+      await fetchEmployeeBalances()
+    } else if (value === 'remote-work') {
+      await fetchRemoteApplications('all')
+      await fetchRemoteApplications('my')
+      await fetchRemoteApplications('pending')
+      await fetchRemoteValidation()
     }
   }
 
@@ -442,22 +602,13 @@ export default function LeavesPage() {
     const from = new Date(editLeave.fromDate)
     const to = new Date(editLeave.toDate)
 
-    // Calculate working days (excluding Saturday & Sunday)
-    let workingDays = 0
-    const currentDate = new Date(from)
-
-    while (currentDate <= to) {
-      const dayOfWeek = currentDate.getDay()
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        workingDays++
-      }
-      currentDate.setDate(currentDate.getDate() + 1)
-    }
+    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
+    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
 
     if (editLeave.leaveDayType === '2') {
-      setEditLeave(prev => ({ ...prev, numberOfDays: workingDays / 2 }))
+      setEditLeave(prev => ({ ...prev, numberOfDays: daysDifference / 2 }))
     } else {
-      setEditLeave(prev => ({ ...prev, numberOfDays: workingDays }))
+      setEditLeave(prev => ({ ...prev, numberOfDays: daysDifference }))
     }
   }, [editLeave.fromDate, editLeave.toDate, editLeave.leaveDayType])
 
@@ -466,6 +617,25 @@ export default function LeavesPage() {
       calculateEditDays()
     }
   }, [isEditDialogOpen, calculateEditDays])
+
+  // Format employee list for SearchableSelect - using unique ID to avoid duplicate keys
+  const formattedEmployeeOptions = useMemo(() => {
+    return employeeList
+      .filter(emp => emp.emp_id && emp.emp_id.trim() !== '')
+      .map((emp, index) => ({
+        value: `${emp.id}-${emp.emp_id}`, // Use unique database ID + emp_id to avoid duplicates
+        label: `${emp.emp_name} (${emp.emp_id})`,
+        empId: emp.emp_id, // Store actual emp_id for later use
+        empData: emp // Store full employee data
+      }))
+  }, [employeeList])
+
+  // Get the composite value for the currently selected employee
+  const selectedEmployeeValue = useMemo(() => {
+    if (!addLeaveData.empId) return ''
+    const matchingOption = formattedEmployeeOptions.find(opt => opt.empId === addLeaveData.empId)
+    return matchingOption?.value || ''
+  }, [addLeaveData.empId, formattedEmployeeOptions])
 
   // Fetch employees when Add Leave dialog opens
   const fetchEmployees = async () => {
@@ -489,8 +659,12 @@ export default function LeavesPage() {
     fetchEmployees()
   }
 
-  const handleEmployeeSelect = (empId: string) => {
-    const employee = employeeList.find(emp => emp.emp_id === empId)
+  const handleEmployeeSelect = (compositeValue: string) => {
+    // Extract emp_id from composite value (format: "id-emp_id")
+    const parts = compositeValue.split('-')
+    const actualEmpId = parts.slice(1).join('-') // Handle emp_ids that might contain dashes
+
+    const employee = employeeList.find(emp => emp.emp_id === actualEmpId)
     if (employee) {
       setSelectedEmployeeForAdd(employee)
       setAddLeaveData(prev => ({
@@ -508,21 +682,13 @@ export default function LeavesPage() {
     const from = new Date(addLeaveData.fromDate)
     const to = new Date(addLeaveData.toDate)
 
-    let workingDays = 0
-    const currentDate = new Date(from)
-
-    while (currentDate <= to) {
-      const dayOfWeek = currentDate.getDay()
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        workingDays++
-      }
-      currentDate.setDate(currentDate.getDate() + 1)
-    }
+    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
+    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
 
     if (addLeaveData.leaveDayType === '2') {
-      setAddLeaveData(prev => ({ ...prev, numberOfDays: workingDays / 2 }))
+      setAddLeaveData(prev => ({ ...prev, numberOfDays: daysDifference / 2 }))
     } else {
-      setAddLeaveData(prev => ({ ...prev, numberOfDays: workingDays }))
+      setAddLeaveData(prev => ({ ...prev, numberOfDays: daysDifference }))
     }
   }, [addLeaveData.fromDate, addLeaveData.toDate, addLeaveData.leaveDayType])
 
@@ -630,24 +796,14 @@ export default function LeavesPage() {
     const from = new Date(newLeave.fromDate)
     const to = new Date(newLeave.toDate)
 
-    // Calculate working days (excluding Saturday & Sunday)
-    let workingDays = 0
-    const currentDate = new Date(from)
-
-    while (currentDate <= to) {
-      const dayOfWeek = currentDate.getDay()
-      // 0 = Sunday, 6 = Saturday
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-        workingDays++
-      }
-      currentDate.setDate(currentDate.getDate() + 1)
-    }
+    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
+    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
 
     if (newLeave.leaveDayType === '2') {
-      // Half day - half of the total working days
-      setNewLeave(prev => ({ ...prev, numberOfDays: workingDays / 2 }))
+      // Half day - half of the total days
+      setNewLeave(prev => ({ ...prev, numberOfDays: daysDifference / 2 }))
     } else {
-      setNewLeave(prev => ({ ...prev, numberOfDays: workingDays }))
+      setNewLeave(prev => ({ ...prev, numberOfDays: daysDifference }))
     }
   }, [newLeave.fromDate, newLeave.toDate, newLeave.leaveDayType])
 
@@ -656,19 +812,8 @@ export default function LeavesPage() {
   }, [calculateDays])
 
   const handleInputChange = useCallback((field: string, value: any) => {
-    if (field === 'leaveType') {
-      // Check if the new leave type is Annual
-      const selectedLeaveType = leaveTypes.find(lt => lt.id.toString() === value)
-      const isAnnual = selectedLeaveType?.leave_type_name?.toLowerCase().includes('annual')
-
-      // If not Annual and Remote was selected, reset to Full Day
-      if (!isAnnual && newLeave.leaveDayType === '3') {
-        setNewLeave(prev => ({ ...prev, [field]: value, leaveDayType: '1' }))
-        return
-      }
-    }
     setNewLeave(prev => ({ ...prev, [field]: value }))
-  }, [leaveTypes, newLeave.leaveDayType])
+  }, [])
 
   // Optimized handler for reason field
   const handleReasonChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -791,8 +936,6 @@ export default function LeavesPage() {
         return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-0">Full Day</Badge>
       case 2:
         return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-200 border-0">Half Day</Badge>
-      case 3:
-        return <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-0">Remote</Badge>
       default:
         return <Badge variant="outline">Unknown</Badge>
     }
@@ -899,44 +1042,452 @@ export default function LeavesPage() {
     }
   }
 
+  // Calculate remote work days
+  const calculateRemoteDays = useCallback(() => {
+    if (!remoteWorkData.fromDate || !remoteWorkData.toDate) return
+
+    const from = new Date(remoteWorkData.fromDate)
+    const to = new Date(remoteWorkData.toDate)
+
+    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
+    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+    setRemoteWorkData(prev => ({ ...prev, numberOfDays: daysDifference }))
+  }, [remoteWorkData.fromDate, remoteWorkData.toDate])
+
+  useEffect(() => {
+    calculateRemoteDays()
+  }, [calculateRemoteDays])
+
+  // Calculate add remote days
+  const calculateAddRemoteDays = useCallback(() => {
+    if (!addRemoteData.fromDate || !addRemoteData.toDate) return
+
+    const from = new Date(addRemoteData.fromDate)
+    const to = new Date(addRemoteData.toDate)
+
+    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
+    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+    setAddRemoteData(prev => ({ ...prev, numberOfDays: daysDifference }))
+  }, [addRemoteData.fromDate, addRemoteData.toDate])
+
+  useEffect(() => {
+    calculateAddRemoteDays()
+  }, [calculateAddRemoteDays])
+
+  // Filter functions for remote tabs
+  const filteredEmployeeRemoteBalances = useMemo(() => {
+    if (!searchRemoteBalance) return employeeRemoteBalances
+    const searchLower = searchRemoteBalance.toLowerCase()
+    return employeeRemoteBalances.filter(emp =>
+      emp.emp_name?.toLowerCase().includes(searchLower) ||
+      emp.emp_id?.toLowerCase().includes(searchLower) ||
+      emp.manager_name?.toLowerCase().includes(searchLower)
+    )
+  }, [employeeRemoteBalances, searchRemoteBalance])
+
+  const filteredMyRemoteApplications = useMemo(() => {
+    if (!searchMyRemote) return myRemoteApplications
+    const searchLower = searchMyRemote.toLowerCase()
+    return myRemoteApplications.filter(app =>
+      app.manager_name?.toLowerCase().includes(searchLower) ||
+      new Date(app.from_date || app.date).toLocaleDateString('en-GB').includes(searchLower) ||
+      new Date(app.to_date || app.date).toLocaleDateString('en-GB').includes(searchLower)
+    )
+  }, [myRemoteApplications, searchMyRemote])
+
+  const filteredAllRemoteApplications = useMemo(() => {
+    if (!searchAllRemote) return remoteApplications
+    const searchLower = searchAllRemote.toLowerCase()
+    return remoteApplications.filter(app =>
+      app.employee_name?.toLowerCase().includes(searchLower) ||
+      app.emp_id?.toLowerCase().includes(searchLower) ||
+      new Date(app.from_date || app.date).toLocaleDateString('en-GB').includes(searchLower) ||
+      new Date(app.to_date || app.date).toLocaleDateString('en-GB').includes(searchLower)
+    )
+  }, [remoteApplications, searchAllRemote])
+
+  const filteredPendingRemoteApplications = useMemo(() => {
+    if (!searchPendingRemote) return pendingRemoteApplications
+    const searchLower = searchPendingRemote.toLowerCase()
+    return pendingRemoteApplications.filter(app =>
+      app.employee_name?.toLowerCase().includes(searchLower) ||
+      app.emp_id?.toLowerCase().includes(searchLower) ||
+      new Date(app.from_date || app.date).toLocaleDateString('en-GB').includes(searchLower) ||
+      new Date(app.to_date || app.date).toLocaleDateString('en-GB').includes(searchLower)
+    )
+  }, [pendingRemoteApplications, searchPendingRemote])
+
+  // Handle remote work application submission
+  const handleRemoteApplication = async () => {
+    try {
+      if (!remoteWorkData.fromDate || !remoteWorkData.toDate) {
+        setErrorMessage('Please select from date and to date for remote work')
+        setShowErrorPopup(true)
+        return
+      }
+
+      setSubmitting(true)
+
+      // Use session data directly for current user
+      const empId = session?.user?.emp_id || currentEmpId
+      const employeeName = session?.user?.name || 'Unknown'
+
+      // Get manager info from current employee data (already loaded)
+      const employee = await fetch(`/api/leaves/employees?empId=${empId}`)
+      const empData = await employee.json()
+
+      console.log('📝 Submitting remote application for:', {
+        empId,
+        employeeName,
+        managerId: empData[0]?.manager_id,
+        managerName: empData[0]?.manager_name
+      })
+
+      const response = await fetch('/api/remote-work/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          empId: empId,
+          employeeName: employeeName,
+          fromDate: remoteWorkData.fromDate,
+          toDate: remoteWorkData.toDate,
+          numberOfDays: remoteWorkData.numberOfDays,
+          reason: remoteWorkData.reason,
+          managerId: empData[0]?.manager_id,
+          managerName: empData[0]?.manager_name
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setSuccessMessage('Remote work application submitted successfully')
+        setShowSuccessPopup(true)
+        setIsApplyRemoteDialogOpen(false)
+        setRemoteWorkData({ fromDate: '', toDate: '', numberOfDays: 1, reason: '' })
+
+        // Refresh remote applications
+        await fetchRemoteApplications('all')
+        await fetchRemoteApplications('my')
+        await fetchRemoteApplications('pending')
+        await fetchRemoteValidation()
+      } else {
+        setErrorMessage(data.error || 'Failed to submit remote work application')
+        setShowErrorPopup(true)
+      }
+    } catch (error: any) {
+      console.error('Error submitting remote application:', error)
+      setErrorMessage('Failed to submit remote work application')
+      setShowErrorPopup(true)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle remote work approval/rejection
+  const handleRemoteApproval = async (id: number, action: 'approve' | 'reject') => {
+    try {
+      const response = await fetch('/api/remote-work/applications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          action,
+          approvedBy: currentEmpId
+        })
+      })
+
+      if (response.ok) {
+        setSuccessMessage(`Remote work application ${action}d successfully`)
+        setShowSuccessPopup(true)
+
+        // Refresh remote applications
+        await fetchRemoteApplications('all')
+        await fetchRemoteApplications('my')
+        await fetchRemoteApplications('pending')
+      } else {
+        const data = await response.json()
+        setErrorMessage(data.error || `Failed to ${action} remote work application`)
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error(`Error ${action}ing remote application:`, error)
+      setErrorMessage(`Failed to ${action} remote work application`)
+      setShowErrorPopup(true)
+    }
+  }
+
+  // Handle opening Add Remote dialog
+  const handleOpenAddRemoteDialog = () => {
+    setIsAddRemoteDialogOpen(true)
+    fetchEmployees()
+  }
+
+  // Handle employee selection for Add Remote
+  const handleEmployeeSelectForRemote = (compositeValue: string) => {
+    const parts = compositeValue.split('-')
+    const actualEmpId = parts.slice(1).join('-')
+
+    const employee = employeeList.find(emp => emp.emp_id === actualEmpId)
+    if (employee) {
+      setSelectedEmployeeForRemote(employee.emp_id)
+      setAddRemoteData(prev => ({
+        ...prev,
+        empId: employee.emp_id,
+        empName: employee.emp_name,
+        managerName: employee.manager_name || 'N/A'
+      }))
+    }
+  }
+
+  // Get composite value for selected employee in Add Remote dialog
+  const selectedEmployeeValueForRemote = useMemo(() => {
+    if (!addRemoteData.empId) return ''
+    const matchingOption = formattedEmployeeOptions.find(opt => opt.empId === addRemoteData.empId)
+    return matchingOption?.value || ''
+  }, [addRemoteData.empId, formattedEmployeeOptions])
+
+  // Handle Add Remote submission
+  const handleSubmitAddRemote = async () => {
+    try {
+      // Validation
+      if (!addRemoteData.empId) {
+        setErrorMessage('Please select an employee')
+        setShowErrorPopup(true)
+        return
+      }
+
+      if (!addRemoteData.fromDate || !addRemoteData.toDate) {
+        setErrorMessage('Please select from date and to date for remote work')
+        setShowErrorPopup(true)
+        return
+      }
+
+      setSubmitting(true)
+
+      const response = await fetch('/api/remote-work/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          empId: addRemoteData.empId,
+          employeeName: addRemoteData.empName,
+          fromDate: addRemoteData.fromDate,
+          toDate: addRemoteData.toDate,
+          numberOfDays: addRemoteData.numberOfDays,
+          reason: addRemoteData.reason,
+          managerName: addRemoteData.managerName
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setSuccessMessage('Remote work added successfully for ' + addRemoteData.empName)
+        setShowSuccessPopup(true)
+        setIsAddRemoteDialogOpen(false)
+        setAddRemoteData({
+          empId: '',
+          empName: '',
+          managerName: '',
+          fromDate: '',
+          toDate: '',
+          numberOfDays: 1,
+          reason: ''
+        })
+        setSelectedEmployeeForRemote(null)
+
+        // Refresh remote applications
+        await fetchRemoteApplications('all')
+        await fetchRemoteApplications('my')
+        await fetchRemoteApplications('pending')
+      } else {
+        setErrorMessage(data.error || 'Failed to add remote work')
+        setShowErrorPopup(true)
+      }
+    } catch (error: any) {
+      console.error('Error adding remote work:', error)
+      setErrorMessage('Failed to add remote work')
+      setShowErrorPopup(true)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle Edit Remote Click
+  const handleEditRemoteClick = (application: any) => {
+    setEditingRemoteApplication(application)
+    setEditRemoteData({
+      fromDate: new Date(application.from_date || application.date).toISOString().split('T')[0],
+      toDate: new Date(application.to_date || application.date).toISOString().split('T')[0],
+      numberOfDays: application.number_of_days || 1,
+      reason: application.reason || ''
+    })
+    setIsEditRemoteDialogOpen(true)
+  }
+
+  // Calculate edit remote days
+  const calculateEditRemoteDays = useCallback(() => {
+    if (!editRemoteData.fromDate || !editRemoteData.toDate) return
+
+    const from = new Date(editRemoteData.fromDate)
+    const to = new Date(editRemoteData.toDate)
+
+    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
+    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+
+    setEditRemoteData(prev => ({ ...prev, numberOfDays: daysDifference }))
+  }, [editRemoteData.fromDate, editRemoteData.toDate])
+
+  useEffect(() => {
+    calculateEditRemoteDays()
+  }, [calculateEditRemoteDays])
+
+  // Handle Edit Remote Submit
+  const handleEditRemoteSubmit = async () => {
+    if (!editingRemoteApplication) return
+
+    try {
+      if (!editRemoteData.fromDate || !editRemoteData.toDate) {
+        setErrorMessage('Please select from date and to date')
+        setShowErrorPopup(true)
+        return
+      }
+
+      setSubmitting(true)
+
+      const response = await fetch('/api/remote-work/applications', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingRemoteApplication.id,
+          fromDate: editRemoteData.fromDate,
+          toDate: editRemoteData.toDate,
+          numberOfDays: editRemoteData.numberOfDays,
+          reason: editRemoteData.reason
+        })
+      })
+
+      if (response.ok) {
+        setSuccessMessage('Remote work application updated successfully')
+        setShowSuccessPopup(true)
+        setIsEditRemoteDialogOpen(false)
+        setEditingRemoteApplication(null)
+
+        // Refresh all remote applications
+        await fetchRemoteApplications('all')
+        await fetchRemoteApplications('my')
+        await fetchRemoteApplications('pending')
+      } else {
+        const data = await response.json()
+        setErrorMessage(data.error || 'Failed to update remote application')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error updating remote application:', error)
+      setErrorMessage('Failed to update remote application')
+      setShowErrorPopup(true)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  // Handle Delete Remote Click
+  const handleDeleteRemoteClick = (id: number) => {
+    setDeletingRemoteId(id)
+    setIsDeleteRemoteDialogOpen(true)
+  }
+
+  // Handle Delete Remote Confirm
+  const handleDeleteRemoteConfirm = async () => {
+    if (!deletingRemoteId) return
+
+    try {
+      const response = await fetch(`/api/remote-work/applications?id=${deletingRemoteId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        setSuccessMessage('Remote work application deleted successfully')
+        setShowSuccessPopup(true)
+        setIsDeleteRemoteDialogOpen(false)
+        setDeletingRemoteId(null)
+
+        // Refresh all remote applications
+        await fetchRemoteApplications('all')
+        await fetchRemoteApplications('my')
+        await fetchRemoteApplications('pending')
+      } else {
+        const data = await response.json()
+        setErrorMessage(data.error || 'Failed to delete remote application')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error deleting remote application:', error)
+      setErrorMessage('Failed to delete remote application')
+      setShowErrorPopup(true)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <TopNavigation session={session} />
 
-      <main className="container mx-auto px-6 py-6">
+      <main className="container mx-auto px-3 sm:px-6 py-4 sm:py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
-              <Calendar className="h-8 w-8 text-white" />
+            <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
+              <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-800">Leave Management</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Leave Management</h1>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-2 sm:gap-3">
             <Button
               variant="outline"
               onClick={handleRefresh}
               disabled={isRefreshing}
+              className="w-full sm:w-auto"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               {isRefreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
             <Button
               onClick={handleOpenAddLeaveDialog}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Leave
             </Button>
-            <Button onClick={() => setIsApplyDialogOpen(true)}>
+            <Button
+              onClick={() => setIsApplyDialogOpen(true)}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto"
+            >
               <Plus className="h-4 w-4 mr-2" />
               Apply for Leave
+            </Button>
+            <Button
+              onClick={() => {
+                // Check if employee has reached the 6-month limit (4 days)
+                if (remoteValidation?.usage?.sixMonths?.used >= 4) {
+                  setShowRemoteLimitReachedDialog(true)
+                } else {
+                  setIsApplyRemoteDialogOpen(true)
+                }
+              }}
+              className={`bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto ${
+                remoteValidation?.usage?.sixMonths?.used >= 4 ? 'opacity-60 cursor-not-allowed' : ''
+              }`}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Apply Remote
             </Button>
           </div>
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="employees-leave-balance" className="w-full">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <div className="overflow-x-auto">
             <TabsList className="inline-flex gap-3 bg-gray-50 p-1.5 rounded-lg">
               <TabsTrigger
@@ -967,6 +1518,13 @@ export default function LeavesPage() {
                 <Clock className="h-4 w-4 text-orange-600" />
                 <span>Pending Approvals</span>
               </TabsTrigger>
+              <TabsTrigger
+                value="remote-work"
+                className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+              >
+                <CalendarDays className="h-4 w-4 text-purple-600" />
+                <span>Remote Work</span>
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -983,7 +1541,7 @@ export default function LeavesPage() {
                       placeholder="Search by employee, leave type, reason..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 w-full"
                     />
                   </div>
                   {searchTerm && (
@@ -993,7 +1551,9 @@ export default function LeavesPage() {
                   )}
                 </div>
 
-                <Table>
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <Table className="min-w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>
@@ -1005,7 +1565,13 @@ export default function LeavesPage() {
                       <TableHead>
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-gray-600" />
-                          <span className="text-gray-700 font-semibold">From - To</span>
+                          <span className="text-gray-700 font-semibold">From Date</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">To Date</span>
                         </div>
                       </TableHead>
                       <TableHead>
@@ -1032,18 +1598,18 @@ export default function LeavesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
+                    {loading || loadingMy ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-12">
+                        <TableCell colSpan={7} className="text-center py-12">
                           <div className="flex flex-col items-center gap-2">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
                             <p className="text-muted-foreground text-sm">Loading applications...</p>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : filteredMyApplications.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                           {searchTerm ? 'No matching applications found' : 'No leave applications found'}
                         </TableCell>
                       </TableRow>
@@ -1051,10 +1617,8 @@ export default function LeavesPage() {
                       filteredMyApplications.map((app) => (
                         <TableRow key={app.id}>
                           <TableCell>{getLeaveTypeBadge(app.leave_type_name)}</TableCell>
-                          <TableCell>
-                            {app.from_date} <br />
-                            <span className="text-muted-foreground text-sm">to {app.to_date}</span>
-                          </TableCell>
+                          <TableCell>{app.from_date}</TableCell>
+                          <TableCell>{app.to_date}</TableCell>
                           <TableCell>{app.no_of_days}</TableCell>
                           <TableCell>{getLeaveDayTypeBadge(app.leave_day_type)}</TableCell>
                           <TableCell>
@@ -1066,6 +1630,8 @@ export default function LeavesPage() {
                     )}
                   </TableBody>
                 </Table>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1083,7 +1649,7 @@ export default function LeavesPage() {
                       placeholder="Search by employee name, ID, department, leave type..."
                       value={allSearchTerm}
                       onChange={(e) => setAllSearchTerm(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 w-full"
                     />
                   </div>
                   {allSearchTerm && (
@@ -1093,7 +1659,9 @@ export default function LeavesPage() {
                   )}
                 </div>
 
-                <Table>
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <Table className="min-w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>
@@ -1114,7 +1682,13 @@ export default function LeavesPage() {
                       <TableHead>
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-gray-600" />
-                          <span className="text-gray-700 font-semibold">From - To</span>
+                          <span className="text-gray-700 font-semibold">From Date</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">To Date</span>
                         </div>
                       </TableHead>
                       <TableHead>
@@ -1144,18 +1718,18 @@ export default function LeavesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
+                    {loading || loadingAll ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center py-12">
+                        <TableCell colSpan={10} className="text-center py-12">
                           <div className="flex flex-col items-center gap-2">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                            <p className="text-muted-foreground text-sm">Loading applications...</p>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                            <p className="text-muted-foreground text-sm">Loading all applications...</p>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : filteredAllApplications.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
                           {allSearchTerm ? 'No matching applications found' : 'No leave applications found'}
                         </TableCell>
                       </TableRow>
@@ -1165,10 +1739,8 @@ export default function LeavesPage() {
                           <TableCell className="font-medium">{app.employee_name}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{app.emp_id}</TableCell>
                           <TableCell>{getLeaveTypeBadge(app.leave_type_name)}</TableCell>
-                          <TableCell>
-                            {app.from_date} <br />
-                            <span className="text-muted-foreground text-sm">to {app.to_date}</span>
-                          </TableCell>
+                          <TableCell>{app.from_date}</TableCell>
+                          <TableCell>{app.to_date}</TableCell>
                           <TableCell>{app.no_of_days}</TableCell>
                           <TableCell>{getLeaveDayTypeBadge(app.leave_day_type)}</TableCell>
                           <TableCell>
@@ -1198,6 +1770,8 @@ export default function LeavesPage() {
                     )}
                   </TableBody>
                 </Table>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1215,7 +1789,7 @@ export default function LeavesPage() {
                       placeholder="Search by employee name, department, leave type..."
                       value={pendingSearchTerm}
                       onChange={(e) => setPendingSearchTerm(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 w-full"
                     />
                   </div>
                   {pendingSearchTerm && (
@@ -1225,7 +1799,9 @@ export default function LeavesPage() {
                   )}
                 </div>
 
-                <Table>
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <Table className="min-w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>
@@ -1246,7 +1822,13 @@ export default function LeavesPage() {
                       <TableHead>
                         <div className="flex items-center gap-2">
                           <CalendarDays className="h-4 w-4 text-gray-600" />
-                          <span className="text-gray-700 font-semibold">From - To</span>
+                          <span className="text-gray-700 font-semibold">From Date</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">To Date</span>
                         </div>
                       </TableHead>
                       <TableHead>
@@ -1273,18 +1855,18 @@ export default function LeavesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
+                    {loading || loadingPending ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-12">
+                        <TableCell colSpan={9} className="text-center py-12">
                           <div className="flex flex-col items-center gap-2">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                            <p className="text-muted-foreground text-sm">Loading applications...</p>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                            <p className="text-muted-foreground text-sm">Loading pending applications...</p>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : filteredPendingApplications.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                           {pendingSearchTerm ? 'No matching pending applications found' : 'No pending applications'}
                         </TableCell>
                       </TableRow>
@@ -1294,10 +1876,8 @@ export default function LeavesPage() {
                           <TableCell className="font-medium">{app.employee_name}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{app.emp_id}</TableCell>
                           <TableCell>{getLeaveTypeBadge(app.leave_type_name)}</TableCell>
-                          <TableCell>
-                            {app.from_date} <br />
-                            <span className="text-muted-foreground text-sm">to {app.to_date}</span>
-                          </TableCell>
+                          <TableCell>{app.from_date}</TableCell>
+                          <TableCell>{app.to_date}</TableCell>
                           <TableCell>{app.no_of_days}</TableCell>
                           <TableCell>{getLeaveDayTypeBadge(app.leave_day_type)}</TableCell>
                           <TableCell>
@@ -1340,6 +1920,8 @@ export default function LeavesPage() {
                     )}
                   </TableBody>
                 </Table>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1349,8 +1931,8 @@ export default function LeavesPage() {
             <Card className="border-0 shadow-none">
               <CardContent className="pt-6">
                 {/* Year Filter and Search Bar */}
-                <div className="mb-4 flex gap-3">
-                  <div className="w-48">
+                <div className="mb-4 flex flex-col sm:flex-row gap-3">
+                  <div className="w-full sm:w-48">
                     <Select
                       value={selectedYear.toString()}
                       onValueChange={(value) => setSelectedYear(parseInt(value))}
@@ -1377,12 +1959,14 @@ export default function LeavesPage() {
                       placeholder="Search by employee name, ID, department..."
                       value={employeeSearchTerm}
                       onChange={(e) => setEmployeeSearchTerm(e.target.value)}
-                      className="pl-10"
+                      className="pl-10 w-full"
                     />
                   </div>
                 </div>
 
-                <Table>
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <Table className="min-w-full">
                   <TableHeader>
                     <TableRow>
                       <TableHead>
@@ -1401,13 +1985,16 @@ export default function LeavesPage() {
                         <span className="text-gray-700 font-semibold">Total Leaves</span>
                       </TableHead>
                       <TableHead>
-                        <span className="text-gray-700 font-semibold">Used Leaves</span>
+                        <span className="text-gray-700 font-semibold">Annual</span>
+                      </TableHead>
+                      <TableHead>
+                        <span className="text-gray-700 font-semibold">Sick</span>
+                      </TableHead>
+                      <TableHead>
+                        <span className="text-gray-700 font-semibold">Emergency</span>
                       </TableHead>
                       <TableHead>
                         <span className="text-gray-700 font-semibold">Remaining</span>
-                      </TableHead>
-                      <TableHead>
-                        <span className="text-gray-700 font-semibold">Applied Applications</span>
                       </TableHead>
                       <TableHead>
                         <span className="text-gray-700 font-semibold">Action</span>
@@ -1415,18 +2002,18 @@ export default function LeavesPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loading ? (
+                    {loading || loadingBalances ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-12">
+                        <TableCell colSpan={9} className="text-center py-12">
                           <div className="flex flex-col items-center gap-2">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
                             <p className="text-muted-foreground text-sm">Loading employee data...</p>
                           </div>
                         </TableCell>
                       </TableRow>
                     ) : filteredEmployeeBalances.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                           {employeeSearchTerm ? 'No matching employees found' : 'No employee data found'}
                         </TableCell>
                       </TableRow>
@@ -1442,8 +2029,18 @@ export default function LeavesPage() {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-200 border-0">
-                              {emp.total_used}
+                            <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-0">
+                              {emp.annual_used}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-0">
+                              {emp.sick_used}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-0">
+                              {emp.emergency_used}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -1451,7 +2048,6 @@ export default function LeavesPage() {
                               {emp.total_remaining}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-center">{emp.total_applications}</TableCell>
                           <TableCell>
                             <button
                               className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors cursor-pointer"
@@ -1466,6 +2062,418 @@ export default function LeavesPage() {
                     )}
                   </TableBody>
                 </Table>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Remote Work Tab */}
+          <TabsContent value="remote-work">
+            <Card className="border-0 shadow-none">
+              <CardContent className="pt-6">
+                <div className="flex justify-end mb-4">
+                  <Button
+                    onClick={handleOpenAddRemoteDialog}
+                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Remote
+                  </Button>
+                </div>
+                <Tabs defaultValue="employee-remote-balance" className="w-full">
+                  <div className="overflow-x-auto mb-4">
+                    <TabsList className="inline-flex">
+                      <TabsTrigger value="employee-remote-balance" className="whitespace-nowrap">Employee Remote Balance</TabsTrigger>
+                      <TabsTrigger value="my-remote" className="whitespace-nowrap">My Remote Applications</TabsTrigger>
+                      <TabsTrigger value="all-remote" className="whitespace-nowrap">All Remote Applications</TabsTrigger>
+                      <TabsTrigger value="pending-remote" className="whitespace-nowrap">Pending Remote Approvals</TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  {/* My Remote Applications */}
+                  <TabsContent value="my-remote">
+                    <div className="mb-4">
+                      <Input
+                        type="text"
+                        placeholder="Search by date or manager..."
+                        value={searchMyRemote}
+                        onChange={(e) => setSearchMyRemote(e.target.value)}
+                        className="w-full sm:max-w-md"
+                      />
+                    </div>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                        <Table className="min-w-full">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>From Date</TableHead>
+                          <TableHead>To Date</TableHead>
+                          <TableHead>Days</TableHead>
+                          <TableHead>Applied On</TableHead>
+                          <TableHead>Manager</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loadingRemote ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-12">
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                                <p className="text-muted-foreground text-sm">Loading remote applications...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredMyRemoteApplications.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                              {searchMyRemote ? 'No matching applications found' : 'No remote work applications found'}
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredMyRemoteApplications.map((app) => (
+                            <TableRow key={app.id}>
+                              <TableCell>{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>
+                                <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300">
+                                  {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
+                                </span>
+                              </TableCell>
+                              <TableCell>{new Date(app.application_date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>{app.manager_name || 'N/A'}</TableCell>
+                              <TableCell>
+                                {app.approved === 0 && (
+                                  <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-300">
+                                    Pending
+                                  </span>
+                                )}
+                                {app.approved === 1 && (
+                                  <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-green-100 text-green-700 border border-green-300">
+                                    Approved
+                                  </span>
+                                )}
+                                {app.approved === 2 && (
+                                  <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                                    Rejected
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <button
+                                  onClick={() => setIsRemoteUsageDialogOpen(true)}
+                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100 transition-colors"
+                                >
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  View Usage
+                                </button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* All Remote Applications */}
+                  <TabsContent value="all-remote">
+                    <div className="mb-4">
+                      <Input
+                        type="text"
+                        placeholder="Search by employee name, ID, or date..."
+                        value={searchAllRemote}
+                        onChange={(e) => setSearchAllRemote(e.target.value)}
+                        className="w-full sm:max-w-md"
+                      />
+                    </div>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                        <Table className="min-w-full">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Emp ID</TableHead>
+                          <TableHead>From Date</TableHead>
+                          <TableHead>To Date</TableHead>
+                          <TableHead>Days</TableHead>
+                          <TableHead>Applied On</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loadingRemote ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-12">
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                                <p className="text-muted-foreground text-sm">Loading remote applications...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredAllRemoteApplications.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                              {searchAllRemote ? 'No matching applications found' : 'No remote work applications found'}
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredAllRemoteApplications.map((app) => (
+                            <TableRow key={app.id}>
+                              <TableCell className="font-medium">{app.employee_name}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{app.emp_id}</TableCell>
+                              <TableCell>{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>
+                                <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300">
+                                  {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
+                                </span>
+                              </TableCell>
+                              <TableCell>{new Date(app.application_date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>
+                                {app.approved === 0 && (
+                                  <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-300">
+                                    Pending
+                                  </span>
+                                )}
+                                {app.approved === 1 && (
+                                  <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-green-100 text-green-700 border border-green-300">
+                                    Approved
+                                  </span>
+                                )}
+                                {app.approved === 2 && (
+                                  <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                                    Rejected
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => handleEditRemoteClick(app)}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors"
+                                  >
+                                    <Pencil className="h-3 w-3 mr-1" />
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteRemoteClick(app.id)}
+                                    className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors"
+                                  >
+                                    <Trash2 className="h-3 w-3 mr-1" />
+                                    Delete
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Pending Remote Approvals */}
+                  <TabsContent value="pending-remote">
+                    <div className="mb-4">
+                      <Input
+                        type="text"
+                        placeholder="Search by employee name, ID, or date..."
+                        value={searchPendingRemote}
+                        onChange={(e) => setSearchPendingRemote(e.target.value)}
+                        className="w-full sm:max-w-md"
+                      />
+                    </div>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                        <Table className="min-w-full">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee</TableHead>
+                          <TableHead>Emp ID</TableHead>
+                          <TableHead>From Date</TableHead>
+                          <TableHead>To Date</TableHead>
+                          <TableHead>Days</TableHead>
+                          <TableHead>Applied On</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loadingRemote ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center py-12">
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                                <p className="text-muted-foreground text-sm">Loading pending applications...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredPendingRemoteApplications.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                              {searchPendingRemote ? 'No matching applications found' : 'No pending remote work applications'}
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredPendingRemoteApplications.map((app) => (
+                            <TableRow key={app.id}>
+                              <TableCell className="font-medium">{app.employee_name}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{app.emp_id}</TableCell>
+                              <TableCell>{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>
+                                <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300">
+                                  {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
+                                </span>
+                              </TableCell>
+                              <TableCell>{new Date(app.application_date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <button
+                                    className="inline-flex items-center justify-center rounded-md h-7 px-2 text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors cursor-pointer"
+                                    onClick={() => handleRemoteApproval(app.id, 'approve')}
+                                  >
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Approve
+                                  </button>
+                                  <button
+                                    className="inline-flex items-center justify-center rounded-md h-7 px-2 text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer"
+                                    onClick={() => handleRemoteApproval(app.id, 'reject')}
+                                  >
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Reject
+                                  </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Employee Remote Balance */}
+                  <TabsContent value="employee-remote-balance">
+                    <div className="mb-4 flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center">
+                      <Input
+                        type="text"
+                        placeholder="Search by employee name, ID, or manager..."
+                        value={searchRemoteBalance}
+                        onChange={(e) => setSearchRemoteBalance(e.target.value)}
+                        className="w-full sm:max-w-md sm:flex-1"
+                      />
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                          Select Month:
+                        </label>
+                        <Input
+                          type="month"
+                          value={selectedMonth}
+                          onChange={(e) => {
+                            setSelectedMonth(e.target.value)
+                            fetchEmployeeRemoteBalances(e.target.value)
+                          }}
+                          className="w-full sm:w-40"
+                        />
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                        <Table className="min-w-full">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Employee Name</TableHead>
+                          <TableHead>Emp ID</TableHead>
+                          <TableHead>Reporting Manager</TableHead>
+                          <TableHead>Total Remote (6 Months)</TableHead>
+                          <TableHead>6 Months Used</TableHead>
+                          <TableHead>6 Months Remaining</TableHead>
+                          <TableHead>Month Used <span className="text-xs text-green-700 bg-green-200 px-1.5 py-0.5 rounded font-medium">({new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })})</span></TableHead>
+                          <TableHead>Month Remaining <span className="text-xs text-green-700 bg-green-200 px-1.5 py-0.5 rounded font-medium">({new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })})</span></TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loadingRemoteBalances ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center py-12">
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                                <p className="text-muted-foreground text-sm">Loading employee remote balances...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredEmployeeRemoteBalances.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                              {searchRemoteBalance ? 'No matching employees found' : 'No employee remote balance data found'}
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredEmployeeRemoteBalances.map((emp) => (
+                            <TableRow key={emp.emp_id}>
+                              <TableCell className="font-medium">{emp.emp_name}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{emp.emp_id}</TableCell>
+                              <TableCell className="text-sm">{emp.manager_name || 'N/A'}</TableCell>
+                              <TableCell>
+                                <span className="font-semibold text-blue-700">4</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className="font-semibold text-purple-700">{emp.sixMonths.used || 0}</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className={`inline-flex items-center rounded-md h-6 px-2 text-xs font-medium ${
+                                  emp.sixMonths.remaining === 0
+                                    ? 'bg-red-100 text-red-700 border border-red-300'
+                                    : emp.sixMonths.remaining <= 1
+                                    ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
+                                    : 'bg-green-100 text-green-700 border border-green-300'
+                                }`}>
+                                  {emp.sixMonths.remaining} days
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <span className="font-semibold text-purple-700">{emp.oneMonth.used || 0}</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className={`inline-flex items-center rounded-md h-6 px-2 text-xs font-medium ${
+                                  emp.oneMonth.remaining === 0
+                                    ? 'bg-red-100 text-red-700 border border-red-300'
+                                    : emp.oneMonth.remaining <= 0
+                                    ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
+                                    : 'bg-green-100 text-green-700 border border-green-300'
+                                }`}>
+                                  {emp.oneMonth.remaining} days
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <button
+                                  onClick={() => {
+                                    setSelectedEmployeeDetails(emp)
+                                    setIsEmployeeDetailsDialogOpen(true)
+                                  }}
+                                  className="inline-flex items-center px-2 py-1 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100 transition-colors"
+                                >
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  View Details
+                                </button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1474,11 +2482,11 @@ export default function LeavesPage() {
 
       {/* Apply Leave Dialog */}
       <Dialog open={isApplyDialogOpen} onOpenChange={setIsApplyDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
           <DialogHeader className="pb-4 border-b border-purple-200">
-            <DialogTitle className="flex items-center gap-2 text-2xl">
+            <DialogTitle className="flex items-center gap-2 text-xl sm:text-2xl">
               <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
-                <Calendar className="h-6 w-6 text-white" />
+                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                 Apply for Leave
@@ -1487,7 +2495,7 @@ export default function LeavesPage() {
           </DialogHeader>
 
           <div className="grid gap-5 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="leaveType" className="flex items-center gap-2 text-gray-700 font-medium">
                   <Tag className="h-4 w-4 text-purple-600" />
@@ -1524,7 +2532,7 @@ export default function LeavesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="fromDate" className="flex items-center gap-2 text-gray-700 font-medium">
                   <CalendarDays className="h-4 w-4 text-green-600" />
@@ -1591,19 +2599,6 @@ export default function LeavesPage() {
                       Half Day
                     </div>
                   </SelectItem>
-                  {/* Remote option only shows when Annual leave is selected */}
-                  {(() => {
-                    const selectedLeaveType = leaveTypes.find(lt => lt.id.toString() === newLeave.leaveType)
-                    const isAnnual = selectedLeaveType?.leave_type_name?.toLowerCase().includes('annual')
-                    return isAnnual ? (
-                      <SelectItem value="3" className="bg-white hover:bg-indigo-50">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                          Remote
-                        </div>
-                      </SelectItem>
-                    ) : null
-                  })()}
                 </SelectContent>
               </Select>
             </div>
@@ -1676,7 +2671,7 @@ export default function LeavesPage() {
 
       {/* Employee Leave Details Dialog */}
       <Dialog open={isEmployeeDialogOpen} onOpenChange={setIsEmployeeDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white">
+        <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto bg-white">
           <DialogHeader>
             <DialogTitle>Leave Details - {selectedEmployeeName} ({selectedYear})</DialogTitle>
           </DialogHeader>
@@ -1702,7 +2697,7 @@ export default function LeavesPage() {
 
             {/* Leave Balance Cards */}
             {employeeLeaveBalance.length > 0 && (
-              <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                 {employeeLeaveBalance.map((balance) => (
                   <Card key={balance.leaveTypeId} className="border-2">
                     <CardHeader className="pb-3">
@@ -1811,42 +2806,39 @@ export default function LeavesPage() {
 
       {/* Add Leave Dialog */}
       <Dialog open={isAddLeaveDialogOpen} onOpenChange={setIsAddLeaveDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
-          <DialogHeader className="pb-4 border-b border-green-200">
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+          <DialogHeader className="pb-4 border-b border-purple-200">
             <DialogTitle className="flex items-center gap-2 text-2xl">
-              <div className="p-2 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
                 <Plus className="h-6 w-6 text-white" />
               </div>
-              <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                 Add Leave for Employee
               </span>
             </DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-5 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="selectEmployee" className="flex items-center gap-2 text-gray-700 font-medium">
-                  <User className="h-4 w-4 text-green-600" />
+                  <User className="h-4 w-4 text-purple-600" />
                   Select Employee *
                 </Label>
-                <Select
-                  value={addLeaveData.empId}
+                <SearchableSelect
+                  options={formattedEmployeeOptions}
+                  value={selectedEmployeeValue}
                   onValueChange={handleEmployeeSelect}
-                >
-                  <SelectTrigger className="bg-white border-green-200 focus:ring-green-500">
-                    <SelectValue placeholder="Search and select employee..." />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white max-h-[300px]">
-                    {employeeList
-                      .filter(emp => emp.emp_id && emp.emp_id.trim() !== '')
-                      .map((emp, index) => (
-                        <SelectItem key={`emp-${emp.id || emp.emp_id}-${index}`} value={emp.emp_id} className="bg-white hover:bg-green-50">
-                          {emp.emp_name} ({emp.emp_id})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Search and select employee..."
+                  searchPlaceholder="Type to search employees..."
+                  className="bg-white border-purple-200 focus:ring-purple-500"
+                />
+                {formattedEmployeeOptions.length === 0 && (
+                  <p className="text-sm text-gray-500 mt-1">Loading employees...</p>
+                )}
+                {formattedEmployeeOptions.length > 0 && (
+                  <p className="text-sm text-purple-600 mt-1">✅ {formattedEmployeeOptions.length} employees available</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -1864,7 +2856,7 @@ export default function LeavesPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="addLeaveType" className="flex items-center gap-2 text-gray-700 font-medium">
                   <Tag className="h-4 w-4 text-purple-600" />
@@ -1912,40 +2904,28 @@ export default function LeavesPage() {
                         Half Day
                       </div>
                     </SelectItem>
-                    {(() => {
-                      const selectedLeaveType = leaveTypes.find(lt => lt.id.toString() === addLeaveData.leaveType)
-                      const isAnnual = selectedLeaveType?.leave_type_name?.toLowerCase().includes('annual')
-                      return isAnnual ? (
-                        <SelectItem value="3" className="bg-white hover:bg-indigo-50">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                            Remote
-                          </div>
-                        </SelectItem>
-                      ) : null
-                    })()}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="addFromDate" className="flex items-center gap-2 text-gray-700 font-medium">
-                  <CalendarDays className="h-4 w-4 text-green-600" />
+                  <CalendarDays className="h-4 w-4 text-purple-600" />
                   From Date *
                 </Label>
                 <Input
                   type="date"
                   value={addLeaveData.fromDate}
                   onChange={(e) => setAddLeaveData(prev => ({ ...prev, fromDate: e.target.value }))}
-                  className="bg-white border-green-200 focus:ring-green-500"
+                  className="bg-white border-purple-200 focus:ring-purple-500"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="addToDate" className="flex items-center gap-2 text-gray-700 font-medium">
-                  <CalendarDays className="h-4 w-4 text-red-600" />
+                  <CalendarDays className="h-4 w-4 text-purple-600" />
                   To Date *
                 </Label>
                 <Input
@@ -1953,7 +2933,7 @@ export default function LeavesPage() {
                   value={addLeaveData.toDate}
                   onChange={(e) => setAddLeaveData(prev => ({ ...prev, toDate: e.target.value }))}
                   min={addLeaveData.fromDate}
-                  className="bg-white border-red-200 focus:ring-red-500"
+                  className="bg-white border-purple-200 focus:ring-purple-500"
                 />
               </div>
 
@@ -1994,7 +2974,7 @@ export default function LeavesPage() {
 
             <div className="space-y-2">
               <Label htmlFor="addReason" className="flex items-center gap-2 text-gray-700 font-medium">
-                <MessageSquare className="h-4 w-4 text-teal-600" />
+                <MessageSquare className="h-4 w-4 text-purple-600" />
                 Reason *
               </Label>
               <Textarea
@@ -2002,12 +2982,12 @@ export default function LeavesPage() {
                 onChange={(e) => setAddLeaveData(prev => ({ ...prev, reason: e.target.value }))}
                 placeholder="Enter reason for leave..."
                 rows={3}
-                className="bg-white border-teal-200 focus:ring-teal-500"
+                className="bg-white border-purple-200 focus:ring-purple-500"
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-green-200">
+          <div className="flex justify-end gap-3 pt-4 border-t border-purple-200">
             <Button
               variant="outline"
               onClick={() => {
@@ -2034,7 +3014,7 @@ export default function LeavesPage() {
             <Button
               onClick={handleSubmitAddLeave}
               disabled={submitting}
-              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg"
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg"
             >
               {submitting ? (
                 <>
@@ -2054,7 +3034,7 @@ export default function LeavesPage() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent className="max-w-md bg-white">
+        <DialogContent className="max-w-[95vw] sm:max-w-md bg-white">
           <DialogHeader className="pb-4">
             <DialogTitle className="flex items-center gap-3 text-xl">
               <div className="p-2 bg-red-100 rounded-lg">
@@ -2111,20 +3091,20 @@ export default function LeavesPage() {
 
       {/* Edit Leave Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-          <DialogHeader className="pb-4 border-b border-blue-200">
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+          <DialogHeader className="pb-4 border-b border-purple-200">
             <DialogTitle className="flex items-center gap-2 text-2xl">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
                 <Pencil className="h-6 w-6 text-white" />
               </div>
-              <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
                 Edit Leave Application
               </span>
             </DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-5 py-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="editLeaveType" className="flex items-center gap-2 text-gray-700 font-medium">
                   <Tag className="h-4 w-4 text-purple-600" />
@@ -2172,24 +3152,12 @@ export default function LeavesPage() {
                         Half Day
                       </div>
                     </SelectItem>
-                    {(() => {
-                      const selectedLeaveType = leaveTypes.find(lt => lt.id.toString() === editLeave.leaveType)
-                      const isAnnual = selectedLeaveType?.leave_type_name?.toLowerCase().includes('annual')
-                      return isAnnual ? (
-                        <SelectItem value="3" className="bg-white hover:bg-indigo-50">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                            Remote
-                          </div>
-                        </SelectItem>
-                      ) : null
-                    })()}
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="editFromDate" className="flex items-center gap-2 text-gray-700 font-medium">
                   <CalendarDays className="h-4 w-4 text-green-600" />
@@ -2267,7 +3235,7 @@ export default function LeavesPage() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-blue-200">
+          <div className="flex justify-end gap-3 pt-4 border-t border-purple-200">
             <Button
               variant="outline"
               onClick={() => {
@@ -2282,7 +3250,7 @@ export default function LeavesPage() {
             <Button
               onClick={handleEditSubmit}
               disabled={submitting}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg"
             >
               {submitting ? (
                 <>
@@ -2297,6 +3265,794 @@ export default function LeavesPage() {
               )}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Apply Remote Work Dialog */}
+      <Dialog open={isApplyRemoteDialogOpen} onOpenChange={setIsApplyRemoteDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+          <DialogHeader className="pb-4 border-b border-purple-200">
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
+                <CalendarDays className="h-6 w-6 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                Apply for Remote Work
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Validation Info */}
+          {remoteValidation && (
+            <div className="space-y-3 mb-4 p-4 bg-white/60 rounded-lg border border-purple-200">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-700">Last 6 Months:</span>
+                <span className="font-semibold text-purple-700">
+                  {remoteValidation.usage?.sixMonths.used || 0} / 4 used
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-700">Last Month:</span>
+                <span className="font-semibold text-purple-700">
+                  {remoteValidation.usage?.oneMonth.used || 0} / 2 used
+                </span>
+              </div>
+              {!remoteValidation.canApply && (
+                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                  {remoteValidation.reason}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {/* Date Range Fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-purple-600" />
+                  From Date *
+                </label>
+                <input
+                  type="date"
+                  value={remoteWorkData.fromDate}
+                  onChange={(e) => setRemoteWorkData(prev => ({ ...prev, fromDate: e.target.value }))}
+                  className="w-full p-2 border border-purple-200 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-purple-600" />
+                  To Date *
+                </label>
+                <input
+                  type="date"
+                  value={remoteWorkData.toDate}
+                  onChange={(e) => setRemoteWorkData(prev => ({ ...prev, toDate: e.target.value }))}
+                  className="w-full p-2 border border-purple-200 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Number of Days Display */}
+            {remoteWorkData.fromDate && remoteWorkData.toDate && (
+              <div className="p-3 bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg border border-purple-300">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-700">Working Days:</span>
+                  <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    {remoteWorkData.numberOfDays} {remoteWorkData.numberOfDays === 1 ? 'day' : 'days'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">Excludes weekends (Saturday & Sunday)</p>
+              </div>
+            )}
+
+            {/* Reason Field */}
+            <div className="space-y-2">
+              <Label htmlFor="reason" className="text-sm font-semibold text-gray-700">
+                Reason (Optional)
+              </Label>
+              <Textarea
+                id="reason"
+                value={remoteWorkData.reason}
+                onChange={(e) => setRemoteWorkData(prev => ({ ...prev, reason: e.target.value }))}
+                className="min-h-[100px] border-purple-200 focus:ring-purple-500 bg-white"
+                placeholder="Why do you need to work remotely?"
+              />
+            </div>
+
+            {/* Submit Button */}
+            <Button
+              onClick={handleRemoteApplication}
+              disabled={submitting || !remoteWorkData.fromDate || !remoteWorkData.toDate}
+              className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-2.5"
+            >
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Submit Remote Application
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Remote Work Dialog (for HR) */}
+      <Dialog open={isAddRemoteDialogOpen} onOpenChange={setIsAddRemoteDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+          <DialogHeader className="pb-4 border-b border-purple-200">
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
+                <Plus className="h-6 w-6 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                Add Remote Work for Employee
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-5 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="selectEmployeeRemote" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <User className="h-4 w-4 text-purple-600" />
+                  Select Employee *
+                </Label>
+                <SearchableSelect
+                  options={formattedEmployeeOptions}
+                  value={selectedEmployeeValueForRemote}
+                  onValueChange={handleEmployeeSelectForRemote}
+                  placeholder="Search and select employee..."
+                  searchPlaceholder="Type to search employees..."
+                  className="bg-white border-purple-200 focus:ring-purple-500"
+                />
+                {formattedEmployeeOptions.length === 0 && (
+                  <p className="text-sm text-gray-500 mt-1">Loading employees...</p>
+                )}
+                {formattedEmployeeOptions.length > 0 && (
+                  <p className="text-sm text-purple-600 mt-1">✅ {formattedEmployeeOptions.length} employees available</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="remoteManagerName" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <UserCheck className="h-4 w-4 text-blue-600" />
+                  Reporting Manager
+                </Label>
+                <Input
+                  type="text"
+                  value={addRemoteData.managerName}
+                  readOnly
+                  className="bg-blue-50 border-blue-200"
+                  placeholder="Auto-filled"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="remoteFromDate" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Calendar className="h-4 w-4 text-purple-600" />
+                  From Date *
+                </Label>
+                <Input
+                  type="date"
+                  value={addRemoteData.fromDate}
+                  onChange={(e) => setAddRemoteData(prev => ({ ...prev, fromDate: e.target.value }))}
+                  className="bg-white border-purple-200 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="remoteToDate" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <Calendar className="h-4 w-4 text-purple-600" />
+                  To Date *
+                </Label>
+                <Input
+                  type="date"
+                  value={addRemoteData.toDate}
+                  onChange={(e) => setAddRemoteData(prev => ({ ...prev, toDate: e.target.value }))}
+                  className="bg-white border-purple-200 focus:ring-purple-500"
+                />
+              </div>
+            </div>
+
+            {/* Number of Days Display */}
+            {addRemoteData.fromDate && addRemoteData.toDate && (
+              <div className="p-3 bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg border border-purple-300">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-gray-700">Working Days:</span>
+                  <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    {addRemoteData.numberOfDays} {addRemoteData.numberOfDays === 1 ? 'day' : 'days'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">Excludes weekends (Saturday & Sunday)</p>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="remoteReason" className="flex items-center gap-2 text-gray-700 font-medium">
+                <MessageSquare className="h-4 w-4 text-purple-600" />
+                Reason (Optional)
+              </Label>
+              <Textarea
+                value={addRemoteData.reason}
+                onChange={(e) => setAddRemoteData(prev => ({ ...prev, reason: e.target.value }))}
+                placeholder="Enter reason for remote work..."
+                rows={3}
+                className="bg-white border-purple-200 focus:ring-purple-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-purple-200">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddRemoteDialogOpen(false)
+                setAddRemoteData({
+                  empId: '',
+                  empName: '',
+                  managerName: '',
+                  fromDate: '',
+                  toDate: '',
+                  numberOfDays: 1,
+                  reason: ''
+                })
+                setSelectedEmployeeForRemote(null)
+              }}
+              className="border-gray-300 hover:bg-gray-100"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitAddRemote}
+              disabled={submitting}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg"
+            >
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Adding Remote...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="h-4 w-4 mr-2" />
+                  Add Remote Work
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Remote Work Dialog */}
+      <Dialog open={isEditRemoteDialogOpen} onOpenChange={setIsEditRemoteDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+          <DialogHeader className="pb-4 border-b border-purple-200">
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
+                <Pencil className="h-6 w-6 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                Edit Remote Work
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {editingRemoteApplication && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 bg-purple-50 rounded-lg border border-purple-200">
+                <p className="text-sm text-gray-600">Employee:</p>
+                <p className="font-semibold text-gray-900">{editingRemoteApplication.employee_name}</p>
+                <p className="text-xs text-gray-500 mt-1">ID: {editingRemoteApplication.emp_id}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editRemoteFromDate" className="flex items-center gap-2 text-gray-700 font-medium">
+                    <Calendar className="h-4 w-4 text-purple-600" />
+                    From Date *
+                  </Label>
+                  <Input
+                    type="date"
+                    value={editRemoteData.fromDate}
+                    onChange={(e) => setEditRemoteData(prev => ({ ...prev, fromDate: e.target.value }))}
+                    className="bg-white border-purple-200 focus:ring-purple-500"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="editRemoteToDate" className="flex items-center gap-2 text-gray-700 font-medium">
+                    <Calendar className="h-4 w-4 text-purple-600" />
+                    To Date *
+                  </Label>
+                  <Input
+                    type="date"
+                    value={editRemoteData.toDate}
+                    onChange={(e) => setEditRemoteData(prev => ({ ...prev, toDate: e.target.value }))}
+                    className="bg-white border-purple-200 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Number of Days Display */}
+              {editRemoteData.fromDate && editRemoteData.toDate && (
+                <div className="p-3 bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg border border-purple-300">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-700">Working Days:</span>
+                    <span className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                      {editRemoteData.numberOfDays} {editRemoteData.numberOfDays === 1 ? 'day' : 'days'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">Excludes weekends (Saturday & Sunday)</p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="editRemoteReason" className="flex items-center gap-2 text-gray-700 font-medium">
+                  <MessageSquare className="h-4 w-4 text-purple-600" />
+                  Reason (Optional)
+                </Label>
+                <Textarea
+                  value={editRemoteData.reason}
+                  onChange={(e) => setEditRemoteData(prev => ({ ...prev, reason: e.target.value }))}
+                  placeholder="Enter reason for remote work..."
+                  rows={3}
+                  className="bg-white border-purple-200 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-purple-200">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditRemoteDialogOpen(false)
+                    setEditingRemoteApplication(null)
+                  }}
+                  className="border-gray-300 hover:bg-gray-100"
+                >
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleEditRemoteSubmit}
+                  disabled={submitting}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Update Remote Work
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Remote Confirmation Dialog */}
+      <Dialog open={isDeleteRemoteDialogOpen} onOpenChange={setIsDeleteRemoteDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md bg-white">
+          <DialogHeader className="pb-4">
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <span className="text-gray-900">Confirm Deletion</span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              Are you sure you want to delete this remote work application? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDeleteRemoteDialogOpen(false)
+                  setDeletingRemoteId(null)
+                }}
+                className="border-gray-300 hover:bg-gray-100"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteRemoteConfirm}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remote Work Usage Stats Dialog */}
+      <Dialog open={isRemoteUsageDialogOpen} onOpenChange={setIsRemoteUsageDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+          <DialogHeader className="pb-4 border-b border-purple-200">
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
+                <Activity className="h-6 w-6 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                Remote Work Usage Stats
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {remoteValidation && remoteValidation.usage && (
+            <div className="space-y-4 py-4">
+              {/* 6 Months Usage Card */}
+              <div className="p-6 bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                <h3 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Last 6 Months Usage
+                </h3>
+                <div className="text-4xl font-bold text-purple-700 mb-2">
+                  {remoteValidation.usage.sixMonths.used} / {remoteValidation.usage.sixMonths.limit}
+                </div>
+                <p className="text-sm text-purple-600">
+                  {remoteValidation.usage.sixMonths.remaining} days remaining
+                </p>
+
+                {remoteValidation.usage.sixMonths.applications && remoteValidation.usage.sixMonths.applications.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-purple-200">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Recent Applications:</p>
+                    <div className="space-y-1">
+                      {remoteValidation.usage.sixMonths.applications.slice(0, 3).map((app: any) => (
+                        <div key={app.id} className="text-xs text-gray-600 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
+                          {new Date(app.date).toLocaleDateString('en-GB')}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 1 Month Usage Card */}
+              <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+                <h3 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                  <CalendarDays className="h-5 w-5" />
+                  Last Month Usage
+                </h3>
+                <div className="text-4xl font-bold text-purple-700 mb-2">
+                  {remoteValidation.usage.oneMonth.used} / {remoteValidation.usage.oneMonth.limit}
+                </div>
+                <p className="text-sm text-purple-600">
+                  {remoteValidation.usage.oneMonth.remaining} days remaining this month
+                </p>
+
+                {remoteValidation.usage.oneMonth.applications && remoteValidation.usage.oneMonth.applications.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-purple-200">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Recent Applications:</p>
+                    <div className="space-y-1">
+                      {remoteValidation.usage.oneMonth.applications.map((app: any) => (
+                        <div key={app.id} className="text-xs text-gray-600 flex items-center gap-2">
+                          <span className="w-2 h-2 bg-purple-400 rounded-full"></span>
+                          {new Date(app.date).toLocaleDateString('en-GB')}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                onClick={() => setIsRemoteUsageDialogOpen(false)}
+                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+              >
+                Close
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Remote Limit Reached Dialog */}
+      <Dialog open={showRemoteLimitReachedDialog} onOpenChange={setShowRemoteLimitReachedDialog}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 border-2 border-red-200">
+          <DialogHeader className="pb-4 border-b border-red-200">
+            <DialogTitle className="flex items-center gap-3 text-2xl">
+              <div className="p-3 bg-gradient-to-br from-red-500 to-orange-500 rounded-full animate-pulse">
+                <AlertCircle className="h-7 w-7 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-red-600 to-orange-600 bg-clip-text text-transparent font-bold">
+                Remote Limit Reached
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6 py-6">
+            {/* Main Message */}
+            <div className="text-center space-y-3">
+              <div className="p-6 bg-white/80 rounded-lg border-2 border-red-200 shadow-sm">
+                <p className="text-lg font-semibold text-gray-800 mb-3">
+                  You have used all your remote work days!
+                </p>
+                <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-100 rounded-full border border-red-300">
+                  <span className="text-3xl font-bold text-red-700">
+                    {remoteValidation?.usage?.sixMonths?.used || 4} / 4
+                  </span>
+                  <span className="text-sm text-red-600">days used</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Info Box */}
+            <div className="p-5 bg-gradient-to-r from-orange-100 to-yellow-100 rounded-lg border border-orange-300">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-gray-800">
+                    What should you do?
+                  </p>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    You have reached the maximum limit of <span className="font-bold text-orange-700">4 remote work days in 6 months</span>. Please contact the HR department for further assistance or to request an exception.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Contact Info */}
+            <div className="p-4 bg-white/60 rounded-lg border border-gray-200">
+              <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                Contact HR Department
+              </p>
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <User className="h-4 w-4 text-purple-600" />
+                <span className="font-medium">Human Resources</span>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <Button
+              onClick={() => setShowRemoteLimitReachedDialog(false)}
+              className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-semibold py-3 shadow-md"
+            >
+              I Understand
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Employee Details Dialog */}
+      <Dialog open={isEmployeeDetailsDialogOpen} onOpenChange={setIsEmployeeDetailsDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
+          <DialogHeader className="pb-4 border-b border-purple-200">
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg">
+                <User className="h-6 w-6 text-white" />
+              </div>
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                Employee Remote Work Details
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedEmployeeDetails && (
+            <div className="space-y-6 py-4">
+              {/* Employee Info Card */}
+              <div className="p-6 bg-white/80 rounded-lg border border-purple-200 shadow-sm">
+                <h3 className="font-semibold text-purple-900 mb-4 flex items-center gap-2">
+                  <UserCheck className="h-5 w-5" />
+                  Employee Information
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">Name</p>
+                    <p className="font-semibold text-gray-900">{selectedEmployeeDetails.emp_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">Employee ID</p>
+                    <p className="font-semibold text-gray-900">{selectedEmployeeDetails.emp_id}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">Reporting Manager</p>
+                    <p className="font-semibold text-gray-900">{selectedEmployeeDetails.manager_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-1">Designation</p>
+                    <p className="font-semibold text-gray-900">{selectedEmployeeDetails.designation_name}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 6 Months Stats */}
+                <div className="p-6 bg-gradient-to-br from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+                  <h3 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                    <Calendar className="h-5 w-5" />
+                    Last 6 Months
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-700">Total Limit:</span>
+                      <span className="font-bold text-purple-700">4 days</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-700">Used:</span>
+                      <span className="font-bold text-purple-700">{selectedEmployeeDetails.sixMonths.used} days</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-700">Remaining:</span>
+                      <span className={`font-bold ${
+                        selectedEmployeeDetails.sixMonths.remaining === 0
+                          ? 'text-red-600'
+                          : selectedEmployeeDetails.sixMonths.remaining <= 1
+                          ? 'text-yellow-600'
+                          : 'text-green-600'
+                      }`}>
+                        {selectedEmployeeDetails.sixMonths.remaining} days
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Selected Month Stats */}
+                <div className="p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200">
+                  <h3 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                    <CalendarDays className="h-5 w-5" />
+                    {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-700">Monthly Limit:</span>
+                      <span className="font-bold text-purple-700">2 days</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-700">Used:</span>
+                      <span className="font-bold text-purple-700">{selectedEmployeeDetails.oneMonth.used} days</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-700">Remaining:</span>
+                      <span className={`font-bold ${
+                        selectedEmployeeDetails.oneMonth.remaining === 0
+                          ? 'text-red-600'
+                          : selectedEmployeeDetails.oneMonth.remaining <= 0
+                          ? 'text-yellow-600'
+                          : 'text-green-600'
+                      }`}>
+                        {selectedEmployeeDetails.oneMonth.remaining} days
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 6 Months Applications */}
+              {selectedEmployeeDetails.sixMonths.applications && selectedEmployeeDetails.sixMonths.applications.length > 0 && (
+                <div className="p-6 bg-white/80 rounded-lg border border-purple-200 shadow-sm">
+                  <h3 className="font-semibold text-purple-900 mb-4 flex items-center gap-2">
+                    <ClipboardList className="h-5 w-5" />
+                    Last 6 Months Applications ({selectedEmployeeDetails.sixMonths.applications.length})
+                  </h3>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {selectedEmployeeDetails.sixMonths.applications.map((app: any) => (
+                      <div key={app.id} className="p-3 bg-purple-50 rounded border border-purple-200 hover:bg-purple-100 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CalendarDays className="h-4 w-4 text-purple-600" />
+                              <span className="font-semibold text-sm text-gray-900">
+                                {new Date(app.from_date || app.date).toLocaleDateString('en-GB')} - {new Date(app.to_date || app.date).toLocaleDateString('en-GB')}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-gray-600">
+                              <span className="flex items-center gap-1">
+                                <Timer className="h-3 w-3" />
+                                {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                Applied: {new Date(app.application_date).toLocaleDateString('en-GB')}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`inline-flex items-center rounded-md h-6 px-2 text-xs font-medium ${
+                              app.approved === 1
+                                ? 'bg-green-100 text-green-700 border border-green-300'
+                                : app.approved === 0
+                                ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
+                                : 'bg-red-100 text-red-700 border border-red-300'
+                            }`}>
+                              {app.approved === 1 ? 'Approved' : app.approved === 0 ? 'Pending' : 'Rejected'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Selected Month Applications */}
+              {selectedEmployeeDetails.oneMonth.applications && selectedEmployeeDetails.oneMonth.applications.length > 0 && (
+                <div className="p-6 bg-white/80 rounded-lg border border-purple-200 shadow-sm">
+                  <h3 className="font-semibold text-purple-900 mb-4 flex items-center gap-2">
+                    <ClipboardList className="h-5 w-5" />
+                    {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })} Applications ({selectedEmployeeDetails.oneMonth.applications.length})
+                  </h3>
+                  <div className="space-y-2">
+                    {selectedEmployeeDetails.oneMonth.applications.map((app: any) => (
+                      <div key={app.id} className="p-3 bg-purple-50 rounded border border-purple-200 hover:bg-purple-100 transition-colors">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <CalendarDays className="h-4 w-4 text-purple-600" />
+                              <span className="font-semibold text-sm text-gray-900">
+                                {new Date(app.from_date || app.date).toLocaleDateString('en-GB')} - {new Date(app.to_date || app.date).toLocaleDateString('en-GB')}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-4 text-xs text-gray-600">
+                              <span className="flex items-center gap-1">
+                                <Timer className="h-3 w-3" />
+                                {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                Applied: {new Date(app.application_date).toLocaleDateString('en-GB')}
+                              </span>
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`inline-flex items-center rounded-md h-6 px-2 text-xs font-medium ${
+                              app.approved === 1
+                                ? 'bg-green-100 text-green-700 border border-green-300'
+                                : app.approved === 0
+                                ? 'bg-yellow-100 text-yellow-700 border border-yellow-300'
+                                : 'bg-red-100 text-red-700 border border-red-300'
+                            }`}>
+                              {app.approved === 1 ? 'Approved' : app.approved === 0 ? 'Pending' : 'Rejected'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* No Applications Message */}
+              {(!selectedEmployeeDetails.sixMonths.applications || selectedEmployeeDetails.sixMonths.applications.length === 0) &&
+               (!selectedEmployeeDetails.oneMonth.applications || selectedEmployeeDetails.oneMonth.applications.length === 0) && (
+                <div className="p-8 bg-white/80 rounded-lg border border-purple-200 text-center">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-gray-600">No remote work applications found for this employee</p>
+                </div>
+              )}
+
+              {/* Close Button */}
+              <Button
+                onClick={() => setIsEmployeeDetailsDialogOpen(false)}
+                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+              >
+                Close
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

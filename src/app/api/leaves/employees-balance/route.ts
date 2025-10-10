@@ -27,7 +27,40 @@ export async function GET() {
            FROM leave_application la
            WHERE la.emp_id = e.emp_id
           ), 0
-        ) as total_applications
+        ) as total_applications,
+        COALESCE(
+          (SELECT SUM(lad.no_of_days)
+           FROM leave_application la
+           LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
+           LEFT JOIN leave_type lt ON la.leave_type = lt.id
+           WHERE la.emp_id = e.emp_id
+           AND la.approved = 1
+           AND LOWER(lt.leave_type_name) LIKE '%annual%'
+           AND YEAR(STR_TO_DATE(lad.from_date, '%Y-%m-%d')) = YEAR(CURDATE())
+          ), 0
+        ) as annual_used,
+        COALESCE(
+          (SELECT SUM(lad.no_of_days)
+           FROM leave_application la
+           LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
+           LEFT JOIN leave_type lt ON la.leave_type = lt.id
+           WHERE la.emp_id = e.emp_id
+           AND la.approved = 1
+           AND LOWER(lt.leave_type_name) LIKE '%sick%'
+           AND YEAR(STR_TO_DATE(lad.from_date, '%Y-%m-%d')) = YEAR(CURDATE())
+          ), 0
+        ) as sick_used,
+        COALESCE(
+          (SELECT SUM(lad.no_of_days)
+           FROM leave_application la
+           LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
+           LEFT JOIN leave_type lt ON la.leave_type = lt.id
+           WHERE la.emp_id = e.emp_id
+           AND la.approved = 1
+           AND LOWER(lt.leave_type_name) LIKE '%emergency%'
+           AND YEAR(STR_TO_DATE(lad.from_date, '%Y-%m-%d')) = YEAR(CURDATE())
+          ), 0
+        ) as emergency_used
       FROM employee e
       LEFT JOIN department d ON e.emp_department_id = d.id
       LEFT JOIN designation des ON e.designation_id = des.id
@@ -60,7 +93,10 @@ export async function GET() {
       total_allocated: Number(emp.total_allocated) || 0,
       total_used: Number(emp.total_used) || 0,
       total_remaining: (Number(emp.total_allocated) || 0) - (Number(emp.total_used) || 0),
-      total_applications: Number(emp.total_applications) || 0
+      total_applications: Number(emp.total_applications) || 0,
+      annual_used: Number(emp.annual_used) || 0,
+      sick_used: Number(emp.sick_used) || 0,
+      emergency_used: Number(emp.emergency_used) || 0
     }))
 
     return NextResponse.json(result)
