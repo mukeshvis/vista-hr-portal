@@ -739,11 +739,7 @@ export default function LeavesPage() {
       return
     }
 
-    if (!addLeaveData.reason.trim()) {
-      setErrorMessage('Please provide a reason for leave')
-      setShowErrorPopup(true)
-      return
-    }
+    // Reason is optional - no validation needed
 
     try {
       setSubmitting(true)
@@ -855,11 +851,7 @@ export default function LeavesPage() {
       return
     }
 
-    if (!newLeave.reason.trim()) {
-      setErrorMessage('Please provide a reason for leave')
-      setShowErrorPopup(true)
-      return
-    }
+    // Reason is optional - no validation needed
 
     try {
       setSubmitting(true)
@@ -2712,12 +2704,12 @@ export default function LeavesPage() {
             <div className="space-y-2">
               <Label htmlFor="reason" className="flex items-center gap-2 text-gray-700 font-medium">
                 <MessageSquare className="h-4 w-4 text-teal-600" />
-                Reason *
+                Reason (Optional)
               </Label>
               <Textarea
                 value={newLeave.reason}
                 onChange={handleReasonChange}
-                placeholder="Enter reason for leave..."
+                placeholder="Enter reason for leave (optional)..."
                 rows={3}
                 className="bg-white border-teal-200 focus:ring-teal-500"
               />
@@ -3060,12 +3052,12 @@ export default function LeavesPage() {
             <div className="space-y-2">
               <Label htmlFor="addReason" className="flex items-center gap-2 text-gray-700 font-medium">
                 <MessageSquare className="h-4 w-4 text-purple-600" />
-                Reason *
+                Reason (Optional)
               </Label>
               <Textarea
                 value={addLeaveData.reason}
                 onChange={(e) => setAddLeaveData(prev => ({ ...prev, reason: e.target.value }))}
-                placeholder="Enter reason for leave..."
+                placeholder="Enter reason for leave (optional)..."
                 rows={3}
                 className="bg-white border-purple-200 focus:ring-purple-500"
               />

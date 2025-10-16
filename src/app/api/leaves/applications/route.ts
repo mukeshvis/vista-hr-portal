@@ -33,7 +33,10 @@ export async function GET(request: NextRequest) {
       FROM leave_application la
       LEFT JOIN leave_type lt ON la.leave_type = lt.id
       LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
+      INNER JOIN employee e ON la.emp_id = e.emp_id
+      LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
       WHERE 1=1
+      AND LOWER(es.job_type_name) = 'permanent'
     `
 
     const params: any[] = []

@@ -22,8 +22,10 @@ export async function GET(request: NextRequest) {
         FROM employee e
         LEFT JOIN employee m ON e.reporting_manager = m.id
         LEFT JOIN designation des ON e.designation_id = des.id
+        LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
         WHERE e.status = 1
           AND e.date_of_confirmation IS NOT NULL
+          AND LOWER(es.job_type_name) = 'permanent'
         ORDER BY e.emp_name ASC
       ` as any[]
     })

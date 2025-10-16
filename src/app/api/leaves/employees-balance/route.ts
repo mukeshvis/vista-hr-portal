@@ -65,7 +65,9 @@ export async function GET() {
       LEFT JOIN department d ON e.emp_department_id = d.id
       LEFT JOIN designation des ON e.designation_id = des.id
       LEFT JOIN leaves_data ld ON e.leaves_policy_id = ld.leaves_policy_id AND ld.status IN (1, 2)
+      LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
       WHERE e.status = 1 AND e.emp_id IS NOT NULL AND e.emp_id != ''
+      AND LOWER(es.job_type_name) = 'permanent'
       GROUP BY e.emp_id, e.emp_name, d.department_name, des.designation_name, e.leaves_policy_id, e.reporting_manager
       ORDER BY e.emp_name ASC
     ` as any[]

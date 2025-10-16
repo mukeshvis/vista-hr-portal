@@ -30,7 +30,9 @@ export async function GET(request: NextRequest) {
       FROM remote_application ra
       LEFT JOIN employee e ON ra.emp_id = e.emp_id
       LEFT JOIN employee m ON e.reporting_manager = m.id
+      LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
       WHERE ra.status = 1
+      AND LOWER(es.job_type_name) = 'permanent'
     `
 
     // Filter by employee
