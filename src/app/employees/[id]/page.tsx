@@ -20,8 +20,8 @@ import {
   CreditCard,
   User,
   FileText,
-  Clock,
-  Settings
+  Settings,
+  Clock
 } from "lucide-react"
 
 interface EmployeeProfile {
@@ -445,88 +445,44 @@ export default function EmployeeProfilePage() {
             </CardContent>
           </Card>
 
-          {/* Payroll Information */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-emerald-600" />
-                Payroll Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Monthly Salary</p>
-                <p className="text-2xl font-bold text-green-600">{formatSalary(employee.salary)}</p>
-              </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Account Title</p>
-                  <p className="font-medium">{employee.accountTitle}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Bank Account</p>
-                  <p className="font-medium">{employee.bankAccount}</p>
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <Button variant="outline" size="sm" className="w-full">
-                  <FileText className="h-4 w-4 mr-2 text-amber-500" />
-                  View Payslips
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Activity & Records */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5 text-cyan-600" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-4 w-4 text-blue-500" />
-                    <div>
-                      <p className="font-medium">Attendance Record</p>
-                      <p className="text-sm text-muted-foreground">Last updated today</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm">View</Button>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="h-4 w-4 text-orange-500" />
-                    <div>
-                      <p className="font-medium">Leave Applications</p>
-                      <p className="text-sm text-muted-foreground">2 pending requests</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm">View</Button>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FileText className="h-4 w-4 text-purple-500" />
-                    <div>
-                      <p className="font-medium">Performance Reviews</p>
-                      <p className="text-sm text-muted-foreground">Next review due</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm">View</Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
         </div>
+
+        {/* Payroll Information */}
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-emerald-600" />
+              Payroll Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Monthly Salary</p>
+              <p className="text-2xl font-bold text-green-600">{formatSalary(employee.salary)}</p>
+            </div>
+
+            <Separator />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Account Title</p>
+                <p className="font-medium">{employee.accountTitle}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Bank Account</p>
+                <p className="font-medium">{employee.bankAccount}</p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <Button variant="outline" size="sm" className="w-full">
+                <FileText className="h-4 w-4 mr-2 text-amber-500" />
+                View Payslips
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
 
       </main>
     </div>

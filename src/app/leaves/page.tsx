@@ -126,6 +126,9 @@ export default function LeavesPage() {
   const [allSearchTerm, setAllSearchTerm] = useState('')
   const [pendingSearchTerm, setPendingSearchTerm] = useState('')
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('')
+  // Filter states for year (default: 2025, starting from July)
+  const [myAppFilterYear, setMyAppFilterYear] = useState<number>(2025)
+  const [allAppFilterYear, setAllAppFilterYear] = useState<number>(2025)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null)
   const [selectedEmployeeName, setSelectedEmployeeName] = useState<string>('')
@@ -1003,11 +1006,31 @@ export default function LeavesPage() {
   }
 
   // Filter functions
-  const filterApplications = (apps: LeaveApplication[], search: string) => {
-    if (!search.trim()) return apps
+  const filterApplications = (apps: LeaveApplication[], search: string, filterYear?: number) => {
+    let filtered = apps
+
+    // Filter by year if provided (starting from July of that year)
+    if (filterYear) {
+      filtered = filtered.filter(app => {
+        if (!app.from_date) return false
+
+        const appDate = new Date(app.from_date)
+        const appYear = appDate.getFullYear()
+        const appMonth = appDate.getMonth() + 1 // JavaScript months are 0-indexed
+
+        // Show applications from July of the selected year onwards
+        if (appYear > filterYear) return true
+        if (appYear === filterYear && appMonth >= 7) return true // July = 7
+
+        return false
+      })
+    }
+
+    // Filter by search term
+    if (!search.trim()) return filtered
 
     const lowerSearch = search.toLowerCase()
-    return apps.filter(app =>
+    return filtered.filter(app =>
       app.employee_name?.toLowerCase().includes(lowerSearch) ||
       app.emp_id?.toLowerCase().includes(lowerSearch) ||
       app.leave_type_name?.toLowerCase().includes(lowerSearch) ||
@@ -1017,13 +1040,13 @@ export default function LeavesPage() {
   }
 
   const filteredMyApplications = useMemo(() =>
-    filterApplications(applications, searchTerm),
-    [applications, searchTerm]
+    filterApplications(applications, searchTerm, myAppFilterYear),
+    [applications, searchTerm, myAppFilterYear]
   )
 
   const filteredAllApplications = useMemo(() =>
-    filterApplications(allApplications, allSearchTerm),
-    [allApplications, allSearchTerm]
+    filterApplications(allApplications, allSearchTerm, allAppFilterYear),
+    [allApplications, allSearchTerm, allAppFilterYear]
   )
 
   const filteredPendingApplications = useMemo(() =>
@@ -1550,6 +1573,28 @@ export default function LeavesPage() {
           <TabsContent value="my-applications">
             <Card className="border-0 shadow-none">
               <CardContent className="pt-6">
+                {/* Year Filter */}
+                <div className="mb-4">
+                  <div className="w-48">
+                    <Label htmlFor="myAppFilterYear">Filter by Year (From July onwards)</Label>
+                    <Select
+                      value={myAppFilterYear.toString()}
+                      onValueChange={(value) => setMyAppFilterYear(parseInt(value))}
+                    >
+                      <SelectTrigger id="myAppFilterYear">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white">
+                        {[2024, 2025, 2026, 2027, 2028].map(year => (
+                          <SelectItem key={year} value={year.toString()} className="bg-white hover:bg-gray-100">
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 {/* Search Bar */}
                 <div className="mb-4">
                   <div className="relative">
@@ -1658,6 +1703,28 @@ export default function LeavesPage() {
           <TabsContent value="all-applications">
             <Card className="border-0 shadow-none">
               <CardContent className="pt-6">
+                {/* Year Filter */}
+                <div className="mb-4">
+                  <div className="w-48">
+                    <Label htmlFor="allAppFilterYear">Filter by Year (From July onwards)</Label>
+                    <Select
+                      value={allAppFilterYear.toString()}
+                      onValueChange={(value) => setAllAppFilterYear(parseInt(value))}
+                    >
+                      <SelectTrigger id="allAppFilterYear">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white">
+                        {[2024, 2025, 2026, 2027, 2028].map(year => (
+                          <SelectItem key={year} value={year.toString()} className="bg-white hover:bg-gray-100">
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 {/* Search Bar */}
                 <div className="mb-4">
                   <div className="relative">

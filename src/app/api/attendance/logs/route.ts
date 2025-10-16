@@ -120,6 +120,180 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// GET handler for employee-specific attendance records by month/year
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const empId = searchParams.get('empId')
+    const month = searchParams.get('month')
+    const year = searchParams.get('year')
+
+    if (!empId || !month || !year) {
+      return NextResponse.json(
+        { error: 'Missing required parameters: empId, month, year' },
+        { status: 400 }
+      )
+    }
+
+    console.log(`📊 Fetching attendance for employee ${empId} for ${month}/${year}`)
+
+    // Calculate start and end dates for the month
+    const monthNum = parseInt(month)
+    const yearNum = parseInt(year)
+    const startDate = new Date(yearNum, monthNum - 1, 1)
+    const endDate = new Date(yearNum, monthNum, 0) // Last day of the month
+
+    const startDateStr = `${String(startDate.getDate()).padStart(2, '0')}/${String(startDate.getMonth() + 1).padStart(2, '0')}/${startDate.getFullYear()}`
+    const endDateStr = `${String(endDate.getDate()).padStart(2, '0')}/${String(endDate.getMonth() + 1).padStart(2, '0')}/${endDate.getFullYear()}`
+
+    console.log(`📅 Date range: ${startDateStr} to ${endDateStr}`)
+
+    // Fetch from external API
+    try {
+      const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'HR-Portal/1.0',
+        },
+        body: JSON.stringify({
+          start_date: startDateStr,
+          end_date: endDateStr
+        }),
+        signal: AbortSignal.timeout(10000)
+      })
+
+      if (response.ok) {
+        const responseText = await response.text()
+
+        if (!responseText.includes('java.sql.') && !responseText.includes('Exception')) {
+          try {
+            const apiData = JSON.parse(responseText)
+            const allLogs = Array.isArray(apiData) ? apiData : (apiData.data || [])
+
+            // Filter logs by employee ID (API uses user_id field)
+            // Try both with and without leading zeros (e.g., "072" and "72")
+            const empIdNum = parseInt(empId)
+            const employeeLogs = allLogs.filter((log: any) => {
+              const logUserId = log.user_id
+              // Check if user_id matches as string or number (with/without leading zeros)
+              return logUserId === empId ||
+                     logUserId === empIdNum ||
+                     parseInt(logUserId) === empIdNum ||
+                     String(logUserId).padStart(3, '0') === empId
+            })
+
+            console.log(`✅ Found ${employeeLogs.length} records for employee ${empId} (numeric: ${empIdNum})`)
+            console.log(`📊 Total logs fetched from API:`, allLogs.length)
+            if (allLogs.length > 0) {
+              console.log(`📊 Sample API log:`, allLogs[0])
+              console.log(`📊 Unique user_ids in API response:`, [...new Set(allLogs.map((l: any) => l.user_id))])
+            }
+            if (employeeLogs.length > 0) {
+              console.log(`📊 Sample employee record:`, employeeLogs[0])
+            }
+
+            // Transform the data to match expected format
+            const transformedLogs = employeeLogs.map((log: any, index: number) => {
+              // Extract date and time from punch_time (format: "YYYY-MM-DD HH:MM:SS")
+              const punchDateTime = log.punch_time ? new Date(log.punch_time) : null
+              const dateStr = punchDateTime ? punchDateTime.toISOString().split('T')[0] : null
+              const timeStr = punchDateTime ? punchDateTime.toLocaleTimeString('en-US', { hour12: false }) : null
+
+              return {
+                id: index + 1,
+                emp_id: log.user_id,
+                date: dateStr,
+                check_in: log.state === 'Check In' ? timeStr : null,
+                check_out: log.state === 'Check Out' ? timeStr : null,
+                status: log.status || 'Present',
+                late_arrival: log.late_arrival || null,
+                work_from_home: log.verify_mode === 'FORM' ? 'Yes' : 'No',
+                state: log.state
+              }
+            })
+
+            // Group by date to combine check-in and check-out
+            const groupedByDate = transformedLogs.reduce((acc: any, log: any) => {
+              const dateKey = log.date
+              if (!dateKey) return acc // Skip records without valid date
+
+              if (!acc[dateKey]) {
+                acc[dateKey] = {
+                  id: log.id,
+                  emp_id: log.emp_id,
+                  date: log.date,
+                  check_in: null,
+                  check_out: null,
+                  status: log.status,
+                  late_arrival: log.late_arrival,
+                  work_from_home: log.work_from_home
+                }
+              }
+
+              // Update check-in/check-out times
+              if (log.check_in) acc[dateKey].check_in = log.check_in
+              if (log.check_out) acc[dateKey].check_out = log.check_out
+
+              // Keep the WFH status (FORM mode indicates manual entry/WFH)
+              if (log.work_from_home === 'Yes') {
+                acc[dateKey].work_from_home = 'Yes'
+              }
+
+              return acc
+            }, {})
+
+            const finalLogs = Object.values(groupedByDate)
+
+            console.log(`📋 Final grouped logs: ${finalLogs.length} days`)
+            console.log(`📊 Sample grouped log:`, finalLogs[0])
+
+            return NextResponse.json({
+              logs: finalLogs,
+              count: finalLogs.length,
+              empId,
+              month,
+              year
+            })
+
+          } catch (parseError) {
+            console.error('❌ Failed to parse API response:', parseError)
+            return NextResponse.json({
+              error: 'Failed to parse API response',
+              logs: []
+            }, { status: 500 })
+          }
+        } else {
+          console.error('❌ API returned error response')
+          return NextResponse.json({
+            error: 'External API error',
+            logs: []
+          }, { status: 500 })
+        }
+      } else {
+        console.error('❌ API request failed:', response.status)
+        return NextResponse.json({
+          error: 'External API request failed',
+          logs: []
+        }, { status: 500 })
+      }
+    } catch (apiError: any) {
+      console.error('❌ External API failed:', apiError.message)
+      return NextResponse.json({
+        error: 'Failed to fetch from external API',
+        logs: []
+      }, { status: 500 })
+    }
+
+  } catch (error: any) {
+    console.error('❌ Error in GET handler:', error.message)
+    return NextResponse.json(
+      { error: 'Internal server error', logs: [] },
+      { status: 500 }
+    )
+  }
+}
+
 export async function OPTIONS() {
   return new Response(null, {
     status: 200,

@@ -103,6 +103,21 @@ export async function GET(
     console.log('Status value from DB:', employeeData.status, 'Type:', typeof employeeData.status)
     console.log('Status === 1?', employeeData.status === 1)
     console.log('Status == 1?', employeeData.status == 1)
+    console.log('Joining Date from DB:', employeeData.joiningDate, 'Type:', typeof employeeData.joiningDate)
+
+    // Helper function to format dates for frontend
+    const formatDateForFrontend = (date: any) => {
+      if (!date) return null
+      try {
+        const dateObj = new Date(date)
+        // Check if date is valid
+        if (isNaN(dateObj.getTime())) return null
+        // Return ISO string format (YYYY-MM-DD)
+        return dateObj.toISOString().split('T')[0]
+      } catch {
+        return null
+      }
+    }
 
     // Format the response
     const formattedEmployee = {
@@ -119,7 +134,7 @@ export async function GET(
       reportingManagerId: employeeData.reporting_manager,
       gradeId: employeeData.emp_grade_id || null,
       gradeName: employeeData.grade_name || 'N/A',
-      joiningDate: employeeData.joiningDate,
+      joiningDate: formatDateForFrontend(employeeData.joiningDate),
       salary: Number(employeeData.salary),
       status: (employeeData.status === 1 || employeeData.status === '1') ? 'Active' : 'Inactive',
       gender: Number(employeeData.gender) === 1 ? 'Male' : Number(employeeData.gender) === 2 ? 'Female' : `N/A (${employeeData.gender})`,
@@ -134,10 +149,10 @@ export async function GET(
       bankAccount: employeeData.bankAccount || 'N/A',
       accountTitle: employeeData.accountTitle || 'N/A',
       fatherName: employeeData.fatherName || 'N/A',
-      dateOfBirth: employeeData.dateOfBirth,
-      dateOfLeaving: employeeData.dateOfLeaving,
-      probationExpireDate: employeeData.probationExpireDate,
-      cnicExpiryDate: employeeData.cnicExpiryDate,
+      dateOfBirth: formatDateForFrontend(employeeData.dateOfBirth),
+      dateOfLeaving: formatDateForFrontend(employeeData.dateOfLeaving),
+      probationExpireDate: formatDateForFrontend(employeeData.probationExpireDate),
+      cnicExpiryDate: formatDateForFrontend(employeeData.cnicExpiryDate),
       dayOff: employeeData.dayOff || 'N/A',
       professionalEmail: employeeData.professionalEmail || 'N/A',
       branch: employeeData.branch || 'N/A',
@@ -430,6 +445,20 @@ export async function PUT(
 
     const employeeData = result[0]
 
+    // Helper function to format dates for frontend
+    const formatDateForFrontend = (date: any) => {
+      if (!date) return null
+      try {
+        const dateObj = new Date(date)
+        // Check if date is valid
+        if (isNaN(dateObj.getTime())) return null
+        // Return ISO string format (YYYY-MM-DD)
+        return dateObj.toISOString().split('T')[0]
+      } catch {
+        return null
+      }
+    }
+
     // Format the response
     const formattedEmployee = {
       id: employeeData.id.toString(),
@@ -445,7 +474,7 @@ export async function PUT(
       reportingManagerId: employeeData.reporting_manager,
       gradeId: employeeData.emp_grade_id || null,
       gradeName: employeeData.grade_name || 'N/A',
-      joiningDate: employeeData.joiningDate,
+      joiningDate: formatDateForFrontend(employeeData.joiningDate),
       salary: Number(employeeData.salary),
       status: (employeeData.status === 1 || employeeData.status === '1') ? 'Active' : 'Inactive',
       gender: Number(employeeData.gender) === 1 ? 'Male' : Number(employeeData.gender) === 2 ? 'Female' : `N/A (${employeeData.gender})`,
@@ -460,10 +489,10 @@ export async function PUT(
       bankAccount: employeeData.bankAccount || 'N/A',
       accountTitle: employeeData.accountTitle || 'N/A',
       fatherName: employeeData.fatherName || 'N/A',
-      dateOfBirth: employeeData.dateOfBirth,
-      dateOfLeaving: employeeData.dateOfLeaving,
-      probationExpireDate: employeeData.probationExpireDate,
-      cnicExpiryDate: employeeData.cnicExpiryDate,
+      dateOfBirth: formatDateForFrontend(employeeData.dateOfBirth),
+      dateOfLeaving: formatDateForFrontend(employeeData.dateOfLeaving),
+      probationExpireDate: formatDateForFrontend(employeeData.probationExpireDate),
+      cnicExpiryDate: formatDateForFrontend(employeeData.cnicExpiryDate),
       dayOff: employeeData.dayOff || 'N/A',
       professionalEmail: employeeData.professionalEmail || 'N/A',
       branch: employeeData.branch || 'N/A',

@@ -144,12 +144,19 @@ export default function AttendancePage() {
     }
   }
 
+  // Specific employees with 10-hour requirement (8 AM to 6 PM)
+  const TEN_HOUR_EMPLOYEES = ['13', '14', '45', '1691479623873', '1691479623595']
+
+  // Specific employees with 9-hour requirement (9 AM to 6 PM, including weekends 9 AM to 3 PM)
+  const NINE_HOUR_EMPLOYEES = ['16', '3819']
+
   // Get background color based on total working hours and attendance status
-  const getTotalTimeStyles = (totalTime: string, attendanceStatus: string) => {
+  const getTotalTimeStyles = (totalTime: string, attendanceStatus: string, pinAuto: string) => {
     if (totalTime === '--' || attendanceStatus === 'Absent') {
       return {
         bgColor: 'bg-red-100',
-        textColor: 'text-black'
+        textColor: 'text-black',
+        showAlert: false
       }
     }
 
@@ -157,23 +164,71 @@ export default function AttendancePage() {
     const hoursMatch = totalTime.match(/(\d+)h/)
     const hours = hoursMatch ? parseInt(hoursMatch[1]) : 0
 
-    if (hours >= 8) {
-      // Full time: 8+ hours (Green - Good)
-      return {
-        bgColor: 'bg-green-100',
-        textColor: 'text-black'
+    // Check if this employee requires 10 hours
+    const requires10Hours = TEN_HOUR_EMPLOYEES.includes(pinAuto)
+
+    // Check if this employee requires 9 hours
+    const requires9Hours = NINE_HOUR_EMPLOYEES.includes(pinAuto)
+
+    if (requires10Hours) {
+      // For 10-hour employees
+      if (hours >= 10) {
+        // Met 10-hour requirement (Green - Good)
+        return {
+          bgColor: 'bg-green-100',
+          textColor: 'text-black',
+          showAlert: false
+        }
+      } else {
+        // Did not meet 10-hour requirement (Red Alert!)
+        return {
+          bgColor: 'bg-red-200',
+          textColor: 'text-red-800 font-bold',
+          showAlert: true,
+          alertMessage: '⚠️ Required: 10 hours'
+        }
       }
-    } else if (hours >= 7) {
-      // Moderate time: 7-7.9 hours (Yellow - Moderate)
-      return {
-        bgColor: 'bg-yellow-100',
-        textColor: 'text-black'
+    } else if (requires9Hours) {
+      // For 9-hour employees
+      if (hours >= 9) {
+        // Met 9-hour requirement (Green - Good)
+        return {
+          bgColor: 'bg-green-100',
+          textColor: 'text-black',
+          showAlert: false
+        }
+      } else {
+        // Did not meet 9-hour requirement (Red Alert!)
+        return {
+          bgColor: 'bg-red-200',
+          textColor: 'text-red-800 font-bold',
+          showAlert: true,
+          alertMessage: '⚠️ Required: 9 hours'
+        }
       }
     } else {
-      // Less time: Under 7 hours (Red - Low)
-      return {
-        bgColor: 'bg-red-100',
-        textColor: 'text-black'
+      // For regular 8-hour employees
+      if (hours >= 8) {
+        // Full time: 8+ hours (Green - Good)
+        return {
+          bgColor: 'bg-green-100',
+          textColor: 'text-black',
+          showAlert: false
+        }
+      } else if (hours >= 7) {
+        // Moderate time: 7-7.9 hours (Yellow - Moderate)
+        return {
+          bgColor: 'bg-yellow-100',
+          textColor: 'text-black',
+          showAlert: false
+        }
+      } else {
+        // Less time: Under 7 hours (Red - Low)
+        return {
+          bgColor: 'bg-red-100',
+          textColor: 'text-black',
+          showAlert: false
+        }
       }
     }
   }
@@ -546,11 +601,18 @@ export default function AttendancePage() {
                           </td>
                           <td className="py-3 px-4 text-gray-700">
                             {(() => {
-                              const styles = getTotalTimeStyles(record.totalTime, record.attendanceStatus)
+                              const styles = getTotalTimeStyles(record.totalTime, record.attendanceStatus, record.pinAuto)
                               return (
-                                <span className={`${styles.bgColor} ${styles.textColor} px-2 py-1 rounded text-sm`}>
-                                  {record.totalTime}
-                                </span>
+                                <div className="flex items-center gap-3">
+                                  <span className={`${styles.bgColor} ${styles.textColor} px-2 py-1 rounded text-sm whitespace-nowrap`}>
+                                    {record.totalTime}
+                                  </span>
+                                  {styles.showAlert && (
+                                    <span className="text-red-600 text-xs font-semibold whitespace-nowrap">
+                                      {styles.alertMessage}
+                                    </span>
+                                  )}
+                                </div>
                               )
                             })()}
                           </td>

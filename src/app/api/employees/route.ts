@@ -21,7 +21,6 @@ export async function GET(request: NextRequest) {
         FROM employee e
         LEFT JOIN designation d ON e.designation_id = d.id
         LEFT JOIN grades g ON e.emp_grade_id = g.id
-        WHERE e.active = 1
         ORDER BY e.emp_name ASC
         LIMIT 1000
       ` as any[]
@@ -82,8 +81,8 @@ export async function POST(request: NextRequest) {
     console.log(`   Email: ${employeeData.email}`)
     console.log(`   Designation ID: ${employeeData.designation_id}`)
     console.log(`   Salary: ${employeeData.salary}`)
-    console.log(`   Status: ${employeeData.status}`)
-    console.log(`   Gender: ${employeeData.gender}`)
+    console.log(`   Status (active): ${employeeData.status} (1=Active, 0=Inactive)`)
+    console.log(`   Gender: ${employeeData.gender} (1=Male, 2=Female)`)
  
     // Try to save to database using raw SQL
     try {
@@ -219,7 +218,7 @@ export async function POST(request: NextRequest) {
           ${employeeData.workingHoursPolicy ? parseInt(employeeData.workingHoursPolicy) : null},
           ${employeeData.reportingManager ? parseInt(employeeData.reportingManager) : null},
           ${departmentId}, ${1}, ${1}, ${parseFloat(employeeData.salary) || 0},
-          ${employeeData.status === 'Active' ? 1 : 0}, ${employeeData.gender === 'Male' ? 1 : 2},
+          ${employeeData.status}, ${employeeData.gender},
           ${employeeData.address || 'N/A'}, ${employeeData.permanentAddress || 'N/A'},
           ${maritalStatusId}, ${employeeData.nationality || 'Pakistan'},
           ${employeeData.cnic || 'N/A'}, ${cnicExpiryDate}, ${employeeData.bankAccount || 'N/A'},

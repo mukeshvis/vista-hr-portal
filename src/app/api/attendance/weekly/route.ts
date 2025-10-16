@@ -17,8 +17,13 @@ interface WeekData {
   wednesday: DayData
   thursday: DayData
   friday: DayData
+  saturday?: DayData  // Optional for weekend workers
+  sunday?: DayData    // Optional for weekend workers
   totalHours: string
 }
+
+// Specific employees with 9-hour requirement that work weekends
+const NINE_HOUR_EMPLOYEES = ['16', '3819']
 
 export async function POST(request: NextRequest) {
   let prismaConnected = false
@@ -84,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     // Calculate weekly summary (this will use Prisma)
     prismaConnected = true
-    const weeklyData = await calculateWeeklyData(employeeData, year, month)
+    const weeklyData = await calculateWeeklyData(employeeData, year, month, employeeId)
 
     return NextResponse.json({
       success: true,
@@ -104,7 +109,9 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function calculateWeeklyData(attendanceData: any[], year: number, month: number): Promise<WeekData[]> {
+async function calculateWeeklyData(attendanceData: any[], year: number, month: number, employeeId: string): Promise<WeekData[]> {
+  // Check if this employee works weekends
+  const worksWeekends = NINE_HOUR_EMPLOYEES.includes(employeeId)
   // Fetch holidays for the year
   const holidays = await prisma.holidays.findMany({
     where: {
@@ -179,13 +186,22 @@ async function calculateWeeklyData(attendanceData: any[], year: number, month: n
       totalHours: '0h'
     }
 
-    let weeklyTotalMinutes = 0
-    const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+    // Add Saturday and Sunday if employee works weekends
+    if (worksWeekends) {
+      weekData.saturday = { timeIn: '--', timeOut: '--', hours: '0h', status: 'Absent' }
+      weekData.sunday = { timeIn: '--', timeOut: '--', hours: '0h', status: 'Absent' }
+    }
 
-    // Check Monday to Friday (weekdays only)
+    let weeklyTotalMinutes = 0
+    const weekdays = worksWeekends
+      ? ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+      : ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+
+    // Check Monday to Friday (and weekend if applicable)
     console.log(`Week ${weekIndex}: currentDate is ${currentDate.toDateString()} (day ${currentDate.getDay()})`)
 
-    for (let dayOffset = 0; dayOffset < 5; dayOffset++) {
+    const daysToCheck = worksWeekends ? 7 : 5
+    for (let dayOffset = 0; dayOffset < daysToCheck; dayOffset++) {
       const dayDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() + dayOffset)
 
       // Use local date string instead of ISO to avoid timezone issues

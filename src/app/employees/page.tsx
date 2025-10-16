@@ -15,6 +15,7 @@ import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Search, Plus, User, Building, CreditCard } from "lucide-react"
 
 
@@ -25,6 +26,7 @@ interface Employee {
   designation: string
   group: string
   gender?: string
+  status?: string  // 'Active' or 'Inactive'
 }
 
 interface PaginationInfo {
@@ -139,6 +141,8 @@ export default function EmployeesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [showActive, setShowActive] = useState(true) // Show active employees
+  const [showInactive, setShowInactive] = useState(false) // Don't show inactive employees by default
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [designations, setDesignations] = useState<DesignationOption[]>([]) // Designations from API
@@ -361,19 +365,30 @@ export default function EmployeesPage() {
     }
   }, [debouncedEmpId, checkEmployeeId])
 
-  // Filter employees based on search term
+  // Filter employees based on search term and active/inactive status
   useEffect(() => {
-    if (!debouncedSearchTerm.trim()) {
-      setFilteredEmployees(allEmployees)
-    } else {
-      const filtered = allEmployees.filter(employee =>
+    let filtered = allEmployees
+
+    // Filter by search term
+    if (debouncedSearchTerm.trim()) {
+      filtered = filtered.filter(employee =>
         employee.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+        (employee.empId && employee.empId.toLowerCase().includes(debouncedSearchTerm.toLowerCase())) ||
         employee.id.toString().toLowerCase().includes(debouncedSearchTerm.toLowerCase())
       )
-      setFilteredEmployees(filtered)
     }
-    setCurrentPage(1) // Reset to first page when search changes
-  }, [debouncedSearchTerm, allEmployees])
+
+    // Filter by active/inactive status
+    filtered = filtered.filter(employee => {
+      const isActive = employee.status === 'Active'
+      if (showActive && isActive) return true
+      if (showInactive && !isActive) return true
+      return false
+    })
+
+    setFilteredEmployees(filtered)
+    setCurrentPage(1) // Reset to first page when filters change
+  }, [debouncedSearchTerm, allEmployees, showActive, showInactive])
 
   // Update displayed employees when page or filtered employees change
   useEffect(() => {
@@ -701,16 +716,50 @@ export default function EmployeesPage() {
           </Button>
         </div>
 
-        {/* Search Section */}
-        <div className="mb-6">
+        {/* Search and Filter Section */}
+        <div className="mb-6 space-y-4">
           <div className="relative w-full">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search employees..."
+              placeholder="Search employees by name or ID..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 border-gray-300 w-full"
             />
+          </div>
+
+          {/* Active/Inactive Filters */}
+          <div className="flex items-center gap-6 bg-gray-50 p-3 rounded-md border border-gray-200">
+            <span className="text-sm font-medium text-gray-700">Show:</span>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="active-filter"
+                checked={showActive}
+                onCheckedChange={(checked) => setShowActive(checked as boolean)}
+              />
+              <label
+                htmlFor="active-filter"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Active Employees
+              </label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="inactive-filter"
+                checked={showInactive}
+                onCheckedChange={(checked) => setShowInactive(checked as boolean)}
+              />
+              <label
+                htmlFor="inactive-filter"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+              >
+                Inactive Employees
+              </label>
+            </div>
+            <div className="ml-auto text-sm text-gray-600">
+              Showing <span className="font-semibold">{filteredEmployees.length}</span> of <span className="font-semibold">{allEmployees.length}</span> employees
+            </div>
           </div>
         </div>
 

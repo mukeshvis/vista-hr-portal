@@ -44,8 +44,16 @@ interface WeeklyData {
   wednesday: DayData
   thursday: DayData
   friday: DayData
+  saturday?: DayData  // Optional for weekend workers
+  sunday?: DayData    // Optional for weekend workers
   totalHours: string
 }
+
+// Specific employees with 10-hour requirement (8 AM to 6 PM) = 50 hours per week
+const TEN_HOUR_EMPLOYEES = ['13', '14', '45', '1691479623873', '1691479623595']
+
+// Specific employees with 9-hour requirement (9 AM to 6 PM weekdays, 9 AM to 3 PM weekends) = 57 hours per week
+const NINE_HOUR_EMPLOYEES = ['16', '3819']
 
 export default function EmployeeAttendancePage() {
   const params = useParams()
@@ -508,13 +516,19 @@ export default function EmployeeAttendancePage() {
           return total + hours + (minutes / 60)
         }
       }
-      // If no totalTime, assume 8 hours
-      return total + 8
+      // If no totalTime, assume default hours based on employee type
+      const requires10Hours = TEN_HOUR_EMPLOYEES.includes(employeeId)
+      const requires9Hours = NINE_HOUR_EMPLOYEES.includes(employeeId)
+      return total + (requires10Hours ? 10 : (requires9Hours ? 9 : 8))
     }
     return total
   }, 0)
 
-  const expectedHours = workedDays * 8
+  // Check if this employee requires 10 hours or 9 hours per day
+  const requires10Hours = TEN_HOUR_EMPLOYEES.includes(employeeId)
+  const requires9Hours = NINE_HOUR_EMPLOYEES.includes(employeeId)
+  const expectedHoursPerDay = requires10Hours ? 10 : (requires9Hours ? 9 : 8)
+  const expectedHours = workedDays * expectedHoursPerDay
   const hoursStatus = totalHoursWorked >= expectedHours ? 'Excellent' : totalHoursWorked >= expectedHours * 0.9 ? 'Good' : 'Below Expected'
 
 
@@ -750,13 +764,19 @@ export default function EmployeeAttendancePage() {
                     <th className="text-center py-2 px-3 font-medium text-orange-800 bg-orange-50 text-sm">Wednesday</th>
                     <th className="text-center py-2 px-3 font-medium text-purple-800 bg-purple-50 text-sm">Thursday</th>
                     <th className="text-center py-2 px-3 font-medium text-indigo-800 bg-indigo-50 text-sm">Friday</th>
+                    {NINE_HOUR_EMPLOYEES.includes(employeeId) && (
+                      <>
+                        <th className="text-center py-2 px-3 font-medium text-cyan-800 bg-cyan-50 text-sm">Saturday</th>
+                        <th className="text-center py-2 px-3 font-medium text-pink-800 bg-pink-50 text-sm">Sunday</th>
+                      </>
+                    )}
                     <th className="text-center py-2 px-3 font-medium text-rose-800 bg-rose-50 text-sm">Total Hours</th>
                   </tr>
                 </thead>
                 <tbody>
                   {weeklyLoading ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-gray-500">
+                      <td colSpan={NINE_HOUR_EMPLOYEES.includes(employeeId) ? 9 : 7} className="py-8 text-center text-gray-500">
                         Loading weekly data...
                       </td>
                     </tr>
@@ -835,6 +855,37 @@ export default function EmployeeAttendancePage() {
                           })()}
                         </td>
 
+                        {/* Saturday and Sunday (only for 9-hour employees) */}
+                        {NINE_HOUR_EMPLOYEES.includes(employeeId) && week.saturday && week.sunday && (
+                          <>
+                            {/* Saturday */}
+                            <td className="py-2 px-3 text-center">
+                              {(() => {
+                                const info = getDayInfo(week.saturday, week.weekNumber, 5)
+                                return (
+                                  <div className="text-xs">
+                                    <div className={`font-medium ${info.hourColor}`}>{info.displayText}</div>
+                                    <div className={info.timeColor}>{info.timeIn} - {info.timeOut}</div>
+                                  </div>
+                                )
+                              })()}
+                            </td>
+
+                            {/* Sunday */}
+                            <td className="py-2 px-3 text-center">
+                              {(() => {
+                                const info = getDayInfo(week.sunday, week.weekNumber, 6)
+                                return (
+                                  <div className="text-xs">
+                                    <div className={`font-medium ${info.hourColor}`}>{info.displayText}</div>
+                                    <div className={info.timeColor}>{info.timeIn} - {info.timeOut}</div>
+                                  </div>
+                                )
+                              })()}
+                            </td>
+                          </>
+                        )}
+
                         {/* Total Hours */}
                         <td className="py-2 px-3 text-center">
                           {(() => {
@@ -845,9 +896,14 @@ export default function EmployeeAttendancePage() {
                             const minutes = hoursMatch && hoursMatch[2] ? parseInt(hoursMatch[2]) : 0
                             const totalHoursDecimal = hours + (minutes / 60)
 
-                            // Remove the absent logic - just show the hours
+                            // Check if this employee requires 10 hours per day (50 hours per week)
+                            const requires10Hours = TEN_HOUR_EMPLOYEES.includes(employeeId)
+                            // Check if this employee requires 9 hours per day + weekends (57 hours per week)
+                            const requires9Hours = NINE_HOUR_EMPLOYEES.includes(employeeId)
 
-                            const isLowHours = totalHoursDecimal < 40
+                            const requiredHours = requires10Hours ? 50 : (requires9Hours ? 57 : 40)
+
+                            const isLowHours = totalHoursDecimal < requiredHours
 
                             return (
                               <div className={`font-bold text-sm px-2 py-1 rounded ${
@@ -864,7 +920,7 @@ export default function EmployeeAttendancePage() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-gray-500">
+                      <td colSpan={NINE_HOUR_EMPLOYEES.includes(employeeId) ? 9 : 7} className="py-8 text-center text-gray-500">
                         No weekly data available
                       </td>
                     </tr>

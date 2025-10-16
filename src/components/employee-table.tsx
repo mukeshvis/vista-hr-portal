@@ -212,6 +212,8 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
         console.log('🔍 DesignationId from API:', employeeData.designationId)
         console.log('🔍 Reporting Manager from API:', employeeData.reportingManager)
         console.log('🔍 Reporting Manager ID from API:', employeeData.reportingManagerId)
+        console.log('🔍 Joining Date from API:', employeeData.joiningDate, 'Type:', typeof employeeData.joiningDate)
+        console.log('🔍 Date of Birth from API:', employeeData.dateOfBirth, 'Type:', typeof employeeData.dateOfBirth)
         setEditData(employeeData)
         setIsEditDialogOpen(true)
       } else {
@@ -662,7 +664,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       <Input
                         id="dateOfBirth"
                         type="date"
-                        value={editData.dateOfBirth?.split('T')[0] || ''}
+                        value={editData.dateOfBirth ? (editData.dateOfBirth.includes('T') ? editData.dateOfBirth.split('T')[0] : editData.dateOfBirth) : ''}
                         onChange={(e) => handleInputChange('dateOfBirth', e.target.value)}
                       />
                     </div>
@@ -671,7 +673,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       <Input
                         id="cnicExpiryDate"
                         type="date"
-                        value={editData.cnicExpiryDate?.split('T')[0] || ''}
+                        value={editData.cnicExpiryDate ? (editData.cnicExpiryDate.includes('T') ? editData.cnicExpiryDate.split('T')[0] : editData.cnicExpiryDate) : ''}
                         onChange={(e) => handleInputChange('cnicExpiryDate', e.target.value)}
                       />
                     </div>
@@ -1003,7 +1005,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       <Input
                         id="joiningDate"
                         type="date"
-                        value={editData.joiningDate?.split('T')[0] || ''}
+                        value={editData.joiningDate ? (editData.joiningDate.includes('T') ? editData.joiningDate.split('T')[0] : editData.joiningDate) : ''}
                         onChange={(e) => handleInputChange('joiningDate', e.target.value)}
                       />
                     </div>
@@ -1050,7 +1052,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       <Input
                         id="probationExpireDate"
                         type="date"
-                        value={editData.probationExpireDate?.split('T')[0] || ''}
+                        value={editData.probationExpireDate ? (editData.probationExpireDate.includes('T') ? editData.probationExpireDate.split('T')[0] : editData.probationExpireDate) : ''}
                         onChange={(e) => handleInputChange('probationExpireDate', e.target.value)}
                       />
                     </div>
@@ -1059,7 +1061,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       <Input
                         id="dateOfLeaving"
                         type="date"
-                        value={editData.dateOfLeaving?.split('T')[0] || ''}
+                        value={editData.dateOfLeaving ? (editData.dateOfLeaving.includes('T') ? editData.dateOfLeaving.split('T')[0] : editData.dateOfLeaving) : ''}
                         onChange={(e) => handleInputChange('dateOfLeaving', e.target.value)}
                       />
                     </div>
