@@ -34,6 +34,8 @@ interface AttendanceRecord {
   timeIn: string
   timeOut: string
   totalTime: string
+  checkInVerifyMode: string
+  checkOutVerifyMode: string
 }
 
 interface AttendanceLog {
@@ -254,6 +256,17 @@ export default function AttendancePage() {
         const timeOut = checkOut ? extractTime(checkOut.punch_time) : '--'
         const totalTime = calculateTotalTime(timeIn, timeOut)
 
+        // Get verify modes (FACE = machine, FORM = manual HR edit)
+        const checkInVerifyMode = checkIn ? (checkIn.verify_mode || 'UNKNOWN') : '--'
+        const checkOutVerifyMode = checkOut ? (checkOut.verify_mode || 'UNKNOWN') : '--'
+
+        console.log(`Employee ${emp.user_name}:`, {
+          checkIn: timeIn,
+          checkInMode: checkInVerifyMode,
+          checkOut: timeOut,
+          checkOutMode: checkOutVerifyMode
+        })
+
         // Determine attendance status
         let status: 'Present' | 'Absent' | 'Late' | 'Unknown' = 'Absent'
         if (checkIn) {
@@ -269,7 +282,9 @@ export default function AttendancePage() {
           attendanceStatus: status,
           timeIn,
           timeOut,
-          totalTime
+          totalTime,
+          checkInVerifyMode,
+          checkOutVerifyMode
         }
       })
 
@@ -317,6 +332,42 @@ export default function AttendancePage() {
       default:
         return <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100"><AlertCircle className="w-3 h-3 mr-1" />Unknown</Badge>
     }
+  }
+
+  // Get combined verify mode display (Check-In Mode - Check-Out Mode)
+  const getCombinedVerifyMode = (checkInMode: string, checkOutMode: string) => {
+    // Handle cases where data is not available
+    if (checkInMode === '--' && checkOutMode === '--') {
+      return <span className="text-gray-400 text-sm">--</span>
+    }
+
+    // Convert FACE to Machine and FORM to Manual
+    const formatMode = (mode: string) => {
+      if (mode === '--') return '--'
+      if (mode === 'FACE') return 'Machine'
+      if (mode === 'FORM') return 'Manual'
+      return mode
+    }
+
+    const inMode = formatMode(checkInMode)
+    const outMode = formatMode(checkOutMode)
+
+    // Determine badge color based on modes
+    let badgeClass = 'bg-gray-100 text-gray-700'
+
+    if (inMode === 'Machine' && outMode === 'Machine') {
+      badgeClass = 'bg-blue-100 text-blue-700'
+    } else if (inMode === 'Manual' && outMode === 'Manual') {
+      badgeClass = 'bg-orange-100 text-orange-700'
+    } else if (inMode !== '--' && outMode !== '--') {
+      badgeClass = 'bg-purple-100 text-purple-700'
+    }
+
+    return (
+      <Badge className={`${badgeClass} hover:${badgeClass} text-sm font-medium`}>
+        {inMode}-{outMode}
+      </Badge>
+    )
   }
 
   // Stats calculation
@@ -453,6 +504,12 @@ export default function AttendancePage() {
                       </th>
                       <th className="text-left py-4 px-4 font-semibold text-purple-800">
                         <div className="flex items-center gap-2">
+                          <Settings className="h-4 w-4 text-purple-600" />
+                          Check Mode
+                        </div>
+                      </th>
+                      <th className="text-left py-4 px-4 font-semibold text-purple-800">
+                        <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-amber-600" />
                           Total Time
                         </div>
@@ -484,6 +541,9 @@ export default function AttendancePage() {
                               {record.timeOut}
                             </span>
                           </td>
+                          <td className="py-3 px-4">
+                            {getCombinedVerifyMode(record.checkInVerifyMode, record.checkOutVerifyMode)}
+                          </td>
                           <td className="py-3 px-4 text-gray-700">
                             {(() => {
                               const styles = getTotalTimeStyles(record.totalTime, record.attendanceStatus)
@@ -498,7 +558,7 @@ export default function AttendancePage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={5} className="text-center py-8 text-gray-500">
+                        <td colSpan={6} className="text-center py-8 text-gray-500">
                           {searchTerm ? 'No employees found matching your search.' : 'No attendance data available.'}
                         </td>
                       </tr>

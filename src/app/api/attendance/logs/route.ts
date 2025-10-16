@@ -15,142 +15,12 @@ function parseDate(dateStr: string): Date {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { start_date, end_date, force_refresh } = body
+    const { start_date, end_date } = body
 
-    console.log('📊 Fetching attendance logs:', { start_date, end_date, force_refresh })
+    console.log('📊 Fetching attendance logs directly from external API:', { start_date, end_date })
 
-    const startDate = parseDate(start_date)
-    const endDate = parseDate(end_date)
-    endDate.setHours(23, 59, 59, 999) // End of day
-
-    // STEP 1: ALWAYS fetch from database first (FAST ⚡)
-    const dbLogs = await prisma.user_attendance.findMany({
-      where: {
-        punch_time: {
-          gte: startDate,
-          lte: endDate
-        }
-      },
-      orderBy: {
-        punch_time: 'asc'
-      }
-    })
-
-    console.log(`💾 Found ${dbLogs.length} logs in database`)
-
-    // If force_refresh requested, fetch from API and update database
-    if (force_refresh) {
-      console.log('🔄 Force refresh requested - fetching from API...')
-
-      try {
-        const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'HR-Portal/1.0',
-          },
-          body: JSON.stringify({ start_date, end_date }),
-          signal: AbortSignal.timeout(5000)
-        })
-
-        if (response.ok) {
-          const responseText = await response.text()
-
-          if (!responseText.includes('java.sql.') && !responseText.includes('Exception')) {
-            const apiData = JSON.parse(responseText)
-            const logs = Array.isArray(apiData) ? apiData : (apiData.data || [])
-
-            console.log(`✅ Got ${logs.length} records from API`)
-
-            // Update database with new records
-            if (logs.length > 0) {
-              console.log(`💾 Updating database...`)
-
-              for (const log of logs) {
-                try {
-                  const existing = await prisma.user_attendance.findFirst({
-                    where: {
-                      user_id: log.user_id,
-                      state: log.state,
-                      punch_time: new Date(log.punch_time)
-                    }
-                  })
-
-                  if (!existing) {
-                    await prisma.user_attendance.create({
-                      data: {
-                        user_id: log.user_id,
-                        state: log.state,
-                        punch_time: new Date(log.punch_time),
-                        verify_mode: log.verify_mode || null,
-                        source: 'external_api'
-                      }
-                    })
-                  }
-                } catch (error) {
-                  // Skip duplicates
-                }
-              }
-
-              console.log('✅ Database updated')
-            }
-
-            // Return fresh API data
-            return NextResponse.json({
-              data: logs,
-              source: 'external_api_fresh',
-              count: logs.length
-            }, {
-              headers: {
-                'Access-Control-Allow-Origin': '*',
-                'X-Data-Source': 'external-api-fresh'
-              }
-            })
-          }
-        }
-      } catch (apiError) {
-        console.error('❌ API failed during force refresh:', apiError)
-        // Fall through to return database data
-      }
-    }
-
-    // Return database data (fast response)
-    if (dbLogs.length > 0) {
-      const transformedData = dbLogs.map(log => {
-        // Format date in local timezone (not UTC)
-        const date = new Date(log.punch_time)
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        const hours = String(date.getHours()).padStart(2, '0')
-        const minutes = String(date.getMinutes()).padStart(2, '0')
-        const seconds = String(date.getSeconds()).padStart(2, '0')
-        const formattedTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
-
-        return {
-          user_id: log.user_id,
-          state: log.state,
-          punch_time: formattedTime,
-          verify_mode: log.verify_mode,
-          source: log.source
-        }
-      })
-
-      return NextResponse.json({
-        data: transformedData,
-        source: 'database',
-        count: transformedData.length
-      }, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'X-Data-Source': 'database'
-        }
-      })
-    }
-
-    // If no data in database, try external API
-    console.log('⚠️ No data in database, trying external API...')
-
+    // ALWAYS fetch directly from external API (as per user requirement)
+    // Do NOT store in database for now - will implement later
     try {
       const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
         method: 'POST',
@@ -159,7 +29,7 @@ export async function POST(request: NextRequest) {
           'User-Agent': 'HR-Portal/1.0',
         },
         body: JSON.stringify({ start_date, end_date }),
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(10000) // 10 second timeout
       })
 
       if (response.ok) {
@@ -170,60 +40,76 @@ export async function POST(request: NextRequest) {
             const apiData = JSON.parse(responseText)
             const logs = Array.isArray(apiData) ? apiData : (apiData.data || [])
 
-            // Save to database for future use
-            if (logs.length > 0) {
-              console.log(`💾 Saving ${logs.length} logs to database...`)
+            console.log(`✅ Got ${logs.length} records from API`)
+            console.log(`📊 Sample log:`, logs[0])
 
-              for (const log of logs) {
-                try {
-                  await prisma.user_attendance.create({
-                    data: {
-                      user_id: log.user_id,
-                      state: log.state,
-                      punch_time: new Date(log.punch_time),
-                      verify_mode: log.verify_mode || null,
-                      source: 'external_api'
-                    }
-                  })
-                } catch (error) {
-                  // Skip duplicates
-                }
-              }
+            // Log verify_mode statistics
+            const faceModeCount = logs.filter((log: any) => log.verify_mode === 'FACE').length
+            const formModeCount = logs.filter((log: any) => log.verify_mode === 'FORM').length
+            const otherModeCount = logs.length - faceModeCount - formModeCount
 
-              console.log('✅ Data saved to database')
-            }
+            console.log(`🔍 Verify Mode Stats:`)
+            console.log(`   - FACE (Machine): ${faceModeCount}`)
+            console.log(`   - FORM (Manual): ${formModeCount}`)
+            console.log(`   - Other: ${otherModeCount}`)
 
+            // Log check-in/check-out statistics
+            const checkInCount = logs.filter((log: any) => log.state === 'Check In').length
+            const checkOutCount = logs.filter((log: any) => log.state === 'Check Out').length
+
+            console.log(`📍 State Stats:`)
+            console.log(`   - Check In: ${checkInCount}`)
+            console.log(`   - Check Out: ${checkOutCount}`)
+
+            // Return API data with verify_mode
             return NextResponse.json({
               data: logs,
               source: 'external_api',
-              count: logs.length
+              count: logs.length,
+              stats: {
+                check_in: checkInCount,
+                check_out: checkOutCount,
+                verify_mode: {
+                  face: faceModeCount,
+                  form: formModeCount,
+                  other: otherModeCount
+                }
+              }
             }, {
               headers: {
                 'Access-Control-Allow-Origin': '*',
-                'X-Data-Source': 'external-api'
+                'X-Data-Source': 'external-api',
+                'Cache-Control': 'no-cache, no-store, must-revalidate'
               }
             })
           } catch (parseError) {
-            console.error('Failed to parse external API response')
+            console.error('❌ Failed to parse external API response:', parseError)
+            return NextResponse.json({
+              error: 'Failed to parse API response',
+              details: 'Invalid JSON response from external API'
+            }, { status: 500 })
           }
+        } else {
+          console.error('❌ API returned error response:', responseText.substring(0, 200))
+          return NextResponse.json({
+            error: 'External API error',
+            details: 'API returned error response'
+          }, { status: 500 })
         }
+      } else {
+        console.error('❌ API request failed with status:', response.status, response.statusText)
+        return NextResponse.json({
+          error: 'External API request failed',
+          details: `Status: ${response.status} ${response.statusText}`
+        }, { status: 500 })
       }
-    } catch (apiError) {
-      console.error('External API failed:', apiError)
+    } catch (apiError: any) {
+      console.error('❌ External API failed:', apiError.message)
+      return NextResponse.json({
+        error: 'Failed to fetch from external API',
+        details: apiError.message
+      }, { status: 500 })
     }
-
-    // Return empty if both sources failed
-    console.log('❌ No data available from any source')
-    return NextResponse.json({
-      data: [],
-      source: 'none',
-      count: 0
-    }, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'X-Data-Source': 'none'
-      }
-    })
 
   } catch (error: any) {
     console.error('❌ Error:', error.message)

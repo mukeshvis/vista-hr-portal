@@ -176,6 +176,24 @@ export default function LeavesPage() {
     reason: ''
   })
 
+  // Helper function to calculate working days excluding weekends (Saturday & Sunday)
+  const calculateWorkingDays = (fromDate: Date, toDate: Date): number => {
+    let count = 0
+    const currentDate = new Date(fromDate)
+
+    // Loop through each day from fromDate to toDate (inclusive)
+    while (currentDate <= toDate) {
+      const dayOfWeek = currentDate.getDay()
+      // 0 = Sunday, 6 = Saturday
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        count++
+      }
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+
+    return count
+  }
+
   useEffect(() => {
     if (session?.user?.emp_id) {
       fetchInitialData()
@@ -602,13 +620,13 @@ export default function LeavesPage() {
     const from = new Date(editLeave.fromDate)
     const to = new Date(editLeave.toDate)
 
-    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
-    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // Calculate working days excluding weekends (Saturday & Sunday)
+    const workingDays = calculateWorkingDays(from, to)
 
     if (editLeave.leaveDayType === '2') {
-      setEditLeave(prev => ({ ...prev, numberOfDays: daysDifference / 2 }))
+      setEditLeave(prev => ({ ...prev, numberOfDays: workingDays / 2 }))
     } else {
-      setEditLeave(prev => ({ ...prev, numberOfDays: daysDifference }))
+      setEditLeave(prev => ({ ...prev, numberOfDays: workingDays }))
     }
   }, [editLeave.fromDate, editLeave.toDate, editLeave.leaveDayType])
 
@@ -682,13 +700,13 @@ export default function LeavesPage() {
     const from = new Date(addLeaveData.fromDate)
     const to = new Date(addLeaveData.toDate)
 
-    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
-    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // Calculate working days excluding weekends (Saturday & Sunday)
+    const workingDays = calculateWorkingDays(from, to)
 
     if (addLeaveData.leaveDayType === '2') {
-      setAddLeaveData(prev => ({ ...prev, numberOfDays: daysDifference / 2 }))
+      setAddLeaveData(prev => ({ ...prev, numberOfDays: workingDays / 2 }))
     } else {
-      setAddLeaveData(prev => ({ ...prev, numberOfDays: daysDifference }))
+      setAddLeaveData(prev => ({ ...prev, numberOfDays: workingDays }))
     }
   }, [addLeaveData.fromDate, addLeaveData.toDate, addLeaveData.leaveDayType])
 
@@ -796,14 +814,14 @@ export default function LeavesPage() {
     const from = new Date(newLeave.fromDate)
     const to = new Date(newLeave.toDate)
 
-    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
-    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // Calculate working days excluding weekends (Saturday & Sunday)
+    const workingDays = calculateWorkingDays(from, to)
 
     if (newLeave.leaveDayType === '2') {
-      // Half day - half of the total days
-      setNewLeave(prev => ({ ...prev, numberOfDays: daysDifference / 2 }))
+      // Half day - half of the working days
+      setNewLeave(prev => ({ ...prev, numberOfDays: workingDays / 2 }))
     } else {
-      setNewLeave(prev => ({ ...prev, numberOfDays: daysDifference }))
+      setNewLeave(prev => ({ ...prev, numberOfDays: workingDays }))
     }
   }, [newLeave.fromDate, newLeave.toDate, newLeave.leaveDayType])
 
@@ -1049,10 +1067,10 @@ export default function LeavesPage() {
     const from = new Date(remoteWorkData.fromDate)
     const to = new Date(remoteWorkData.toDate)
 
-    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
-    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // Calculate working days excluding weekends (Saturday & Sunday)
+    const workingDays = calculateWorkingDays(from, to)
 
-    setRemoteWorkData(prev => ({ ...prev, numberOfDays: daysDifference }))
+    setRemoteWorkData(prev => ({ ...prev, numberOfDays: workingDays }))
   }, [remoteWorkData.fromDate, remoteWorkData.toDate])
 
   useEffect(() => {
@@ -1066,10 +1084,10 @@ export default function LeavesPage() {
     const from = new Date(addRemoteData.fromDate)
     const to = new Date(addRemoteData.toDate)
 
-    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
-    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // Calculate working days excluding weekends (Saturday & Sunday)
+    const workingDays = calculateWorkingDays(from, to)
 
-    setAddRemoteData(prev => ({ ...prev, numberOfDays: daysDifference }))
+    setAddRemoteData(prev => ({ ...prev, numberOfDays: workingDays }))
   }, [addRemoteData.fromDate, addRemoteData.toDate])
 
   useEffect(() => {
@@ -1334,10 +1352,10 @@ export default function LeavesPage() {
     const from = new Date(editRemoteData.fromDate)
     const to = new Date(editRemoteData.toDate)
 
-    // Calculate inclusive days: from 10th to 10th = 1 day, from 10th to 11th = 2 days
-    const daysDifference = Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    // Calculate working days excluding weekends (Saturday & Sunday)
+    const workingDays = calculateWorkingDays(from, to)
 
-    setEditRemoteData(prev => ({ ...prev, numberOfDays: daysDifference }))
+    setEditRemoteData(prev => ({ ...prev, numberOfDays: workingDays }))
   }, [editRemoteData.fromDate, editRemoteData.toDate])
 
   useEffect(() => {
