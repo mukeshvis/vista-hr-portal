@@ -19,6 +19,9 @@ import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 
+// Force dynamic rendering to prevent prerender errors with useSearchParams
+export const dynamic = 'force-dynamic'
+
 interface LeaveType {
   id: number
   leave_type_name: string
