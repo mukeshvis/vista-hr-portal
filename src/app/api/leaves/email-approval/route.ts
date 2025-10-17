@@ -3,6 +3,7 @@ import { prisma } from '@/lib/database/prisma'
 import { verifyApprovalToken } from '@/lib/email/token'
 import { transporter } from '@/lib/email/nodemailer'
 import { generateApprovalNotificationEmail } from '@/lib/email/templates'
+import { getEmailBaseUrl } from '@/lib/utils/url'
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,9 +12,9 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action') // 'approve' or 'reject'
     const role = searchParams.get('role') // 'manager' or 'hr'
 
-    // Get the base URL from the request
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    console.log('🔗 Base URL for redirect:', baseUrl)
+    // Get the base URL based on environment
+    const baseUrl = getEmailBaseUrl()
+    console.log(`🔗 Base URL for redirect: ${baseUrl} (APP_ENV: ${process.env.APP_ENV || 'local'})`)
 
     if (!token || !action || !role) {
       const errorRedirectUrl = new URL('/leaves', baseUrl)

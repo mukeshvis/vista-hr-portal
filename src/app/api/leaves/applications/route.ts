@@ -3,6 +3,7 @@ import { prisma } from '@/lib/database/prisma'
 import { transporter } from '@/lib/email/nodemailer'
 import { generateLeaveApplicationEmail } from '@/lib/email/templates'
 import { generateApprovalToken } from '@/lib/email/token'
+import { getEmailBaseUrl } from '@/lib/utils/url'
 
 // GET - Fetch all leave applications
 export async function GET(request: NextRequest) {
@@ -178,7 +179,9 @@ export async function POST(request: NextRequest) {
 
       if (employeeData && employeeData.length > 0) {
         const emp = employeeData[0]
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        const baseUrl = getEmailBaseUrl()
+
+        console.log(`🌐 Using base URL for emails: ${baseUrl} (APP_ENV: ${process.env.APP_ENV || 'local'})`)
 
         const emailData = {
           id: Number(leaveAppId),
@@ -204,6 +207,15 @@ export async function POST(request: NextRequest) {
             role: 'manager',
           })
 
+          // Generate and log approval URLs for testing
+          const managerApproveUrl = `${baseUrl}/api/leaves/email-approval?token=${managerToken}&action=approve&role=manager`
+          const managerRejectUrl = `${baseUrl}/api/leaves/email-approval?token=${managerToken}&action=reject&role=manager`
+
+          console.log('\n🔗 ========== MANAGER APPROVAL LINKS ==========')
+          console.log(`✅ APPROVE: ${managerApproveUrl}`)
+          console.log(`❌ REJECT:  ${managerRejectUrl}`)
+          console.log('============================================\n')
+
           emails.push(
             transporter.sendMail({
               from: process.env.SMTP_FROM,
@@ -228,6 +240,15 @@ export async function POST(request: NextRequest) {
           leaveApplicationId: Number(leaveAppId),
           role: 'hr',
         })
+
+        // Generate and log approval URLs for testing
+        const hrApproveUrl = `${baseUrl}/api/leaves/email-approval?token=${hrToken}&action=approve&role=hr`
+        const hrRejectUrl = `${baseUrl}/api/leaves/email-approval?token=${hrToken}&action=reject&role=hr`
+
+        console.log('\n🔗 ========== HR APPROVAL LINKS ==========')
+        console.log(`✅ APPROVE: ${hrApproveUrl}`)
+        console.log(`❌ REJECT:  ${hrRejectUrl}`)
+        console.log('=========================================\n')
 
         emails.push(
           transporter.sendMail({

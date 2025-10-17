@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { TopNavigation } from "@/components/top-navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -18,6 +18,7 @@ import { Calendar, Plus, CheckCircle, XCircle, Clock, AlertCircle, Search, Refre
 import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
 import { SearchableSelect } from "@/components/ui/searchable-select"
+import { NotificationHandler } from "./NotificationHandler"
 
 // Force dynamic rendering to prevent prerender errors with useSearchParams
 export const dynamic = 'force-dynamic'
@@ -68,7 +69,6 @@ interface EmployeeLeaveBalance {
 export default function LeavesPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const searchParams = useSearchParams()
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([])
   const [applications, setApplications] = useState<LeaveApplication[]>([])
   const [allApplications, setAllApplications] = useState<LeaveApplication[]>([])
@@ -215,62 +215,6 @@ export default function LeavesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.emp_id])
-
-  // Handle email approval notifications
-  useEffect(() => {
-    const notification = searchParams.get('notification')
-    const action = searchParams.get('action')
-    const role = searchParams.get('role')
-    const employee = searchParams.get('employee')
-    const message = searchParams.get('message')
-
-    console.log('🔍 Email Approval Debug:', {
-      notification,
-      action,
-      role,
-      employee,
-      message,
-      allParams: Object.fromEntries(searchParams.entries())
-    })
-
-    if (notification === 'success' && action && role) {
-      console.log('✅ Success notification detected!')
-      const roleText = role === 'manager' ? 'Manager' : 'HR'
-      const actionText = action === 'approved' ? 'approved' : 'rejected'
-      const employeeName = employee ? decodeURIComponent(employee) : 'Employee'
-
-      const popupMessage = `Leave application ${actionText} successfully by ${roleText} for ${employeeName}`
-      console.log('📝 Setting popup message:', popupMessage)
-      setSuccessMessage(popupMessage)
-      console.log('🎉 Setting showSuccessPopup to TRUE')
-      setShowSuccessPopup(true)
-
-      // Refresh data
-      if (currentEmpId) {
-        fetchApplications(currentEmpId)
-        fetchAllApplications()
-        fetchPendingApplications()
-        if (role === 'manager') {
-          fetchManagerApplications(currentEmpId)
-        }
-      }
-
-      // Clear URL parameters after a delay to ensure popup shows
-      setTimeout(() => {
-        console.log('🧹 Clearing URL parameters')
-        router.replace('/leaves', { scroll: false })
-      }, 100)
-    } else if (notification === 'error' && message) {
-      console.log('❌ Error notification detected!')
-      setErrorMessage(decodeURIComponent(message))
-      setShowErrorPopup(true)
-
-      // Clear URL parameters
-      setTimeout(() => {
-        router.replace('/leaves', { scroll: false })
-      }, 100)
-    }
-  }, [searchParams, currentEmpId, router])
 
   const fetchInitialData = async () => {
     try {
@@ -1659,6 +1603,26 @@ export default function LeavesPage() {
   return (
     <div className="min-h-screen bg-background">
       <TopNavigation session={session} />
+
+      {/* Handle URL-based notifications from email approvals */}
+      <Suspense fallback={null}>
+        <NotificationHandler
+          onSuccess={(message) => {
+            setSuccessMessage(message)
+            setShowSuccessPopup(true)
+          }}
+          onError={(message) => {
+            setErrorMessage(message)
+            setShowErrorPopup(true)
+          }}
+          onRefresh={() => fetchInitialData()}
+          currentEmpId={currentEmpId}
+          fetchApplications={fetchApplications}
+          fetchAllApplications={fetchAllApplications}
+          fetchPendingApplications={fetchPendingApplications}
+          fetchManagerApplications={fetchManagerApplications}
+        />
+      </Suspense>
 
       <main className="container mx-auto px-3 sm:px-6 py-4 sm:py-6">
         {/* Header */}
