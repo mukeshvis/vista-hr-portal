@@ -68,6 +68,7 @@ interface User {
   email: string
   password: string
   acc_type: string
+  user_level: number
   status: number
 }
 
@@ -78,6 +79,7 @@ interface NewUser {
   username: string
   email: string
   password: string
+  user_level: number
   status: number
 }
 
@@ -155,6 +157,7 @@ export default function PortalSystemPage() {
     username: '',
     email: '',
     password: '',
+    user_level: 0,
     status: 1
   })
 
@@ -973,6 +976,7 @@ export default function PortalSystemPage() {
           username: '',
           email: '',
           password: '',
+          user_level: 0,
           status: 1
         })
         fetchUsers(true) // Refresh the list with current filter maintained
@@ -1003,6 +1007,7 @@ export default function PortalSystemPage() {
       username: user.username,
       email: user.email,
       password: user.password, // Show existing hashed password
+      user_level: user.user_level,
       status: user.status
     })
     setIsEditUserDialogOpen(true)
@@ -1010,7 +1015,7 @@ export default function PortalSystemPage() {
 
   // Handle delete user
   const handleDeleteUser = (userId: number, username: string) => {
-    showConfirmation(
+    showConfirmDialog(
       'Delete User',
       `Are you sure you want to delete user "${username}"? This action cannot be undone.`,
       () => performDeleteUser(userId),
@@ -1118,6 +1123,7 @@ export default function PortalSystemPage() {
           username: '',
           email: '',
           password: '',
+          user_level: 0,
           status: 1
         })
 
@@ -2200,8 +2206,24 @@ export default function PortalSystemPage() {
                   />
                 </div>
 
+                {/* User Level */}
+                <div>
+                  <Label htmlFor="user_level">User Level *</Label>
+                  <select
+                    id="user_level"
+                    value={newUser.user_level}
+                    onChange={(e) => handleUserInputChange('user_level', parseInt(e.target.value))}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value={0}>Level 0</option>
+                    <option value={1}>Level 1</option>
+                    <option value={2}>Level 2</option>
+                  </select>
+                </div>
+
                 {/* Status */}
-                <div className="md:col-span-2">
+                <div>
                   <Label htmlFor="status">Status *</Label>
                   <select
                     id="status"
@@ -2235,6 +2257,7 @@ export default function PortalSystemPage() {
                       username: '',
                       email: '',
                       password: '',
+                      user_level: 0,
                       status: 1
                     })
                   }}
@@ -2379,8 +2402,24 @@ export default function PortalSystemPage() {
                   </p>
                 </div>
 
+                {/* User Level */}
+                <div>
+                  <Label htmlFor="edit-user_level">User Level *</Label>
+                  <select
+                    id="edit-user_level"
+                    value={newUser.user_level}
+                    onChange={(e) => handleUserInputChange('user_level', parseInt(e.target.value))}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value={0}>Level 0</option>
+                    <option value={1}>Level 1</option>
+                    <option value={2}>Level 2</option>
+                  </select>
+                </div>
+
                 {/* Status */}
-                <div className="md:col-span-2">
+                <div>
                   <Label htmlFor="edit-status">Status *</Label>
                   <select
                     id="edit-status"
@@ -2418,6 +2457,7 @@ export default function PortalSystemPage() {
                       username: '',
                       email: '',
                       password: '',
+                      user_level: 0,
                       status: 1
                     })
                   }}

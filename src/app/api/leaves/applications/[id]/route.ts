@@ -14,15 +14,49 @@ export async function PUT(
 
     // Check if this is a full edit or just approval status update
     if (data.approvalStatus !== undefined && !data.leaveType) {
-      // Approval status update only
-      await prisma.$executeRaw`
-        UPDATE leave_application
-        SET
-          approval_status = ${data.approvalStatus},
-          approved = ${data.approved},
-          approval_status_lm = ${data.approvalStatusLm || data.approvalStatus}
-        WHERE id = ${parseInt(id)}
-      `
+      // Hierarchical approval status update
+      // data.approverRole: 'manager' or 'hr'
+
+      if (data.approverRole === 'manager') {
+        // Manager can only update approval_status_lm
+        await prisma.$executeRaw`
+          UPDATE leave_application
+          SET
+            approval_status_lm = ${data.approvalStatus},
+            approved = ${data.approvalStatus === 2 ? 0 : data.approved}
+          WHERE id = ${parseInt(id)}
+        `
+      } else if (data.approverRole === 'hr') {
+        // HR can only update approval_status if manager already approved
+        // Check if manager has approved first
+        const leaveApp = await prisma.$queryRaw`
+          SELECT approval_status_lm FROM leave_application WHERE id = ${parseInt(id)} LIMIT 1
+        ` as any[]
+
+        if (leaveApp[0]?.approval_status_lm !== 1) {
+          return NextResponse.json({
+            error: 'Manager approval is required before HR can approve'
+          }, { status: 400 })
+        }
+
+        await prisma.$executeRaw`
+          UPDATE leave_application
+          SET
+            approval_status = ${data.approvalStatus},
+            approved = ${data.approved}
+          WHERE id = ${parseInt(id)}
+        `
+      } else {
+        // Legacy: Update both (for backward compatibility)
+        await prisma.$executeRaw`
+          UPDATE leave_application
+          SET
+            approval_status = ${data.approvalStatus},
+            approved = ${data.approved},
+            approval_status_lm = ${data.approvalStatusLm || data.approvalStatus}
+          WHERE id = ${parseInt(id)}
+        `
+      }
     } else {
       // Full leave application edit
       const now = new Date()

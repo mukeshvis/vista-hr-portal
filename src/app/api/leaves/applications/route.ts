@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
+import { transporter } from '@/lib/email/nodemailer'
+import { generateLeaveApplicationEmail } from '@/lib/email/templates'
+import { generateApprovalToken } from '@/lib/email/token'
 
 // GET - Fetch all leave applications
 export async function GET(request: NextRequest) {
@@ -9,10 +12,10 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
 
     let query = `
-      SELECT DISTINCT
+      SELECT
         la.id,
         la.emp_id,
-        (SELECT emp_name FROM employee WHERE emp_id = la.emp_id LIMIT 1) as employee_name,
+        e.emp_name as employee_name,
         lt.leave_type_name,
         la.leave_type as leave_type_id,
         la.leave_day_type,
@@ -23,17 +26,20 @@ export async function GET(request: NextRequest) {
         la.approved,
         la.status,
         la.date as application_date,
-        lad.from_date,
-        lad.to_date,
-        lad.no_of_days,
-        lad.first_second_half,
-        lad.first_second_half_date,
-        (SELECT designation_name FROM designation WHERE id = (SELECT designation_id FROM employee WHERE emp_id = la.emp_id LIMIT 1)) as designation_name,
-        (SELECT department_name FROM department WHERE id = (SELECT emp_department_id FROM employee WHERE emp_id = la.emp_id LIMIT 1)) as department_name
+        (SELECT from_date FROM leave_application_data WHERE leave_application_id = la.id LIMIT 1) as from_date,
+        (SELECT to_date FROM leave_application_data WHERE leave_application_id = la.id LIMIT 1) as to_date,
+        (SELECT no_of_days FROM leave_application_data WHERE leave_application_id = la.id LIMIT 1) as no_of_days,
+        (SELECT first_second_half FROM leave_application_data WHERE leave_application_id = la.id LIMIT 1) as first_second_half,
+        (SELECT first_second_half_date FROM leave_application_data WHERE leave_application_id = la.id LIMIT 1) as first_second_half_date,
+        des.designation_name,
+        dept.department_name,
+        e.reporting_manager,
+        (SELECT emp_name FROM employee WHERE emp_id = e.reporting_manager LIMIT 1) as reporting_manager_name
       FROM leave_application la
-      LEFT JOIN leave_type lt ON la.leave_type = lt.id
-      LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
       INNER JOIN employee e ON la.emp_id = e.emp_id
+      LEFT JOIN leave_type lt ON la.leave_type = lt.id
+      LEFT JOIN designation des ON e.designation_id = des.id
+      LEFT JOIN department dept ON e.emp_department_id = dept.id
       LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
       WHERE 1=1
       AND LOWER(es.job_type_name) = 'permanent'
@@ -146,6 +152,106 @@ export async function POST(request: NextRequest) {
     `
 
     console.log('✅ Leave application created successfully!')
+
+    // Send email notifications
+    try {
+      console.log('📧 Sending email notifications...')
+
+      // Fetch employee and manager details
+      const employeeData = await prisma.$queryRaw`
+        SELECT
+          e.emp_id,
+          e.emp_name,
+          e.professional_email,
+          e.reporting_manager,
+          lt.leave_type_name,
+          mgr.emp_name as manager_name,
+          mgr.professional_email as manager_email
+        FROM employee e
+        LEFT JOIN leave_type lt ON lt.id = ${data.leaveType}
+        LEFT JOIN employee mgr ON mgr.id = e.reporting_manager
+        WHERE e.emp_id = ${data.empId}
+        LIMIT 1
+      ` as any[]
+
+      console.log('📋 Employee data fetched:', JSON.stringify(employeeData, null, 2))
+
+      if (employeeData && employeeData.length > 0) {
+        const emp = employeeData[0]
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
+        const emailData = {
+          id: Number(leaveAppId),
+          employeeName: emp.emp_name,
+          employeeId: emp.emp_id,
+          leaveType: emp.leave_type_name,
+          fromDate: data.fromDate,
+          toDate: data.toDate,
+          numberOfDays: data.numberOfDays,
+          reason: data.reason || 'No reason provided',
+          applicationDate: new Date().toLocaleDateString('en-GB'),
+          approvalToken: '',
+        }
+
+        const emails: Promise<any>[] = []
+
+        // Send email to reporting manager (if exists)
+        if (emp.reporting_manager && emp.manager_email) {
+          console.log(`📧 Manager found - ID: ${emp.reporting_manager}, Email: ${emp.manager_email}`)
+
+          const managerToken = generateApprovalToken({
+            leaveApplicationId: Number(leaveAppId),
+            role: 'manager',
+          })
+
+          emails.push(
+            transporter.sendMail({
+              from: process.env.SMTP_FROM,
+              to: emp.manager_email,
+              subject: `Leave Application from ${emp.emp_name} - Approval Required`,
+              html: generateLeaveApplicationEmail(
+                { ...emailData, approvalToken: managerToken },
+                'manager',
+                baseUrl
+              ),
+            })
+          )
+
+          console.log(`✉️ Manager email queued successfully: ${emp.manager_email}`)
+        } else {
+          console.log(`⚠️ No manager email found - reporting_manager: ${emp.reporting_manager}, manager_email: ${emp.manager_email}`)
+        }
+
+        // Send email to HR
+        const hrEmail = process.env.HR_EMAIL || 'hr@vis.com.pk'
+        const hrToken = generateApprovalToken({
+          leaveApplicationId: Number(leaveAppId),
+          role: 'hr',
+        })
+
+        emails.push(
+          transporter.sendMail({
+            from: process.env.SMTP_FROM,
+            to: hrEmail,
+            subject: `Leave Application from ${emp.emp_name} - HR Review`,
+            html: generateLeaveApplicationEmail(
+              { ...emailData, approvalToken: hrToken },
+              'hr',
+              baseUrl
+            ),
+          })
+        )
+
+        console.log(`✉️ HR email queued: ${hrEmail}`)
+
+        // Send all emails
+        await Promise.all(emails)
+        console.log('✅ All email notifications sent successfully!')
+      }
+    } catch (emailError) {
+      console.error('❌ Failed to send email notifications:', emailError)
+      // Don't fail the request if email sending fails
+    }
 
     return NextResponse.json({
       success: true,

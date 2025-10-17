@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { TopNavigation } from "@/components/top-navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -12,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Calendar, Plus, CheckCircle, XCircle, Clock, AlertCircle, Search, RefreshCw, User, Users, ClipboardList, FileText, Tag, CalendarDays, Hash, Timer, MessageSquare, CalendarClock, Activity, Eye, UserCheck, Pencil, Trash2 } from "lucide-react"
 import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
@@ -36,11 +37,14 @@ interface LeaveApplication {
   to_date: string
   no_of_days: number
   approval_status: number
+  approval_status_lm: number
   approved: number
   application_date: string
   designation_name: string
   department_name: string
   first_second_half: string
+  reporting_manager: number
+  reporting_manager_name: string
 }
 
 interface EmployeeLeaveBalance {
@@ -60,10 +64,13 @@ interface EmployeeLeaveBalance {
 
 export default function LeavesPage() {
   const { data: session } = useSession()
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([])
   const [applications, setApplications] = useState<LeaveApplication[]>([])
   const [allApplications, setAllApplications] = useState<LeaveApplication[]>([])
   const [pendingApplications, setPendingApplications] = useState<LeaveApplication[]>([])
+  const [managerApplications, setManagerApplications] = useState<LeaveApplication[]>([])
   const [employeeBalances, setEmployeeBalances] = useState<EmployeeLeaveBalance[]>([])
   const [remoteApplications, setRemoteApplications] = useState<any[]>([])
   const [myRemoteApplications, setMyRemoteApplications] = useState<any[]>([])
@@ -125,7 +132,9 @@ export default function LeavesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [allSearchTerm, setAllSearchTerm] = useState('')
   const [pendingSearchTerm, setPendingSearchTerm] = useState('')
+  const [managerSearchTerm, setManagerSearchTerm] = useState('')
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('')
+  const [loadingManager, setLoadingManager] = useState(false)
   // Filter states for year (default: 2025, starting from July)
   const [myAppFilterYear, setMyAppFilterYear] = useState<number>(2025)
   const [allAppFilterYear, setAllAppFilterYear] = useState<number>(2025)
@@ -203,6 +212,62 @@ export default function LeavesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.emp_id])
+
+  // Handle email approval notifications
+  useEffect(() => {
+    const notification = searchParams.get('notification')
+    const action = searchParams.get('action')
+    const role = searchParams.get('role')
+    const employee = searchParams.get('employee')
+    const message = searchParams.get('message')
+
+    console.log('🔍 Email Approval Debug:', {
+      notification,
+      action,
+      role,
+      employee,
+      message,
+      allParams: Object.fromEntries(searchParams.entries())
+    })
+
+    if (notification === 'success' && action && role) {
+      console.log('✅ Success notification detected!')
+      const roleText = role === 'manager' ? 'Manager' : 'HR'
+      const actionText = action === 'approved' ? 'approved' : 'rejected'
+      const employeeName = employee ? decodeURIComponent(employee) : 'Employee'
+
+      const popupMessage = `Leave application ${actionText} successfully by ${roleText} for ${employeeName}`
+      console.log('📝 Setting popup message:', popupMessage)
+      setSuccessMessage(popupMessage)
+      console.log('🎉 Setting showSuccessPopup to TRUE')
+      setShowSuccessPopup(true)
+
+      // Refresh data
+      if (currentEmpId) {
+        fetchApplications(currentEmpId)
+        fetchAllApplications()
+        fetchPendingApplications()
+        if (role === 'manager') {
+          fetchManagerApplications(currentEmpId)
+        }
+      }
+
+      // Clear URL parameters after a delay to ensure popup shows
+      setTimeout(() => {
+        console.log('🧹 Clearing URL parameters')
+        router.replace('/leaves', { scroll: false })
+      }, 100)
+    } else if (notification === 'error' && message) {
+      console.log('❌ Error notification detected!')
+      setErrorMessage(decodeURIComponent(message))
+      setShowErrorPopup(true)
+
+      // Clear URL parameters
+      setTimeout(() => {
+        router.replace('/leaves', { scroll: false })
+      }, 100)
+    }
+  }, [searchParams, currentEmpId, router])
 
   const fetchInitialData = async () => {
     try {
@@ -311,6 +376,21 @@ export default function LeavesPage() {
     }
   }
 
+  const fetchManagerApplications = async (managerId: string) => {
+    try {
+      setLoadingManager(true)
+      const res = await fetch(`/api/leaves/manager-approvals?managerId=${managerId}`)
+      if (res.ok) {
+        const data = await res.json()
+        setManagerApplications(data)
+      }
+    } catch (error) {
+      console.error('Error fetching manager applications:', error)
+    } finally {
+      setLoadingManager(false)
+    }
+  }
+
   const fetchEmployeeBalances = async () => {
     try {
       setLoadingBalances(true)
@@ -405,6 +485,10 @@ export default function LeavesPage() {
       await fetchAllApplications()
     } else if (value === 'pending-approvals') {
       await fetchPendingApplications()
+    } else if (value === 'manager-approvals') {
+      if (currentEmpId) {
+        await fetchManagerApplications(currentEmpId)
+      }
     } else if (value === 'employees-leave-balance') {
       await fetchEmployeeBalances()
     } else if (value === 'remote-work') {
@@ -443,6 +527,74 @@ export default function LeavesPage() {
     }
   }
 
+  const handleManagerApproveReject = async (applicationId: number, approve: boolean) => {
+    try {
+      const response = await fetch(`/api/leaves/applications/${applicationId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          approverRole: 'manager',
+          approvalStatus: approve ? 1 : 2,
+          approved: 0  // Never set to approved for manager, only HR can do final approval
+        })
+      })
+
+      if (response.ok) {
+        setSuccessMessage(`Leave application ${approve ? 'approved' : 'rejected'} successfully`)
+        setShowSuccessPopup(true)
+        // Refresh manager applications
+        if (currentEmpId) {
+          fetchManagerApplications(currentEmpId)
+        }
+        fetchPendingApplications()
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(errorData.error || `Failed to ${approve ? 'approve' : 'reject'} leave application`)
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error approving/rejecting application:', error)
+      setErrorMessage('An error occurred while processing the request')
+      setShowErrorPopup(true)
+    }
+  }
+
+  const handleHRApproveReject = async (applicationId: number, approve: boolean) => {
+    try {
+      const response = await fetch(`/api/leaves/applications/${applicationId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          approverRole: 'hr',
+          approvalStatus: approve ? 1 : 2,
+          approved: approve ? 1 : 0
+        })
+      })
+
+      if (response.ok) {
+        setSuccessMessage(`Leave application ${approve ? 'approved' : 'rejected'} successfully`)
+        setShowSuccessPopup(true)
+        // Refresh all data
+        fetchApplications(currentEmpId)
+        fetchAllApplications()
+        fetchPendingApplications()
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(errorData.error || `Failed to ${approve ? 'approve' : 'reject'} leave application`)
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error approving/rejecting application:', error)
+      setErrorMessage('An error occurred while processing the request')
+      setShowErrorPopup(true)
+    }
+  }
+
+  // Legacy handler for backward compatibility
   const handleApproveReject = async (applicationId: number, approve: boolean) => {
     try {
       const response = await fetch(`/api/leaves/applications/${applicationId}`, {
@@ -933,14 +1085,34 @@ export default function LeavesPage() {
     }
   }
 
-  const getStatusBadge = (approvalStatus: number, approved: number) => {
+  const getStatusBadge = (approvalStatus: number, approved: number, approvalStatusLm?: number) => {
+    // Final approval
     if (approved === 1) {
       return <Badge className="bg-green-600 hover:bg-green-700 text-white">Approved</Badge>
-    } else if (approved === 2) {
-      return <Badge className="bg-red-600 hover:bg-red-700 text-white">Rejected</Badge>
-    } else {
-      return <Badge className="bg-yellow-600 hover:bg-yellow-700 text-white">Pending</Badge>
     }
+
+    // If manager rejected
+    if (approvalStatusLm === 2) {
+      return <Badge className="bg-red-600 hover:bg-red-700 text-white">Rejected by Manager</Badge>
+    }
+
+    // If HR rejected (manager approved)
+    if (approvalStatus === 2 && approvalStatusLm === 1) {
+      return <Badge className="bg-red-600 hover:bg-red-700 text-white">Rejected by HR</Badge>
+    }
+
+    // If manager approved, waiting for HR
+    if (approvalStatusLm === 1 && approvalStatus === 0) {
+      return <Badge className="bg-blue-600 hover:bg-blue-700 text-white">Pending HR Approval</Badge>
+    }
+
+    // Waiting for manager approval
+    if (approvalStatusLm === 0) {
+      return <Badge className="bg-yellow-600 hover:bg-yellow-700 text-white">Pending Manager Approval</Badge>
+    }
+
+    // Default pending
+    return <Badge className="bg-yellow-600 hover:bg-yellow-700 text-white">Pending</Badge>
   }
 
   const getLeaveDayTypeBadge = (dayType: number) => {
@@ -1031,20 +1203,38 @@ export default function LeavesPage() {
     )
   }
 
-  const filteredMyApplications = useMemo(() =>
-    filterApplications(applications, searchTerm, myAppFilterYear),
-    [applications, searchTerm, myAppFilterYear]
-  )
+  // Helper function to remove duplicates by ID
+  const removeDuplicates = (apps: LeaveApplication[]) => {
+    const seen = new Set<number>()
+    return apps.filter(app => {
+      if (seen.has(app.id)) {
+        console.warn(`⚠️ Duplicate leave application found: ID ${app.id}`)
+        return false
+      }
+      seen.add(app.id)
+      return true
+    })
+  }
 
-  const filteredAllApplications = useMemo(() =>
-    filterApplications(allApplications, allSearchTerm, allAppFilterYear),
-    [allApplications, allSearchTerm, allAppFilterYear]
-  )
+  const filteredMyApplications = useMemo(() => {
+    const unique = removeDuplicates(applications)
+    return filterApplications(unique, searchTerm, myAppFilterYear)
+  }, [applications, searchTerm, myAppFilterYear])
 
-  const filteredPendingApplications = useMemo(() =>
-    filterApplications(pendingApplications, pendingSearchTerm),
-    [pendingApplications, pendingSearchTerm]
-  )
+  const filteredAllApplications = useMemo(() => {
+    const unique = removeDuplicates(allApplications)
+    return filterApplications(unique, allSearchTerm, allAppFilterYear)
+  }, [allApplications, allSearchTerm, allAppFilterYear])
+
+  const filteredPendingApplications = useMemo(() => {
+    const unique = removeDuplicates(pendingApplications)
+    return filterApplications(unique, pendingSearchTerm)
+  }, [pendingApplications, pendingSearchTerm])
+
+  const filteredManagerApplications = useMemo(() => {
+    const unique = removeDuplicates(managerApplications)
+    return filterApplications(unique, managerSearchTerm)
+  }, [managerApplications, managerSearchTerm])
 
   const filteredEmployeeBalances = useMemo(() =>
     employeeBalances.filter(emp => {
@@ -1549,7 +1739,14 @@ export default function LeavesPage() {
                 className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
               >
                 <Clock className="h-4 w-4 text-orange-600" />
-                <span>Pending Approvals</span>
+                <span>Pending Approvals (HR)</span>
+              </TabsTrigger>
+              <TabsTrigger
+                value="manager-approvals"
+                className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+              >
+                <UserCheck className="h-4 w-4 text-indigo-600" />
+                <span>Manager Approvals</span>
               </TabsTrigger>
               <TabsTrigger
                 value="remote-work"
@@ -1679,7 +1876,7 @@ export default function LeavesPage() {
                           <TableCell>
                             {app.application_date ? new Date(app.application_date).toLocaleDateString('en-GB') : 'N/A'}
                           </TableCell>
-                          <TableCell>{getStatusBadge(app.approval_status, app.approved)}</TableCell>
+                          <TableCell>{getStatusBadge(app.approval_status, app.approved, app.approval_status_lm)}</TableCell>
                         </TableRow>
                       ))
                     )}
@@ -1823,7 +2020,7 @@ export default function LeavesPage() {
                           <TableCell>
                             {app.application_date ? new Date(app.application_date).toLocaleDateString('en-GB') : 'N/A'}
                           </TableCell>
-                          <TableCell>{getStatusBadge(app.approval_status, app.approved)}</TableCell>
+                          <TableCell>{getStatusBadge(app.approval_status, app.approved, app.approval_status_lm)}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
                               <button
@@ -1976,14 +2173,163 @@ export default function LeavesPage() {
                                 <>
                                   <button
                                     className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors cursor-pointer"
-                                    onClick={() => handleApproveReject(app.id, true)}
+                                    onClick={() => handleHRApproveReject(app.id, true)}
                                   >
                                     <CheckCircle className="h-3 w-3 mr-1" />
                                     Approve
                                   </button>
                                   <button
                                     className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer"
-                                    onClick={() => handleApproveReject(app.id, false)}
+                                    onClick={() => handleHRApproveReject(app.id, false)}
+                                  >
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Reject
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Manager Approvals Tab */}
+          <TabsContent value="manager-approvals">
+            <Card className="border-0 shadow-none">
+              <CardContent className="pt-6">
+                {/* Search Bar */}
+                <div className="mb-4">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Search by employee name, department, leave type..."
+                      value={managerSearchTerm}
+                      onChange={(e) => setManagerSearchTerm(e.target.value)}
+                      className="pl-10 w-full"
+                    />
+                  </div>
+                  {managerSearchTerm && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Found {filteredManagerApplications.length} of {managerApplications.length} applications
+                    </p>
+                  )}
+                </div>
+
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                    <Table className="min-w-full">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">Employee</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">Reporting Manager</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <Tag className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">Leave Type</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">From Date</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">To Date</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <span className="text-gray-700 font-semibold">Days</span>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <Activity className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">Status</span>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-gray-600" />
+                          <span className="text-gray-700 font-semibold">Actions</span>
+                        </div>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading || loadingManager ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-12">
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                            <p className="text-muted-foreground text-sm">Loading manager applications...</p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredManagerApplications.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                          {managerSearchTerm ? 'No matching applications found' : 'No applications for your team members'}
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredManagerApplications.map((app) => (
+                        <TableRow key={app.id}>
+                          <TableCell className="font-medium">{app.employee_name}</TableCell>
+                          <TableCell className="text-sm">
+                            <div className="flex items-center gap-1">
+                              <Users className="h-3 w-3 text-indigo-600" />
+                              <span className="font-medium text-indigo-700">{app.reporting_manager_name || 'N/A'}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>{getLeaveTypeBadge(app.leave_type_name)}</TableCell>
+                          <TableCell>{app.from_date}</TableCell>
+                          <TableCell>{app.to_date}</TableCell>
+                          <TableCell>{app.no_of_days}</TableCell>
+                          <TableCell>{getStatusBadge(app.approval_status, app.approved, app.approval_status_lm)}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {app.approval_status_lm === 1 ? (
+                                <span className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-green-100 text-green-700 border border-green-300">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Approved
+                                </span>
+                              ) : app.approval_status_lm === 2 ? (
+                                <span className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Rejected
+                                </span>
+                              ) : (
+                                <>
+                                  <button
+                                    className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors cursor-pointer"
+                                    onClick={() => handleManagerApproveReject(app.id, true)}
+                                  >
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Approve
+                                  </button>
+                                  <button
+                                    className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer"
+                                    onClick={() => handleManagerApproveReject(app.id, false)}
                                   >
                                     <XCircle className="h-3 w-3 mr-1" />
                                     Reject

@@ -17,6 +17,7 @@ export async function GET(request: Request) {
         email: true,
         password: true,
         acc_type: true,
+        user_level: true,
         status: true
       },
       orderBy: {
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { emp_id, acc_type, name, username, email, password, status } = body
+    const { emp_id, acc_type, name, username, email, password, user_level, status } = body
 
     // Validate required fields
     if (!emp_id || !acc_type || !name || !username || !email || !password) {
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
         username: username.trim(),
         email: email.trim(),
         password: hashedPassword,
+        user_level: user_level !== undefined ? user_level : 0,
         status: status || 1,
         remember_token: '',
         updated_at: new Date(),
@@ -128,7 +130,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json()
-    const { id, emp_id, acc_type, name, username, email, password, status } = body
+    const { id, emp_id, acc_type, name, username, email, password, user_level, status } = body
 
     if (!id) {
       return NextResponse.json(
@@ -184,6 +186,7 @@ export async function PUT(request: Request) {
       name: name.trim(),
       username: username.trim(),
       email: email.trim(),
+      user_level: user_level !== undefined ? user_level : 0,
       status: status || 1,
       updated_at: new Date(),
       role_no: acc_type === 'admin' ? '1' : '2'
