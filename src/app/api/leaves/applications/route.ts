@@ -11,6 +11,11 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const empId = searchParams.get('empId')
     const status = searchParams.get('status')
+    const year = searchParams.get('year') || new Date().getFullYear().toString()
+
+    // Filter from July of the selected year onwards
+    const filterDate = `${year}-07-01`
+    console.log(`🔄 Fetching applications from ${filterDate} onwards...`)
 
     let query = `
       SELECT
@@ -44,10 +49,10 @@ export async function GET(request: NextRequest) {
       LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
       WHERE 1=1
       AND LOWER(es.job_type_name) = 'permanent'
-      AND la.date >= '2025-07-01'
+      AND la.date >= ?
     `
 
-    const params: any[] = []
+    const params: any[] = [filterDate]
 
     if (empId) {
       query += ` AND la.emp_id = ?`

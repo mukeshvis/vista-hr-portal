@@ -1,8 +1,17 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Get year from query params, default to current year
+    const searchParams = request.nextUrl.searchParams
+    const year = searchParams.get('year') || new Date().getFullYear().toString()
+    const yearNum = parseInt(year)
+
+    // Calculate from July onwards (leave policy year)
+    const fromDate = `${yearNum}-07-01`
+    console.log(`🔄 Fetching employee balances from ${fromDate} onwards...`)
+
     // Get all employees with their leave balance information
     const employeesBalance = await prisma.$queryRaw`
       SELECT
@@ -19,7 +28,7 @@ export async function GET() {
            LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
            WHERE la.emp_id = e.emp_id
            AND la.approved = 1
-           AND YEAR(STR_TO_DATE(lad.from_date, '%Y-%m-%d')) = YEAR(CURDATE())
+           AND STR_TO_DATE(lad.from_date, '%Y-%m-%d') >= ${fromDate}
           ), 0
         ) as total_used,
         COALESCE(
@@ -36,7 +45,7 @@ export async function GET() {
            WHERE la.emp_id = e.emp_id
            AND la.approved = 1
            AND LOWER(lt.leave_type_name) LIKE '%annual%'
-           AND YEAR(STR_TO_DATE(lad.from_date, '%Y-%m-%d')) = YEAR(CURDATE())
+           AND STR_TO_DATE(lad.from_date, '%Y-%m-%d') >= ${fromDate}
           ), 0
         ) as annual_used,
         COALESCE(
@@ -47,7 +56,7 @@ export async function GET() {
            WHERE la.emp_id = e.emp_id
            AND la.approved = 1
            AND LOWER(lt.leave_type_name) LIKE '%sick%'
-           AND YEAR(STR_TO_DATE(lad.from_date, '%Y-%m-%d')) = YEAR(CURDATE())
+           AND STR_TO_DATE(lad.from_date, '%Y-%m-%d') >= ${fromDate}
           ), 0
         ) as sick_used,
         COALESCE(
@@ -58,7 +67,7 @@ export async function GET() {
            WHERE la.emp_id = e.emp_id
            AND la.approved = 1
            AND LOWER(lt.leave_type_name) LIKE '%emergency%'
-           AND YEAR(STR_TO_DATE(lad.from_date, '%Y-%m-%d')) = YEAR(CURDATE())
+           AND STR_TO_DATE(lad.from_date, '%Y-%m-%d') >= ${fromDate}
           ), 0
         ) as emergency_used
       FROM employee e

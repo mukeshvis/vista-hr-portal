@@ -139,9 +139,9 @@ export default function LeavesPage() {
   const [managerSearchTerm, setManagerSearchTerm] = useState('')
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('')
   const [loadingManager, setLoadingManager] = useState(false)
-  // Filter states for year (default: 2025, starting from July)
-  const [myAppFilterYear, setMyAppFilterYear] = useState<number>(2025)
-  const [allAppFilterYear, setAllAppFilterYear] = useState<number>(2025)
+  // Filter states for year (default: current year, starting from July)
+  const [myAppFilterYear, setMyAppFilterYear] = useState<number>(new Date().getFullYear())
+  const [allAppFilterYear, setAllAppFilterYear] = useState<number>(new Date().getFullYear())
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null)
   const [selectedEmployeeName, setSelectedEmployeeName] = useState<string>('')
@@ -224,6 +224,30 @@ export default function LeavesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.emp_id])
 
+  // Re-fetch all applications when year filter changes
+  useEffect(() => {
+    if (currentEmpId) {
+      fetchAllApplications(allAppFilterYear)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allAppFilterYear])
+
+  // Re-fetch my applications when year filter changes
+  useEffect(() => {
+    if (currentEmpId) {
+      fetchApplications(currentEmpId, myAppFilterYear)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myAppFilterYear])
+
+  // Re-fetch employee balances when year filter changes
+  useEffect(() => {
+    if (currentEmpId) {
+      fetchEmployeeBalances(selectedYear)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear])
+
   const fetchInitialData = async () => {
     try {
       setLoading(true)
@@ -285,10 +309,12 @@ export default function LeavesPage() {
     }
   }
 
-  const fetchApplications = async (empId?: string) => {
+  const fetchApplications = async (empId?: string, year?: number) => {
     try {
       setLoadingMy(true)
-      const url = empId ? `/api/leaves/applications?empId=${empId}` : '/api/leaves/applications'
+      const yearParam = year || myAppFilterYear
+      let url = empId ? `/api/leaves/applications?empId=${empId}&year=${yearParam}` : `/api/leaves/applications?year=${yearParam}`
+      console.log(`🔄 Fetching my applications for year: ${yearParam}`)
       const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
@@ -301,10 +327,12 @@ export default function LeavesPage() {
     }
   }
 
-  const fetchAllApplications = async () => {
+  const fetchAllApplications = async (year?: number) => {
     try {
       setLoadingAll(true)
-      const res = await fetch('/api/leaves/applications')
+      const yearParam = year || allAppFilterYear
+      console.log(`🔄 Fetching all applications for year: ${yearParam}`)
+      const res = await fetch(`/api/leaves/applications?year=${yearParam}`)
       if (res.ok) {
         const data = await res.json()
         setAllApplications(data)
@@ -354,11 +382,12 @@ export default function LeavesPage() {
     }
   }
 
-  const fetchEmployeeBalances = async () => {
+  const fetchEmployeeBalances = async (year?: number) => {
     try {
       setLoadingBalances(true)
-      console.log('🔄 Fetching employee balances...')
-      const res = await fetch('/api/leaves/employees-balance')
+      const yearParam = year || selectedYear
+      console.log(`🔄 Fetching employee balances for year: ${yearParam}...`)
+      const res = await fetch(`/api/leaves/employees-balance?year=${yearParam}`)
       console.log('📡 Employee balance response status:', res.status)
       if (res.ok) {
         const data = await res.json()
@@ -1163,31 +1192,14 @@ export default function LeavesPage() {
   }
 
   // Filter functions
-  const filterApplications = (apps: LeaveApplication[], search: string, filterYear?: number) => {
-    let filtered = apps
-
-    // Filter by year if provided (starting from July of that year)
-    if (filterYear) {
-      filtered = filtered.filter(app => {
-        if (!app.from_date) return false
-
-        const appDate = new Date(app.from_date)
-        const appYear = appDate.getFullYear()
-        const appMonth = appDate.getMonth() + 1 // JavaScript months are 0-indexed
-
-        // Show applications from July of the selected year onwards
-        if (appYear > filterYear) return true
-        if (appYear === filterYear && appMonth >= 7) return true // July = 7
-
-        return false
-      })
-    }
-
+  // Note: Year filtering is now handled by the server-side API
+  // This function only handles search term filtering
+  const filterApplications = (apps: LeaveApplication[], search: string) => {
     // Filter by search term
-    if (!search.trim()) return filtered
+    if (!search.trim()) return apps
 
     const lowerSearch = search.toLowerCase()
-    return filtered.filter(app =>
+    return apps.filter(app =>
       app.employee_name?.toLowerCase().includes(lowerSearch) ||
       app.emp_id?.toLowerCase().includes(lowerSearch) ||
       app.leave_type_name?.toLowerCase().includes(lowerSearch) ||
@@ -1211,13 +1223,13 @@ export default function LeavesPage() {
 
   const filteredMyApplications = useMemo(() => {
     const unique = removeDuplicates(applications)
-    return filterApplications(unique, searchTerm, myAppFilterYear)
-  }, [applications, searchTerm, myAppFilterYear])
+    return filterApplications(unique, searchTerm)
+  }, [applications, searchTerm])
 
   const filteredAllApplications = useMemo(() => {
     const unique = removeDuplicates(allApplications)
-    return filterApplications(unique, allSearchTerm, allAppFilterYear)
-  }, [allApplications, allSearchTerm, allAppFilterYear])
+    return filterApplications(unique, allSearchTerm)
+  }, [allApplications, allSearchTerm])
 
   const filteredPendingApplications = useMemo(() => {
     const unique = removeDuplicates(pendingApplications)
@@ -1775,19 +1787,21 @@ export default function LeavesPage() {
           <TabsContent value="my-applications">
             <Card className="border-0 shadow-none">
               <CardContent className="pt-6">
-                {/* Year Filter */}
-                <div className="mb-4">
-                  <div className="w-48">
-                    <Label htmlFor="myAppFilterYear">Filter by Year (From July onwards)</Label>
+                {/* Year Filter and Search Bar */}
+                <div className="mb-4 flex flex-col sm:flex-row gap-3">
+                  <div className="w-full sm:w-48">
                     <Select
                       value={myAppFilterYear.toString()}
                       onValueChange={(value) => setMyAppFilterYear(parseInt(value))}
                     >
-                      <SelectTrigger id="myAppFilterYear">
-                        <SelectValue />
+                      <SelectTrigger className="bg-white">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-blue-600" />
+                          <SelectValue />
+                        </div>
                       </SelectTrigger>
                       <SelectContent className="bg-white">
-                        {[2024, 2025, 2026, 2027, 2028].map(year => (
+                        {Array.from({ length: new Date().getFullYear() - 2020 + 1 }, (_, i) => 2020 + i).reverse().map(year => (
                           <SelectItem key={year} value={year.toString()} className="bg-white hover:bg-gray-100">
                             {year}
                           </SelectItem>
@@ -1795,11 +1809,7 @@ export default function LeavesPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                {/* Search Bar */}
-                <div className="mb-4">
-                  <div className="relative">
+                  <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="text"
@@ -1809,12 +1819,12 @@ export default function LeavesPage() {
                       className="pl-10 w-full"
                     />
                   </div>
-                  {searchTerm && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Found {filteredMyApplications.length} of {applications.length} applications
-                    </p>
-                  )}
                 </div>
+                {searchTerm && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Found {filteredMyApplications.length} of {applications.length} applications
+                  </p>
+                )}
 
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
                   <div className="inline-block min-w-full align-middle px-4 sm:px-0">
@@ -1905,19 +1915,21 @@ export default function LeavesPage() {
           <TabsContent value="all-applications">
             <Card className="border-0 shadow-none">
               <CardContent className="pt-6">
-                {/* Year Filter */}
-                <div className="mb-4">
-                  <div className="w-48">
-                    <Label htmlFor="allAppFilterYear">Filter by Year (From July onwards)</Label>
+                {/* Year Filter and Search Bar */}
+                <div className="mb-4 flex flex-col sm:flex-row gap-3">
+                  <div className="w-full sm:w-48">
                     <Select
                       value={allAppFilterYear.toString()}
                       onValueChange={(value) => setAllAppFilterYear(parseInt(value))}
                     >
-                      <SelectTrigger id="allAppFilterYear">
-                        <SelectValue />
+                      <SelectTrigger className="bg-white">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-green-600" />
+                          <SelectValue />
+                        </div>
                       </SelectTrigger>
                       <SelectContent className="bg-white">
-                        {[2024, 2025, 2026, 2027, 2028].map(year => (
+                        {Array.from({ length: new Date().getFullYear() - 2020 + 1 }, (_, i) => 2020 + i).reverse().map(year => (
                           <SelectItem key={year} value={year.toString()} className="bg-white hover:bg-gray-100">
                             {year}
                           </SelectItem>
@@ -1925,11 +1937,7 @@ export default function LeavesPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                {/* Search Bar */}
-                <div className="mb-4">
-                  <div className="relative">
+                  <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       type="text"
@@ -1939,12 +1947,12 @@ export default function LeavesPage() {
                       className="pl-10 w-full"
                     />
                   </div>
-                  {allSearchTerm && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      Found {filteredAllApplications.length} of {allApplications.length} applications
-                    </p>
-                  )}
                 </div>
+                {allSearchTerm && (
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Found {filteredAllApplications.length} of {allApplications.length} applications
+                  </p>
+                )}
 
                 <div className="overflow-x-auto -mx-4 sm:mx-0">
                   <div className="inline-block min-w-full align-middle px-4 sm:px-0">
@@ -2390,7 +2398,7 @@ export default function LeavesPage() {
                         </div>
                       </SelectTrigger>
                       <SelectContent className="bg-white">
-                        {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map((year) => (
+                        {Array.from({ length: new Date().getFullYear() - 2020 + 1 }, (_, i) => 2020 + i).reverse().map(year => (
                           <SelectItem key={year} value={year.toString()} className="bg-white hover:bg-gray-100">
                             {year}
                           </SelectItem>
