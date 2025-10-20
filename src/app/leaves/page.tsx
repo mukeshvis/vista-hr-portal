@@ -910,7 +910,8 @@ export default function LeavesPage() {
           returnDate: addLeaveData.toDate,
           reason: addLeaveData.reason,
           leaveAddress: 'N/A',
-          username: addLeaveData.empId
+          username: addLeaveData.empId,
+          isManualAdd: true // Flag to indicate HR manually adding leave
         })
       })
 

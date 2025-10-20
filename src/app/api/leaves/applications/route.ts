@@ -155,9 +155,10 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Leave application created successfully!')
 
-    // Send email notifications
-    try {
-      console.log('📧 Sending email notifications...')
+    // Send email notifications (skip if manually added by HR)
+    if (!data.isManualAdd) {
+      try {
+        console.log('📧 Sending email notifications...')
 
       // Fetch employee and manager details
       const employeeData = await prisma.$queryRaw`
@@ -270,9 +271,12 @@ export async function POST(request: NextRequest) {
         await Promise.all(emails)
         console.log('✅ All email notifications sent successfully!')
       }
-    } catch (emailError) {
-      console.error('❌ Failed to send email notifications:', emailError)
-      // Don't fail the request if email sending fails
+      } catch (emailError) {
+        console.error('❌ Failed to send email notifications:', emailError)
+        // Don't fail the request if email sending fails
+      }
+    } else {
+      console.log('⏩ Skipping email notifications (manual add by HR)')
     }
 
     return NextResponse.json({
