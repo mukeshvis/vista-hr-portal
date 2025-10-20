@@ -2,18 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/database/prisma'
 
 // GET - Fetch leave applications for employees reporting to a specific manager
+// If managerId not provided, returns ALL applications that have reporting managers (for HR view)
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
-    const managerId = searchParams.get('managerId') // This will be the emp_id of the manager
+    const managerId = searchParams.get('managerId') // Optional - if not provided, returns all
 
-    if (!managerId) {
-      return NextResponse.json({ error: 'Manager ID is required' }, { status: 400 })
-    }
-
-    // Fetch leave applications where the employee's reporting_manager matches the current manager
-    // Include reporting manager name from employee table
-    const query = `
+    // Base query for all manager-level approvals
+    let query = `
       SELECT
         la.id,
         la.emp_id,
@@ -45,9 +41,21 @@ export async function GET(request: NextRequest) {
       LEFT JOIN designation des ON e.designation_id = des.id
       LEFT JOIN department dept ON e.emp_department_id = dept.id
       LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
-      WHERE e.reporting_manager = ?
+      WHERE e.reporting_manager IS NOT NULL
       AND LOWER(es.job_type_name) = 'permanent'
       AND la.status = 1
+      AND la.date >= '2025-07-01'
+    `
+
+    const params: any[] = []
+
+    // If managerId provided, filter by that specific manager
+    if (managerId) {
+      query += ` AND e.reporting_manager = ?`
+      params.push(managerId)
+    }
+
+    query += `
       ORDER BY
         CASE
           WHEN la.approval_status_lm = 0 THEN 0  -- Pending manager approval first
@@ -58,7 +66,9 @@ export async function GET(request: NextRequest) {
         la.id DESC
     `
 
-    const applications = await prisma.$queryRawUnsafe(query, managerId) as any[]
+    const applications = await prisma.$queryRawUnsafe(query, ...params) as any[]
+
+    console.log(`📊 Fetched ${applications.length} manager approval applications${managerId ? ` for manager ${managerId}` : ' (all managers)'} from July 2025 onwards`)
 
     return NextResponse.json(applications)
   } catch (error) {

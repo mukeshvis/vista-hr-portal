@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Calendar, Plus, CheckCircle, XCircle, Clock, AlertCircle, Search, RefreshCw, User, Users, ClipboardList, FileText, Tag, CalendarDays, Hash, Timer, MessageSquare, CalendarClock, Activity, Eye, UserCheck, Pencil, Trash2 } from "lucide-react"
 import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { NotificationHandler } from "./NotificationHandler"
 
@@ -165,6 +166,13 @@ export default function LeavesPage() {
   const [deletingApplicationId, setDeletingApplicationId] = useState<number | null>(null)
   const [deletingApplicationName, setDeletingApplicationName] = useState<string>('')
   const [isDeleting, setIsDeleting] = useState(false)
+  // Confirmation dialog states
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+  const [confirmAction, setConfirmAction] = useState<{
+    applicationId: number
+    approve: boolean
+    type: 'manager' | 'hr'
+  } | null>(null)
   const [isAddLeaveDialogOpen, setIsAddLeaveDialogOpen] = useState(false)
   const [employeeList, setEmployeeList] = useState<any[]>([])
   const [selectedEmployeeForAdd, setSelectedEmployeeForAdd] = useState<any>(null)
@@ -323,13 +331,21 @@ export default function LeavesPage() {
     }
   }
 
-  const fetchManagerApplications = async (managerId: string) => {
+  const fetchManagerApplications = async (managerId?: string) => {
     try {
       setLoadingManager(true)
-      const res = await fetch(`/api/leaves/manager-approvals?managerId=${managerId}`)
+      // If managerId not provided, fetch all manager approvals (for HR view)
+      const url = managerId
+        ? `/api/leaves/manager-approvals?managerId=${managerId}`
+        : `/api/leaves/manager-approvals`
+
+      console.log(`🔍 Fetching manager applications${managerId ? ` for manager ${managerId}` : ' (all managers)'}`)
+
+      const res = await fetch(url)
       if (res.ok) {
         const data = await res.json()
         setManagerApplications(data)
+        console.log(`✅ Loaded ${data.length} manager approval applications`)
       }
     } catch (error) {
       console.error('Error fetching manager applications:', error)
@@ -433,9 +449,8 @@ export default function LeavesPage() {
     } else if (value === 'pending-approvals') {
       await fetchPendingApplications()
     } else if (value === 'manager-approvals') {
-      if (currentEmpId) {
-        await fetchManagerApplications(currentEmpId)
-      }
+      // Fetch ALL manager approvals (not filtered by specific manager)
+      await fetchManagerApplications()
     } else if (value === 'employees-leave-balance') {
       await fetchEmployeeBalances()
     } else if (value === 'remote-work') {
@@ -474,56 +489,83 @@ export default function LeavesPage() {
     }
   }
 
-  const handleManagerApproveReject = async (applicationId: number, approve: boolean) => {
+  // Show confirmation dialog for manager approve/reject
+  const handleManagerApproveReject = (applicationId: number, approve: boolean) => {
+    setConfirmAction({
+      applicationId,
+      approve,
+      type: 'manager'
+    })
+    setShowConfirmDialog(true)
+  }
+
+  // Actual manager approve/reject after confirmation
+  const processManagerApproveReject = async () => {
+    if (!confirmAction) return
+
     try {
-      const response = await fetch(`/api/leaves/applications/${applicationId}`, {
+      const response = await fetch(`/api/leaves/applications/${confirmAction.applicationId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           approverRole: 'manager',
-          approvalStatus: approve ? 1 : 2,
+          approvalStatus: confirmAction.approve ? 1 : 2,
           approved: 0  // Never set to approved for manager, only HR can do final approval
         })
       })
 
       if (response.ok) {
-        setSuccessMessage(`Leave application ${approve ? 'approved' : 'rejected'} successfully`)
+        setSuccessMessage(`Leave application ${confirmAction.approve ? 'approved' : 'rejected'} successfully`)
         setShowSuccessPopup(true)
-        // Refresh manager applications
-        if (currentEmpId) {
-          fetchManagerApplications(currentEmpId)
-        }
+        // Refresh all manager applications (not filtered by specific manager)
+        fetchManagerApplications()
         fetchPendingApplications()
       } else {
         const errorData = await response.json()
-        setErrorMessage(errorData.error || `Failed to ${approve ? 'approve' : 'reject'} leave application`)
+        setErrorMessage(errorData.error || `Failed to ${confirmAction.approve ? 'approve' : 'reject'} leave application`)
         setShowErrorPopup(true)
       }
     } catch (error) {
       console.error('Error approving/rejecting application:', error)
       setErrorMessage('An error occurred while processing the request')
       setShowErrorPopup(true)
+    } finally {
+      setShowConfirmDialog(false)
+      setConfirmAction(null)
     }
   }
 
-  const handleHRApproveReject = async (applicationId: number, approve: boolean) => {
+  // Show confirmation dialog for HR approve/reject
+  const handleHRApproveReject = (applicationId: number, approve: boolean) => {
+    setConfirmAction({
+      applicationId,
+      approve,
+      type: 'hr'
+    })
+    setShowConfirmDialog(true)
+  }
+
+  // Actual HR approve/reject after confirmation
+  const processHRApproveReject = async () => {
+    if (!confirmAction) return
+
     try {
-      const response = await fetch(`/api/leaves/applications/${applicationId}`, {
+      const response = await fetch(`/api/leaves/applications/${confirmAction.applicationId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           approverRole: 'hr',
-          approvalStatus: approve ? 1 : 2,
-          approved: approve ? 1 : 0
+          approvalStatus: confirmAction.approve ? 1 : 2,
+          approved: confirmAction.approve ? 1 : 0
         })
       })
 
       if (response.ok) {
-        setSuccessMessage(`Leave application ${approve ? 'approved' : 'rejected'} successfully`)
+        setSuccessMessage(`Leave application ${confirmAction.approve ? 'approved' : 'rejected'} successfully`)
         setShowSuccessPopup(true)
         // Refresh all data
         fetchApplications(currentEmpId)
@@ -531,13 +573,16 @@ export default function LeavesPage() {
         fetchPendingApplications()
       } else {
         const errorData = await response.json()
-        setErrorMessage(errorData.error || `Failed to ${approve ? 'approve' : 'reject'} leave application`)
+        setErrorMessage(errorData.error || `Failed to ${confirmAction.approve ? 'approve' : 'reject'} leave application`)
         setShowErrorPopup(true)
       }
     } catch (error) {
       console.error('Error approving/rejecting application:', error)
       setErrorMessage('An error occurred while processing the request')
       setShowErrorPopup(true)
+    } finally {
+      setShowConfirmDialog(false)
+      setConfirmAction(null)
     }
   }
 
@@ -2135,6 +2180,16 @@ export default function LeavesPage() {
                                 <span className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-red-100 text-red-700 border border-red-300">
                                   <XCircle className="h-3 w-3 mr-1" />
                                   Rejected
+                                </span>
+                              ) : app.approval_status_lm === 2 ? (
+                                <span className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                                  <XCircle className="h-3 w-3 mr-1" />
+                                  Rejected by Manager
+                                </span>
+                              ) : app.approval_status_lm === 0 ? (
+                                <span className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-amber-100 text-amber-700 border border-amber-300">
+                                  <AlertCircle className="h-3 w-3 mr-1" />
+                                  Manager Approval Needed
                                 </span>
                               ) : (
                                 <>
@@ -4456,6 +4511,36 @@ export default function LeavesPage() {
         isOpen={showErrorPopup}
         onClose={() => setShowErrorPopup(false)}
         message={errorMessage}
+      />
+
+      {/* Confirmation Dialog for Approve/Reject */}
+      <ConfirmationDialog
+        isOpen={showConfirmDialog}
+        title={confirmAction?.approve ? "Approve Leave Application" : "Reject Leave Application"}
+        message={
+          confirmAction?.approve
+            ? "Are you sure you want to approve this leave application? This action will notify the employee."
+            : "Are you sure you want to reject this leave application? This action will notify the employee."
+        }
+        confirmText={confirmAction?.approve ? "Yes, Approve" : "Yes, Reject"}
+        cancelText="Cancel"
+        confirmButtonClass={
+          confirmAction?.approve
+            ? "bg-green-600 hover:bg-green-700 text-white"
+            : "bg-red-600 hover:bg-red-700 text-white"
+        }
+        type={confirmAction?.approve ? "success" : "danger"}
+        onConfirm={() => {
+          if (confirmAction?.type === 'manager') {
+            processManagerApproveReject()
+          } else if (confirmAction?.type === 'hr') {
+            processHRApproveReject()
+          }
+        }}
+        onCancel={() => {
+          setShowConfirmDialog(false)
+          setConfirmAction(null)
+        }}
       />
     </div>
   )

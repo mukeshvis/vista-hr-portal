@@ -11,7 +11,7 @@ interface NotificationHandlerProps {
   fetchApplications: (empId: string) => void
   fetchAllApplications: () => void
   fetchPendingApplications: () => void
-  fetchManagerApplications: (empId: string) => void
+  fetchManagerApplications: (empId?: string) => void
 }
 
 export function NotificationHandler({
@@ -59,7 +59,8 @@ export function NotificationHandler({
         fetchAllApplications()
         fetchPendingApplications()
         if (role === 'manager') {
-          fetchManagerApplications(currentEmpId)
+          // Refresh all manager approvals (not just for specific manager)
+          fetchManagerApplications()
         }
       }
 

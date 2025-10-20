@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
       WHERE 1=1
       AND LOWER(es.job_type_name) = 'permanent'
+      AND la.date >= '2025-07-01'
     `
 
     const params: any[] = []

@@ -482,7 +482,7 @@ function PendingItems() {
 
 export default function DashboardPage() {
   // Session data
-  const { data: session } = useSession()
+  const { data: session, status, update } = useSession()
 
   // Dashboard data state
   const [dashboardData, setDashboardData] = useState({
@@ -584,6 +584,13 @@ export default function DashboardPage() {
       console.error('Error fetching employees:', error)
     }
   }
+
+  // Force session update on mount if needed
+  useEffect(() => {
+    if (status === 'authenticated' && !session?.user?.username) {
+      update()
+    }
+  }, [status, session?.user?.username, update])
 
   // Load data on component mount
   useEffect(() => {

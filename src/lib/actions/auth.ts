@@ -2,7 +2,6 @@
 
 import { signIn, signOut } from "@/lib/auth/auth"
 import { signInSchema } from "@/lib/validations/auth"
-import { redirect } from "next/navigation"
 
 export async function authenticate(
   prevState: string | undefined,
@@ -21,6 +20,7 @@ export async function authenticate(
     await signIn('credentials', {
       username: result.data.username,
       password: result.data.password,
+      redirect: true,
       redirectTo: '/dashboard',
     })
 
