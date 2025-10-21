@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -132,6 +132,9 @@ function useDebounce(value: string, delay: number) {
 
   return debouncedValue
 }
+
+// Force dynamic rendering to prevent prerender errors with useSearchParams
+export const dynamic = 'force-dynamic'
 
 export default function EmployeesPage() {
   const { data: session } = useSession()
@@ -701,7 +704,9 @@ export default function EmployeesPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNavigation session={session} />
+      <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+        <TopNavigation session={session} />
+      </Suspense>
 
       <main className="container mx-auto px-6 py-6">
         {/* Header Section */}

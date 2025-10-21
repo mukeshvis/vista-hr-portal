@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -46,8 +46,10 @@ interface AttendanceLog {
   verify_mode: string
 }
 
+// Force dynamic rendering to prevent prerender errors with useSearchParams
+export const dynamic = 'force-dynamic'
 
-export default function AttendancePage() {
+function AttendancePageContent() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const viewPersonal = searchParams.get('view') === 'personal'
@@ -531,7 +533,9 @@ export default function AttendancePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Top Navigation */}
-      <TopNavigation session={session} />
+      <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+        <TopNavigation session={session} />
+      </Suspense>
 
       {/* Attendance Content */}
       <main className="container mx-auto px-6 py-6 space-y-6">
@@ -766,5 +770,21 @@ export default function AttendancePage() {
         </Card>
       </main>
     </div>
+  )
+}
+
+// Wrapper component with Suspense boundary for useSearchParams
+export default function AttendancePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <AttendancePageContent />
+    </Suspense>
   )
 }

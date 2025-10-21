@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,6 +59,9 @@ interface EmployeeProfile {
   leavePolicy: string
   employmentStatus: string
 }
+
+// Force dynamic rendering to prevent prerender errors with useSearchParams
+export const dynamic = 'force-dynamic'
 
 export default function EmployeeProfilePage() {
   const { data: session } = useSession()
@@ -119,7 +122,9 @@ export default function EmployeeProfilePage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
+        <Suspense fallback={<div className="h-16 bg-background border-b" />}>
         <TopNavigation session={session} />
+      </Suspense>
         <main className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -135,7 +140,9 @@ export default function EmployeeProfilePage() {
   if (error || !employee) {
     return (
       <div className="min-h-screen bg-background">
+        <Suspense fallback={<div className="h-16 bg-background border-b" />}>
         <TopNavigation session={session} />
+      </Suspense>
         <main className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">

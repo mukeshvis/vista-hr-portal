@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,9 @@ interface WorkingHoursPolicy {
   id: number
   working_hours_policy: string
 }
+
+// Force dynamic rendering to prevent prerender errors with useSearchParams
+export const dynamic = 'force-dynamic'
 
 export default function WorkingHoursPage() {
   const { data: session } = useSession()
@@ -156,7 +159,9 @@ export default function WorkingHoursPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <TopNavigation session={session} />
+      <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+        <TopNavigation session={session} />
+      </Suspense>
 
       <div className="flex">
         <Sidebar />

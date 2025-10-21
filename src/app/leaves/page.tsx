@@ -67,7 +67,7 @@ interface EmployeeLeaveBalance {
   emergency_used: number
 }
 
-export default function LeavesPage() {
+function LeavesPageContent() {
   const { data: session } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -1669,7 +1669,9 @@ export default function LeavesPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNavigation session={session} />
+      <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+        <TopNavigation session={session} />
+      </Suspense>
 
       {/* Handle URL-based notifications from email approvals */}
       <Suspense fallback={null}>
@@ -4608,5 +4610,21 @@ export default function LeavesPage() {
         }}
       />
     </div>
+  )
+}
+
+// Wrapper component with Suspense boundary for useSearchParams
+export default function LeavesPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LeavesPageContent />
+    </Suspense>
   )
 }

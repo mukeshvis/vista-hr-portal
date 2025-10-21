@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -54,6 +54,9 @@ const TEN_HOUR_EMPLOYEES = ['13', '14', '45', '1691479623873', '1691479623595']
 
 // Specific employees with 9-hour requirement (9 AM to 6 PM weekdays, 9 AM to 3 PM weekends) = 57 hours per week
 const NINE_HOUR_EMPLOYEES = ['16', '3819']
+
+// Force dynamic rendering to prevent prerender errors with useSearchParams
+export const dynamic = 'force-dynamic'
 
 export default function EmployeeAttendancePage() {
   const params = useParams()
@@ -577,7 +580,9 @@ export default function EmployeeAttendancePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Top Navigation */}
-      <TopNavigation session={session} />
+      <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+        <TopNavigation session={session} />
+      </Suspense>
 
       {/* Compact Header */}
       <div className="bg-gradient-to-r from-blue-100 to-purple-200 shadow-md">

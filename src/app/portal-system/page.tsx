@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSession } from "next-auth/react"
 import { TopNavigation } from "@/components/top-navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -82,6 +82,9 @@ interface NewUser {
   user_level: number
   status: number
 }
+
+// Force dynamic rendering to prevent prerender errors with useSearchParams
+export const dynamic = 'force-dynamic'
 
 export default function PortalSystemPage() {
   const { data: session } = useSession()
@@ -1160,7 +1163,9 @@ export default function PortalSystemPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <TopNavigation session={session} />
+      <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+        <TopNavigation session={session} />
+      </Suspense>
 
       <div className="container mx-auto px-6 py-8">
         {/* Tabs */}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -523,7 +523,10 @@ function PendingItems() {
   )
 }
 
-export default function DashboardPage() {
+// Force dynamic rendering to prevent prerender errors with useSearchParams
+export const dynamic = 'force-dynamic'
+
+function DashboardPageContent() {
   // Session data
   const { data: session, status, update } = useSession()
   const searchParams = useSearchParams()
@@ -1013,7 +1016,9 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
         {/* Top Navigation */}
-        <TopNavigation session={session} />
+        <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+          <TopNavigation session={session} />
+        </Suspense>
 
         {/* Employee Dashboard Content */}
         <main className="container mx-auto px-6 py-6 space-y-6">
@@ -1375,7 +1380,9 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Top Navigation */}
-      <TopNavigation session={session} />
+      <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+        <TopNavigation session={session} />
+      </Suspense>
 
       {/* Dashboard Content */}
       <main className="container mx-auto px-6 py-6 space-y-6">
@@ -1678,5 +1685,21 @@ export default function DashboardPage() {
         message={errorMessage}
       />
     </div>
+  )
+}
+
+// Wrapper component with Suspense boundary for useSearchParams
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading Dashboard...</p>
+        </div>
+      </div>
+    }>
+      <DashboardPageContent />
+    </Suspense>
   )
 }

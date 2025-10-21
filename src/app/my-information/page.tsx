@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -59,6 +59,9 @@ interface EmployeeProfile {
   leavePolicy: string
   employmentStatus: string
 }
+
+// Force dynamic rendering to prevent prerender errors
+export const dynamic = 'force-dynamic'
 
 export default function MyInformationPage() {
   const { data: session, status } = useSession()
@@ -155,7 +158,9 @@ export default function MyInformationPage() {
   if (status === 'loading' || loading) {
     return (
       <div className="min-h-screen bg-background">
-        <TopNavigation session={session} />
+        <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+          <TopNavigation session={session} />
+        </Suspense>
         <main className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -177,7 +182,9 @@ export default function MyInformationPage() {
   if (error || !employee) {
     return (
       <div className="min-h-screen bg-background">
-        <TopNavigation session={session} />
+        <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+          <TopNavigation session={session} />
+        </Suspense>
         <main className="container mx-auto px-6 py-6">
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -197,7 +204,9 @@ export default function MyInformationPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNavigation session={session} />
+      <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+        <TopNavigation session={session} />
+      </Suspense>
 
       <main className="container mx-auto px-6 py-6">
         {/* Header with Back Button */}
