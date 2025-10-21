@@ -20,6 +20,7 @@ import {
   Settings,
 } from "lucide-react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 
 interface TopNavigationProps {
   session: {
@@ -44,20 +45,27 @@ const getMenuItems = (isAdmin: boolean) => [
 ]
 
 export function TopNavigation({ session }: TopNavigationProps) {
+  // Check URL parameters
+  const searchParams = useSearchParams()
+  const viewPersonal = searchParams.get('view') === 'personal'
+
   // Check if user is admin
   const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
 
-  // Get menu items based on user level
-  const menuItems = getMenuItems(isAdmin)
+  // Determine which menu to show: if admin viewing personal, show employee menu
+  const showEmployeeMenu = !isAdmin || viewPersonal
+
+  // Get menu items based on actual view (employee menu if viewing personal)
+  const menuItems = getMenuItems(!showEmployeeMenu)
 
   // Filter menu items based on user level
   const visibleMenuItems = menuItems.filter(item => {
-    // Hide admin-only items from employees
-    if (item.adminOnly && !isAdmin) {
+    // Hide admin-only items from employees or when admin viewing personal
+    if (item.adminOnly && showEmployeeMenu) {
       return false
     }
-    // Hide employee-only items from admins
-    if ((item as any).employeeOnly && isAdmin) {
+    // Hide employee-only items from admins (when not viewing personal)
+    if ((item as any).employeeOnly && !showEmployeeMenu) {
       return false
     }
     return true
@@ -76,16 +84,20 @@ export function TopNavigation({ session }: TopNavigationProps) {
 
           {/* Center: Navigation Menu */}
           <nav className="hidden md:flex items-center space-x-8">
-            {visibleMenuItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-2 text-sm text-black hover:text-gray-600 transition-colors"
-              >
-                <item.icon className={`h-4 w-4 ${item.color}`} />
-                {item.label}
-              </Link>
-            ))}
+            {visibleMenuItems.map((item) => {
+              // Preserve view=personal parameter in navigation links when admin viewing personal
+              const href = viewPersonal && isAdmin ? `${item.href}?view=personal` : item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={href}
+                  className="flex items-center gap-2 text-sm text-black hover:text-gray-600 transition-colors"
+                >
+                  <item.icon className={`h-4 w-4 ${item.color}`} />
+                  {item.label}
+                </Link>
+              )
+            })}
           </nav>
 
           {/* Right: User Profile & Sign Out */}

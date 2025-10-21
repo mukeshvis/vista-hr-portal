@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { TopNavigation } from "@/components/top-navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -70,11 +70,14 @@ interface EmployeeLeaveBalance {
 export default function LeavesPage() {
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const viewPersonal = searchParams.get('view') === 'personal'
 
-  // Check if user is admin (user_level = 1)
-  const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+  // Check if user is admin (but treat as employee if viewing personal dashboard)
+  const isActualAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+  const isAdmin = isActualAdmin && !viewPersonal
 
-  console.log('👤 Leaves Page - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin)
+  console.log('👤 Leaves Page - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin, '| View Personal:', viewPersonal)
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([])
   const [applications, setApplications] = useState<LeaveApplication[]>([])
   const [allApplications, setAllApplications] = useState<LeaveApplication[]>([])
@@ -1689,6 +1692,20 @@ export default function LeavesPage() {
       </Suspense>
 
       <main className="container mx-auto px-3 sm:px-6 py-4 sm:py-6">
+        {/* Back to Admin View button (only for admins viewing personal) */}
+        {isActualAdmin && viewPersonal && (
+          <div className="flex justify-start mb-4">
+            <Button
+              onClick={() => window.location.href = '/leaves'}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Back to Admin View
+            </Button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">

@@ -729,9 +729,9 @@ export default function DashboardPage() {
         let lateArrivals = 0
         let attendanceDays = 0
 
-        uniqueDates.forEach(dateStr => {
+        uniqueDates.forEach((dateStr: any) => {
           // Parse date (format: '2025-10-01')
-          const dateParts = dateStr.toString().split('-')
+          const dateParts = String(dateStr).split('-')
           const dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]))
           const dayOfWeek = dateObj.getDay() // 0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday
 

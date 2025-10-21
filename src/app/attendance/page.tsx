@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,9 +49,12 @@ interface AttendanceLog {
 
 export default function AttendancePage() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const viewPersonal = searchParams.get('view') === 'personal'
 
-  // Check if user is admin
-  const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+  // Check if user is admin (but treat as employee if viewing personal dashboard)
+  const isActualAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+  const isAdmin = isActualAdmin && !viewPersonal
 
   const [employees, setEmployees] = useState<Employee[]>([])
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
@@ -409,7 +413,7 @@ export default function AttendancePage() {
             // Strategy 4: Match name with user_name (case insensitive)
             if (!userEmployee && session.user.name) {
               userEmployee = employeesData.find((emp: Employee) =>
-                emp.user_name.toLowerCase() === session.user.name.toLowerCase()
+                emp.user_name.toLowerCase() === session.user.name?.toLowerCase()
               )
               if (userEmployee) console.log('✅ Match Strategy 4: user_name === name')
             }
@@ -531,6 +535,20 @@ export default function AttendancePage() {
 
       {/* Attendance Content */}
       <main className="container mx-auto px-6 py-6 space-y-6">
+        {/* Back to Admin Dashboard button (only for admins viewing personal) */}
+        {isActualAdmin && viewPersonal && (
+          <div className="flex justify-start">
+            <Button
+              onClick={() => window.location.href = '/attendance'}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Settings className="h-4 w-4" />
+              Back to Admin View
+            </Button>
+          </div>
+        )}
+
         {/* Header Section */}
         <div className="flex items-center justify-between">
           <div>
