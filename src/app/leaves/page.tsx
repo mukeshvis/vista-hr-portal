@@ -70,6 +70,11 @@ interface EmployeeLeaveBalance {
 export default function LeavesPage() {
   const { data: session } = useSession()
   const router = useRouter()
+
+  // Check if user is admin (user_level = 1)
+  const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+
+  console.log('👤 Leaves Page - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin)
   const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([])
   const [applications, setApplications] = useState<LeaveApplication[]>([])
   const [allApplications, setAllApplications] = useState<LeaveApplication[]>([])
@@ -95,7 +100,8 @@ export default function LeavesPage() {
   const [loadingPending, setLoadingPending] = useState(false)
   const [loadingBalances, setLoadingBalances] = useState(false)
   const [loadingRemote, setLoadingRemote] = useState(false)
-  const [activeTab, setActiveTab] = useState('employees-leave-balance')
+  // Set default tab based on user_level: employees start at "my-applications", admins at "employees-leave-balance"
+  const [activeTab, setActiveTab] = useState(isAdmin ? 'employees-leave-balance' : 'my-applications')
   const [isApplyRemoteDialogOpen, setIsApplyRemoteDialogOpen] = useState(false)
   const [isRemoteUsageDialogOpen, setIsRemoteUsageDialogOpen] = useState(false)
   const [isAddRemoteDialogOpen, setIsAddRemoteDialogOpen] = useState(false)
@@ -1689,7 +1695,9 @@ export default function LeavesPage() {
             <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
               <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Leave Management</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
+              {isAdmin ? 'Leave Management' : 'My Leaves'}
+            </h1>
           </div>
           <div className="flex flex-wrap gap-2 sm:gap-3">
             <Button
@@ -1701,13 +1709,16 @@ export default function LeavesPage() {
               <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               {isRefreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
-            <Button
-              onClick={handleOpenAddLeaveDialog}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Leave
-            </Button>
+            {/* Add Leave - Admin Only */}
+            {isAdmin && (
+              <Button
+                onClick={handleOpenAddLeaveDialog}
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Leave
+              </Button>
+            )}
             <Button
               onClick={() => setIsApplyDialogOpen(true)}
               className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto"
@@ -1738,13 +1749,18 @@ export default function LeavesPage() {
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <div className="overflow-x-auto">
             <TabsList className="inline-flex gap-3 bg-gray-50 p-1.5 rounded-lg">
-              <TabsTrigger
-                value="employees-leave-balance"
-                className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
-              >
-                <UserCheck className="h-4 w-4 text-purple-600" />
-                <span>Employees Leave Balance</span>
-              </TabsTrigger>
+              {/* Show Employees Leave Balance for Admin only */}
+              {isAdmin && (
+                <TabsTrigger
+                  value="employees-leave-balance"
+                  className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+                >
+                  <UserCheck className="h-4 w-4 text-purple-600" />
+                  <span>Employees Leave Balance</span>
+                </TabsTrigger>
+              )}
+
+              {/* My Applications - Available to all */}
               <TabsTrigger
                 value="my-applications"
                 className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
@@ -1752,27 +1768,41 @@ export default function LeavesPage() {
                 <User className="h-4 w-4 text-blue-600" />
                 <span>My Applications</span>
               </TabsTrigger>
-              <TabsTrigger
-                value="all-applications"
-                className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
-              >
-                <Users className="h-4 w-4 text-green-600" />
-                <span>All Applications</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="pending-approvals"
-                className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
-              >
-                <Clock className="h-4 w-4 text-orange-600" />
-                <span>Pending Approvals (HR)</span>
-              </TabsTrigger>
-              <TabsTrigger
-                value="manager-approvals"
-                className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
-              >
-                <UserCheck className="h-4 w-4 text-indigo-600" />
-                <span>Manager Approvals</span>
-              </TabsTrigger>
+
+              {/* All Applications - Admin only */}
+              {isAdmin && (
+                <TabsTrigger
+                  value="all-applications"
+                  className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+                >
+                  <Users className="h-4 w-4 text-green-600" />
+                  <span>All Applications</span>
+                </TabsTrigger>
+              )}
+
+              {/* Pending Approvals (HR) - Admin only */}
+              {isAdmin && (
+                <TabsTrigger
+                  value="pending-approvals"
+                  className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+                >
+                  <Clock className="h-4 w-4 text-orange-600" />
+                  <span>Pending Approvals (HR)</span>
+                </TabsTrigger>
+              )}
+
+              {/* Manager Approvals - Admin only */}
+              {isAdmin && (
+                <TabsTrigger
+                  value="manager-approvals"
+                  className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+                >
+                  <UserCheck className="h-4 w-4 text-indigo-600" />
+                  <span>Manager Approvals</span>
+                </TabsTrigger>
+              )}
+
+              {/* Remote Work - Available to all */}
               <TabsTrigger
                 value="remote-work"
                 className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
@@ -2526,22 +2556,31 @@ export default function LeavesPage() {
           <TabsContent value="remote-work">
             <Card className="border-0 shadow-none">
               <CardContent className="pt-6">
-                <div className="flex justify-end mb-4">
-                  <Button
-                    onClick={handleOpenAddRemoteDialog}
-                    className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Remote
-                  </Button>
-                </div>
-                <Tabs defaultValue="employee-remote-balance" className="w-full">
+                {/* Add Remote - Admin Only */}
+                {isAdmin && (
+                  <div className="flex justify-end mb-4">
+                    <Button
+                      onClick={handleOpenAddRemoteDialog}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Remote
+                    </Button>
+                  </div>
+                )}
+                <Tabs defaultValue={isAdmin ? "employee-remote-balance" : "my-remote"} className="w-full">
                   <div className="overflow-x-auto mb-4">
                     <TabsList className="inline-flex">
-                      <TabsTrigger value="employee-remote-balance" className="whitespace-nowrap">Employee Remote Balance</TabsTrigger>
+                      {isAdmin && (
+                        <TabsTrigger value="employee-remote-balance" className="whitespace-nowrap">Employee Remote Balance</TabsTrigger>
+                      )}
                       <TabsTrigger value="my-remote" className="whitespace-nowrap">My Remote Applications</TabsTrigger>
-                      <TabsTrigger value="all-remote" className="whitespace-nowrap">All Remote Applications</TabsTrigger>
-                      <TabsTrigger value="pending-remote" className="whitespace-nowrap">Pending Remote Approvals</TabsTrigger>
+                      {isAdmin && (
+                        <TabsTrigger value="all-remote" className="whitespace-nowrap">All Remote Applications</TabsTrigger>
+                      )}
+                      {isAdmin && (
+                        <TabsTrigger value="pending-remote" className="whitespace-nowrap">Pending Remote Approvals</TabsTrigger>
+                      )}
                     </TabsList>
                   </div>
 

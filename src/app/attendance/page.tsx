@@ -48,10 +48,15 @@ interface AttendanceLog {
 
 export default function AttendancePage() {
   const { data: session } = useSession()
+
+  // Check if user is admin
+  const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+
   const [employees, setEmployees] = useState<Employee[]>([])
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [userPinAuto, setUserPinAuto] = useState<string | null>(null)
   const [selectedDate, setSelectedDate] = useState(() => {
     const today = new Date()
     const year = today.getFullYear()
@@ -358,6 +363,83 @@ export default function AttendancePage() {
     fetchEmployees()
   }, [selectedDate])
 
+  // Fetch user's pin_auto for employee filtering
+  useEffect(() => {
+    const fetchUserPinAuto = async () => {
+      if (!isAdmin && session?.user?.emp_id) {
+        try {
+          console.log('🔍 Looking for employee with emp_id:', session.user.emp_id)
+          console.log('👤 Session user:', {
+            emp_id: session.user.emp_id,
+            username: session.user.username,
+            name: session.user.name,
+            email: session.user.email
+          })
+
+          // Fetch the employee's pin_auto from the API
+          const response = await fetch('/api/attendance/employees')
+          if (response.ok) {
+            const result = await response.json()
+            const employeesData = result.data || []
+
+            console.log('📋 Total employees in biometric system:', employeesData.length)
+            console.log('📋 First few employees:', employeesData.slice(0, 3))
+
+            // Try multiple matching strategies
+            let userEmployee = null
+
+            // Strategy 1: Direct match emp_id with pin_auto
+            userEmployee = employeesData.find((emp: Employee) => emp.pin_auto === session.user.emp_id)
+            if (userEmployee) console.log('✅ Match Strategy 1: pin_auto === emp_id')
+
+            // Strategy 2: Match emp_id with pin_manual
+            if (!userEmployee) {
+              userEmployee = employeesData.find((emp: Employee) => emp.pin_manual === session.user.emp_id)
+              if (userEmployee) console.log('✅ Match Strategy 2: pin_manual === emp_id')
+            }
+
+            // Strategy 3: Match username with user_name (case insensitive)
+            if (!userEmployee && session.user.username) {
+              userEmployee = employeesData.find((emp: Employee) =>
+                emp.user_name.toLowerCase() === session.user.username.toLowerCase()
+              )
+              if (userEmployee) console.log('✅ Match Strategy 3: user_name === username')
+            }
+
+            // Strategy 4: Match name with user_name (case insensitive)
+            if (!userEmployee && session.user.name) {
+              userEmployee = employeesData.find((emp: Employee) =>
+                emp.user_name.toLowerCase() === session.user.name.toLowerCase()
+              )
+              if (userEmployee) console.log('✅ Match Strategy 4: user_name === name')
+            }
+
+            if (userEmployee) {
+              setUserPinAuto(userEmployee.pin_auto)
+              console.log('✅ Found user in biometric system:', {
+                pin_auto: userEmployee.pin_auto,
+                pin_manual: userEmployee.pin_manual,
+                user_name: userEmployee.user_name
+              })
+            } else {
+              console.error('❌ Could not find employee in biometric system for emp_id:', session.user.emp_id)
+              console.error('❌ Available employees:', employeesData.map((e: Employee) => ({
+                pin_auto: e.pin_auto,
+                pin_manual: e.pin_manual,
+                user_name: e.user_name
+              })).slice(0, 5))
+              console.error('⚠️ Please check if this user exists in the biometric system')
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching user pin_auto:', error)
+        }
+      }
+    }
+
+    fetchUserPinAuto()
+  }, [isAdmin, session?.user?.emp_id, session?.user?.username, session?.user?.name, session?.user?.email])
+
   // Load initial data
   useEffect(() => {
     fetchEmployees()
@@ -370,10 +452,21 @@ export default function AttendancePage() {
     window.open(`/attendance/employee/${pinAuto}?name=${encodeURIComponent(employeeName)}`, '_blank')
   }
 
-  // Filter attendance records based on search term
-  const filteredRecords = attendanceRecords.filter(record =>
-    record.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  // Filter attendance records based on search term and user_level
+  const filteredRecords = attendanceRecords.filter(record => {
+    // Search term filter
+    const matchesSearch = record.employeeName.toLowerCase().includes(searchTerm.toLowerCase())
+
+    // User level filter: employees can only see their own attendance
+    if (!isAdmin) {
+      // Use the fetched userPinAuto if available, otherwise try direct emp_id match
+      const pinToMatch = userPinAuto || session?.user?.emp_id
+      return matchesSearch && record.pinAuto === pinToMatch
+    }
+
+    // Admins can see all
+    return matchesSearch
+  })
 
   // Get attendance status badge
   const getAttendanceStatusBadge = (status: string) => {
@@ -441,7 +534,9 @@ export default function AttendancePage() {
         {/* Header Section */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Attendance Management</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {isAdmin ? 'Attendance Management' : 'My Attendance'}
+            </h1>
           </div>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
@@ -478,14 +573,17 @@ export default function AttendancePage() {
                 ))}
               </select>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => window.location.href = '/attendance/holidays'}
-              className="flex items-center gap-2"
-            >
-              <Settings className="w-4 h-4" />
-              Manage Holidays
-            </Button>
+            {/* Manage Holidays - Admin Only */}
+            {isAdmin && (
+              <Button
+                variant="outline"
+                onClick={() => window.location.href = '/attendance/holidays'}
+                className="flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                Manage Holidays
+              </Button>
+            )}
           </div>
         </div>
 
@@ -496,22 +594,24 @@ export default function AttendancePage() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-xl text-slate-800 flex items-center gap-2">
                 <Clock className="h-5 w-5 text-orange-600" />
-                Daily Attendance - {new Date(selectedDate).toLocaleDateString('en-GB', {
+                {isAdmin ? 'Daily Attendance' : 'My Daily Attendance'} - {new Date(selectedDate).toLocaleDateString('en-GB', {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric'
                 })}
               </CardTitle>
               <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    placeholder="Search employees..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-96"
-                  />
-                </div>
+                {isAdmin && (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Search employees..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 w-96"
+                    />
+                  </div>
+                )}
                 <Button
                   className="bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
                   onClick={() => fetchEmployees(false)}
@@ -620,8 +720,23 @@ export default function AttendancePage() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="text-center py-8 text-gray-500">
-                          {searchTerm ? 'No employees found matching your search.' : 'No attendance data available.'}
+                        <td colSpan={6} className="text-center py-8">
+                          {searchTerm ? (
+                            <div className="text-gray-500">No employees found matching your search.</div>
+                          ) : !isAdmin && attendanceRecords.length > 0 ? (
+                            <div className="space-y-3">
+                              <div className="text-amber-600 font-semibold flex items-center justify-center gap-2">
+                                <AlertCircle className="h-5 w-5" />
+                                Your attendance record is not visible
+                              </div>
+                              <div className="text-gray-600 text-sm max-w-md mx-auto">
+                                Your account (ID: <code className="bg-gray-100 px-2 py-1 rounded">{session?.user?.emp_id}</code>) could not be matched with the biometric system.
+                                <br />Please contact HR or check the browser console for details.
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-gray-500">No attendance data available.</div>
+                          )}
                         </td>
                       </tr>
                     )}

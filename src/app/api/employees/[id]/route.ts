@@ -7,14 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const employeeId = parseInt(id)
-
-    if (isNaN(employeeId)) {
-      return NextResponse.json(
-        { error: 'Invalid employee ID' },
-        { status: 400 }
-      )
-    }
+    const empId = id // This is emp_id string, not the database id
 
     // Fetch employee details with designation information using raw SQL with auto-retry
     const employee = await executeWithRetry(async () => {
@@ -84,7 +77,7 @@ export async function GET(
       LEFT JOIN working_hours_policy whp ON e.working_hours_policy_id = whp.id
       LEFT JOIN marital_status ms ON e.emp_marital_status = ms.id
       LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
-      WHERE e.id = ${employeeId}
+      WHERE e.emp_id = ${empId}
       LIMIT 1
     ` as any[]
     })
@@ -189,18 +182,11 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const employeeId = parseInt(id)
+    const empId = id // This is emp_id string
     const updateData = await request.json()
 
     console.log('Received update data:', updateData)
-    console.log('Employee ID:', employeeId)
-
-    if (isNaN(employeeId)) {
-      return NextResponse.json(
-        { error: 'Invalid employee ID' },
-        { status: 400 }
-      )
-    }
+    console.log('Employee ID (emp_id):', empId)
 
     // Use a transaction to ensure proper connection handling
     const result = await prisma.$transaction(async (tx) => {
@@ -374,7 +360,7 @@ export async function PUT(
           professional_email = ${updateData.professionalEmail || 'N/A'},
           branch = ${updateData.branch || 'Main'},
           username = ${updateData.username || updateData.empId || 'N/A'}
-        WHERE id = ${employeeId}
+        WHERE emp_id = ${empId}
       `
 
       console.log('Update result:', updateResult)
@@ -429,7 +415,7 @@ export async function PUT(
         LEFT JOIN working_hours_policy whp ON e.working_hours_policy_id = whp.id
         LEFT JOIN marital_status ms ON e.emp_marital_status = ms.id
         LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
-        WHERE e.id = ${employeeId}
+        WHERE e.emp_id = ${empId}
         LIMIT 1
       ` as any[]
 

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -17,15 +18,16 @@ import {
   X
 } from "lucide-react"
 
-const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "text-blue-500" },
-  { name: "Employees", href: "/employees", icon: Users, color: "text-green-500" },
-  { name: "Attendance", href: "/attendance", icon: Clock, color: "text-orange-500" },
-  { name: "Working Hours", href: "/working-hours", icon: Clock, color: "text-orange-600" },
-  { name: "Payroll", href: "/payroll", icon: DollarSign, color: "text-emerald-500" },
-  { name: "Leaves", href: "/leaves", icon: Calendar, color: "text-purple-500" },
-  { name: "Reports", href: "/reports", icon: FileText, color: "text-red-500" },
-  { name: "Settings", href: "/settings", icon: Settings, color: "text-gray-500" },
+const getNavigation = (isAdmin: boolean) => [
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "text-blue-500", adminOnly: false },
+  { name: "Employees", href: "/employees", icon: Users, color: "text-green-500", adminOnly: true },
+  { name: isAdmin ? "Attendance" : "My Attendance", href: "/attendance", icon: Clock, color: "text-orange-500", adminOnly: false },
+  { name: "Working Hours", href: "/working-hours", icon: Clock, color: "text-orange-600", adminOnly: true },
+  { name: "Payroll", href: "/payroll", icon: DollarSign, color: "text-emerald-500", adminOnly: true },
+  { name: isAdmin ? "Leaves" : "My Leaves", href: "/leaves", icon: Calendar, color: "text-purple-500", adminOnly: false },
+  { name: "My Information", href: "/my-information", icon: Users, color: "text-blue-600", adminOnly: false, employeeOnly: true },
+  { name: "Reports", href: "/reports", icon: FileText, color: "text-red-500", adminOnly: true },
+  { name: "Settings", href: "/settings", icon: Settings, color: "text-gray-500", adminOnly: true },
 ]
 
 interface SidebarProps {
@@ -35,6 +37,27 @@ interface SidebarProps {
 export function Sidebar({ className }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const pathname = usePathname()
+  const { data: session } = useSession()
+
+  // Filter navigation based on user_level
+  // user_level 1 = Admin (full access)
+  // user_level 0 = Employee (limited access)
+  const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+
+  // Get navigation items based on user level
+  const navigation = getNavigation(isAdmin)
+
+  const filteredNavigation = navigation.filter(item => {
+    // Hide admin-only items from employees
+    if (item.adminOnly && !isAdmin) {
+      return false
+    }
+    // Hide employee-only items from admins
+    if ((item as any).employeeOnly && isAdmin) {
+      return false
+    }
+    return true
+  })
 
   return (
     <>
@@ -88,7 +111,7 @@ export function Sidebar({ className }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-2">
-          {navigation.map((item) => {
+          {filteredNavigation.map((item) => {
             const isActive = pathname === item.href
             const Icon = item.icon
 

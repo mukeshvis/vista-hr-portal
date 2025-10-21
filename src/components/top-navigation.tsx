@@ -27,21 +27,42 @@ interface TopNavigationProps {
       name?: string | null
       username?: string | null
       email?: string | null
+      user_level?: number | string
     }
   } | null
 }
 
-const menuItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "text-blue-500" },
-  { label: "Employees", href: "/employees", icon: Users, color: "text-green-500" },
-  { label: "Attendance", href: "/attendance", icon: Clock, color: "text-orange-500" },
-  { label: "Payroll", href: "/payroll", icon: CreditCard, color: "text-emerald-500" },
-  { label: "Leaves", href: "/leaves", icon: Calendar, color: "text-purple-500" },
-  { label: "Reports", href: "/reports", icon: FileText, color: "text-red-500" },
-  { label: "Portal System", href: "/portal-system", icon: Settings, color: "text-indigo-500" },
+const getMenuItems = (isAdmin: boolean) => [
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, color: "text-blue-500", adminOnly: false },
+  { label: "Employees", href: "/employees", icon: Users, color: "text-green-500", adminOnly: true },
+  { label: isAdmin ? "Attendance" : "My Attendance", href: "/attendance", icon: Clock, color: "text-orange-500", adminOnly: false },
+  { label: "Payroll", href: "/payroll", icon: CreditCard, color: "text-emerald-500", adminOnly: true },
+  { label: isAdmin ? "Leaves" : "My Leaves", href: "/leaves", icon: Calendar, color: "text-purple-500", adminOnly: false },
+  { label: "My Information", href: "/my-information", icon: User, color: "text-blue-600", adminOnly: false, employeeOnly: true },
+  { label: "Reports", href: "/reports", icon: FileText, color: "text-red-500", adminOnly: true },
+  { label: "Portal System", href: "/portal-system", icon: Settings, color: "text-indigo-500", adminOnly: true },
 ]
 
 export function TopNavigation({ session }: TopNavigationProps) {
+  // Check if user is admin
+  const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+
+  // Get menu items based on user level
+  const menuItems = getMenuItems(isAdmin)
+
+  // Filter menu items based on user level
+  const visibleMenuItems = menuItems.filter(item => {
+    // Hide admin-only items from employees
+    if (item.adminOnly && !isAdmin) {
+      return false
+    }
+    // Hide employee-only items from admins
+    if ((item as any).employeeOnly && isAdmin) {
+      return false
+    }
+    return true
+  })
+
   return (
     <header className="bg-background border-b border-gray-100">
       <div className="container mx-auto px-6">
@@ -55,7 +76,7 @@ export function TopNavigation({ session }: TopNavigationProps) {
 
           {/* Center: Navigation Menu */}
           <nav className="hidden md:flex items-center space-x-8">
-            {menuItems.map((item) => (
+            {visibleMenuItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
@@ -83,9 +104,11 @@ export function TopNavigation({ session }: TopNavigationProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem>
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard?view=personal" className="cursor-pointer">
+                    <User className="mr-2 h-4 w-4" />
+                    My Dashboard
+                  </Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

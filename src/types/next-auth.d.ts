@@ -9,6 +9,7 @@ declare module "next-auth" {
       company_id: string
       emp_id: string | null
       username: string
+      user_level: number | string | undefined
     } & DefaultSession["user"]
   }
 
@@ -18,6 +19,7 @@ declare module "next-auth" {
     company_id: string
     emp_id: string | null
     username: string
+    user_level: number | string | undefined
   }
 }
 
@@ -28,5 +30,6 @@ declare module "next-auth/jwt" {
     company_id: string
     emp_id: string | null
     username: string
+    user_level: number | string | undefined
   }
 }

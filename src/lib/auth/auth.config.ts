@@ -42,6 +42,7 @@ export const authConfig = {
           acc_type: user.acc_type,
           company_id: user.company_id.toString(),
           emp_id: user.emp_id,
+          user_level: user.user_level,
         }
       }
     })
@@ -70,6 +71,7 @@ export const authConfig = {
         token.company_id = user.company_id
         token.emp_id = user.emp_id
         token.username = user.username
+        token.user_level = user.user_level
       }
       return token
     },
@@ -81,6 +83,10 @@ export const authConfig = {
         session.user.company_id = token.company_id as string
         session.user.emp_id = token.emp_id as string
         session.user.username = token.username as string
+        // Ensure user_level is a number, default to 1 if not set
+        session.user.user_level = typeof token.user_level === 'number' ? token.user_level : (token.user_level ? Number(token.user_level) : 1)
+
+        console.log('🔐 Session user_level:', session.user.user_level, '(type:', typeof session.user.user_level, ')')
       }
       return session
     }

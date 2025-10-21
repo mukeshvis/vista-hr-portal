@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,7 +30,8 @@ import {
   UserCheck,
   UserX,
   CalendarDays,
-  Banknote
+  Banknote,
+  ArrowLeft
 } from "lucide-react"
 
 // Interfaces for Add Employee functionality
@@ -115,6 +117,47 @@ const leavePolicyOptions = [
   'July-2024 to June-2025',
   'July-2025 to June-2026'
 ]
+
+// Counter Animation Hook
+function useCountUp(end: number, duration: number = 1000, shouldStart: boolean = true) {
+  const [count, setCount] = useState(0)
+  const [hasAnimated, setHasAnimated] = useState(false)
+
+  useEffect(() => {
+    if (!shouldStart || hasAnimated) return
+
+    let startTime: number | null = null
+    let animationFrame: number
+
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime
+      const progress = Math.min((currentTime - startTime) / duration, 1)
+
+      // Easing function for smooth animation
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4)
+      const currentCount = Math.floor(easeOutQuart * end)
+
+      setCount(currentCount)
+
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate)
+      } else {
+        setCount(end)
+        setHasAnimated(true)
+      }
+    }
+
+    animationFrame = requestAnimationFrame(animate)
+
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame)
+      }
+    }
+  }, [end, duration, shouldStart, hasAnimated])
+
+  return count
+}
 
 // Enhanced Stats Card Component with Colorful Icons
 function StatsCard({
@@ -483,6 +526,10 @@ function PendingItems() {
 export default function DashboardPage() {
   // Session data
   const { data: session, status, update } = useSession()
+  const searchParams = useSearchParams()
+
+  // Check if user wants personal view
+  const viewPersonal = searchParams.get('view') === 'personal'
 
   // Dashboard data state
   const [dashboardData, setDashboardData] = useState({
@@ -540,6 +587,311 @@ export default function DashboardPage() {
     branch: '',
     username: ''
   })
+
+  // Employee Dashboard state (for user_level = 0)
+  const [employeeData, setEmployeeData] = useState({
+    leaveBalance: 0,
+    totalAllocatedLeaves: 0,
+    todayStatus: 'Absent',
+    pendingLeaves: 0,
+    workingDays: 0,
+    onTime: 0,
+    lateArrivals: 0,
+    attendanceDays: 0,
+    absentDays: 0
+  })
+  const [recentLeaves, setRecentLeaves] = useState<any[]>([])
+  const [isLoadingEmployeeData, setIsLoadingEmployeeData] = useState(true)
+
+  // Fetch employee dashboard data
+  const fetchEmployeeData = async () => {
+    if (!session?.user?.emp_id) return
+
+    console.log('📊 Fetching employee dashboard data for:', session.user.emp_id)
+    setIsLoadingEmployeeData(true)
+    try {
+      const empId = session.user.emp_id
+      const currentYear = new Date().getFullYear()
+      const currentMonth = new Date().getMonth() + 1
+      const currentDate = new Date().toISOString().split('T')[0]
+
+      console.log('📅 Date range:', { currentYear, currentMonth })
+
+      // Fetch leave balance
+      const leaveBalanceRes = await fetch(`/api/leaves/balance?empId=${empId}&year=${currentYear}`)
+      if (leaveBalanceRes.ok) {
+        const leaveData = await leaveBalanceRes.json()
+        const totalRemaining = leaveData.balance?.reduce((sum: number, item: any) => sum + item.remaining, 0) || 0
+        const totalAllocated = leaveData.balance?.reduce((sum: number, item: any) => sum + item.allocated, 0) || 0
+        console.log('📊 Leave Balance - Remaining:', totalRemaining, 'Allocated:', totalAllocated)
+        setEmployeeData(prev => ({ ...prev, leaveBalance: totalRemaining, totalAllocatedLeaves: totalAllocated }))
+      }
+
+      // Fetch pending leave applications
+      const pendingLeavesRes = await fetch(`/api/leaves/applications?empId=${empId}&status=0&year=${currentYear}`)
+      if (pendingLeavesRes.ok) {
+        const pendingData = await pendingLeavesRes.json()
+        setEmployeeData(prev => ({ ...prev, pendingLeaves: pendingData.length }))
+      }
+
+      // Fetch recent leave applications (last 5)
+      const recentLeavesRes = await fetch(`/api/leaves/applications?empId=${empId}&year=${currentYear}`)
+      if (recentLeavesRes.ok) {
+        const allLeaves = await recentLeavesRes.json()
+        setRecentLeaves(allLeaves.slice(0, 5))
+      }
+
+      // First, fetch external_employees to find user's pin_auto (multi-strategy matching)
+      const employeesRes = await fetch('/api/attendance/employees')
+      let userPinAuto = empId // Default to emp_id
+
+      if (employeesRes.ok) {
+        const employeesData = await employeesRes.json()
+        const allEmployees = employeesData.data || []
+
+        console.log('👥 Fetched employees:', allEmployees.length)
+
+        // Try 4 matching strategies (same as attendance page)
+        let userEmployee = allEmployees.find((emp: any) => emp.pin_auto === empId) // Strategy 1
+        if (!userEmployee) {
+          userEmployee = allEmployees.find((emp: any) => emp.pin_manual === empId) // Strategy 2
+        }
+        if (!userEmployee && session.user.username) {
+          userEmployee = allEmployees.find((emp: any) =>
+            emp.user_name?.toLowerCase() === session.user.username.toLowerCase()
+          ) // Strategy 3
+        }
+        if (!userEmployee && session.user.name) {
+          userEmployee = allEmployees.find((emp: any) =>
+            emp.user_name?.toLowerCase() === session.user.name?.toLowerCase()
+          ) // Strategy 4
+        }
+
+        if (userEmployee) {
+          userPinAuto = userEmployee.pin_auto
+          console.log('✅ Found user pin_auto:', userPinAuto, 'for emp_id:', empId)
+        } else {
+          console.warn('⚠️ Could not find matching employee in external_employees table')
+        }
+      }
+
+      // Fetch attendance data for current month
+      const startDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`
+      // Get last day of current month (month + 1, day 0 = last day of current month)
+      const lastDay = new Date(currentYear, currentMonth, 0).getDate()
+      const endDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+      console.log('📅 Fetching attendance from:', startDate, 'to:', endDate)
+      console.log('📅 API format - start:', startDate.split('-').reverse().join('/'), 'end:', endDate.split('-').reverse().join('/'))
+
+      const attendanceRes = await fetch('/api/attendance/logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          start_date: startDate.split('-').reverse().join('/'),
+          end_date: endDate.split('-').reverse().join('/')
+        })
+      })
+
+      console.log('📊 Attendance API response status:', attendanceRes.status)
+
+      if (attendanceRes.ok) {
+        const attendanceData = await attendanceRes.json()
+        const logs = attendanceData.data || []
+
+        console.log('📊 Total attendance logs:', logs.length)
+        console.log('📊 First log sample:', logs[0])
+
+        // Filter logs for current employee using user_id (not pin_auto!)
+        const userLogs = logs.filter((log: any) => {
+          return log.user_id === userPinAuto || log.pin_auto === userPinAuto
+        })
+
+        console.log('👤 Filtering with pin_auto:', userPinAuto)
+        console.log('👤 User attendance logs:', userLogs.length)
+        console.log('👤 Sample user log:', userLogs[0])
+
+        // Extract unique dates from punch_time (format: '2025-10-01 07:10:00 AM')
+        const uniqueDates = new Set(
+          userLogs.map((log: any) => {
+            if (log.punch_time) {
+              return log.punch_time.split(' ')[0] // Extract date part
+            }
+            return null
+          }).filter(Boolean)
+        )
+
+        console.log('📅 Total unique dates:', uniqueDates.size)
+        console.log('📅 Unique dates:', Array.from(uniqueDates))
+
+        // Calculate on-time and late arrivals (Monday-Friday only, 9AM-5:30PM working hours)
+        let onTime = 0
+        let lateArrivals = 0
+        let attendanceDays = 0
+
+        uniqueDates.forEach(dateStr => {
+          // Parse date (format: '2025-10-01')
+          const dateParts = dateStr.toString().split('-')
+          const dateObj = new Date(parseInt(dateParts[0]), parseInt(dateParts[1]) - 1, parseInt(dateParts[2]))
+          const dayOfWeek = dateObj.getDay() // 0=Sunday, 1=Monday, ..., 5=Friday, 6=Saturday
+
+          // Skip weekends (only Monday-Friday count)
+          if (dayOfWeek === 0 || dayOfWeek === 6) {
+            console.log(`⏭️ Skipping weekend: ${dateStr} (${dayOfWeek === 0 ? 'Sunday' : 'Saturday'})`)
+            return
+          }
+
+          // Get all logs for this date
+          const dayLogs = userLogs.filter((log: any) => {
+            const logDate = log.punch_time ? log.punch_time.split(' ')[0] : null
+            return logDate === dateStr
+          })
+
+          // Check if user was present (has check-in record)
+          const checkInLogs = dayLogs.filter((log: any) => log.state === 'Check In')
+          const checkOutLogs = dayLogs.filter((log: any) => log.state === 'Check Out')
+
+          if (checkInLogs.length > 0) {
+            // User was present - count as attendance day
+            attendanceDays++
+
+            // Parse check-in time
+            const firstCheckIn = checkInLogs[0]
+            const checkInParts = firstCheckIn.punch_time.split(' ')
+            const checkInTime = checkInParts[1] // '07:10:00'
+            const checkInPeriod = checkInParts[2] // 'AM' or 'PM'
+
+            let checkInHour = parseInt(checkInTime.split(':')[0])
+            let checkInMinute = parseInt(checkInTime.split(':')[1])
+
+            // Convert to 24-hour format
+            if (checkInPeriod === 'PM' && checkInHour !== 12) {
+              checkInHour += 12
+            } else if (checkInPeriod === 'AM' && checkInHour === 12) {
+              checkInHour = 0
+            }
+
+            const checkInMinutes = checkInHour * 60 + checkInMinute
+
+            // Parse check-out time (if exists)
+            let workingHours = 0
+            let checkOutMinutes = 0
+
+            if (checkOutLogs.length > 0) {
+              const lastCheckOut = checkOutLogs[checkOutLogs.length - 1]
+              const checkOutParts = lastCheckOut.punch_time.split(' ')
+              const checkOutTime = checkOutParts[1]
+              const checkOutPeriod = checkOutParts[2]
+
+              let checkOutHour = parseInt(checkOutTime.split(':')[0])
+              let checkOutMinute = parseInt(checkOutTime.split(':')[1])
+
+              // Convert to 24-hour format
+              if (checkOutPeriod === 'PM' && checkOutHour !== 12) {
+                checkOutHour += 12
+              } else if (checkOutPeriod === 'AM' && checkOutHour === 12) {
+                checkOutHour = 0
+              }
+
+              checkOutMinutes = checkOutHour * 60 + checkOutMinute
+
+              // Office hours: 9:00 AM to 5:30 PM
+              const officeStartMinutes = 9 * 60 // 9:00 AM = 540 minutes
+              const officeEndMinutes = 17 * 60 + 30 // 5:30 PM = 1050 minutes
+
+              // Calculate effective check-in within office hours
+              const effectiveCheckIn = Math.max(checkInMinutes, officeStartMinutes)
+
+              // Calculate effective check-out within office hours
+              const effectiveCheckOut = Math.min(checkOutMinutes, officeEndMinutes)
+
+              // Calculate hours worked WITHIN office hours (9AM-5:30PM)
+              const workingMinutesInOfficeHours = Math.max(0, effectiveCheckOut - effectiveCheckIn)
+              const workingHoursInOfficeWindow = workingMinutesInOfficeHours / 60
+
+              // Total working hours (for logging)
+              const totalMinutes = checkOutMinutes - checkInMinutes
+              const totalWorkingHours = totalMinutes / 60
+
+              console.log(`📊 ${dateStr}: Check-in: ${checkInHour}:${String(checkInMinute).padStart(2, '0')}, Check-out: ${checkOutHour}:${String(checkOutMinute).padStart(2, '0')}`)
+              console.log(`   Total Hours: ${totalWorkingHours.toFixed(2)}, Hours in Office Window (9AM-5:30PM): ${workingHoursInOfficeWindow.toFixed(2)}`)
+
+              // Check if completed 8 hours WITHIN office hours (9AM-5:30PM)
+              if (workingHoursInOfficeWindow >= 8) {
+                onTime++
+                console.log(`✅ On Time: ${dateStr} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]}) - ${workingHoursInOfficeWindow.toFixed(2)} hours in office window`)
+              } else {
+                lateArrivals++
+                console.log(`⏰ Late/Short: ${dateStr} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]}) - Only ${workingHoursInOfficeWindow.toFixed(2)} hours in office window (need 8)`)
+              }
+            } else {
+              // No check-out record - count as late (incomplete day)
+              lateArrivals++
+              console.log(`⚠️ No Check-out: ${dateStr} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]}) - Only check-in at ${checkInHour}:${String(checkInMinute).padStart(2, '0')}`)
+            }
+          } else {
+            // No check-in record = absent (don't count in late)
+            console.log(`❌ Absent: ${dateStr} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]})`)
+          }
+        })
+
+        console.log('📊 Final Stats - Attendance Days:', attendanceDays, 'On Time:', onTime, 'Late:', lateArrivals)
+
+        // Calculate total working days from start of month till TODAY (Monday-Friday only)
+        const currentYear = new Date().getFullYear()
+        const currentMonth = new Date().getMonth()
+        const currentDay = new Date().getDate() // Today's date
+        let totalWorkingDays = 0
+
+        // Count working days from 1st till today only
+        for (let day = 1; day <= currentDay; day++) {
+          const date = new Date(currentYear, currentMonth, day)
+          const dayOfWeek = date.getDay()
+          // Count Monday-Friday only (1-5)
+          if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+            totalWorkingDays++
+          }
+        }
+
+        // Calculate absent days (working days till today - attendance days)
+        const absentDays = Math.max(0, totalWorkingDays - attendanceDays)
+        console.log('📊 Working Days Calculation (Till Today) - Total:', totalWorkingDays, 'Present:', attendanceDays, 'Absent:', absentDays)
+
+        // Check today's status
+        const today = new Date().toISOString().split('T')[0]
+        const todayLogs = userLogs.filter((log: any) => {
+          const logDate = log.punch_time ? log.punch_time.split(' ')[0] : null
+          return logDate === today
+        })
+        const todayStatus = todayLogs.length > 0 ? 'Present' : 'Absent'
+
+        const updatedData = {
+          todayStatus,
+          attendanceDays,
+          onTime,
+          lateArrivals,
+          workingDays: totalWorkingDays,
+          absentDays
+        }
+
+        console.log('✅ Setting employee attendance data:', updatedData)
+
+        setEmployeeData(prev => ({
+          ...prev,
+          ...updatedData
+        }))
+      } else {
+        console.error('❌ Attendance API failed with status:', attendanceRes.status)
+        const errorText = await attendanceRes.text()
+        console.error('❌ Error response:', errorText)
+      }
+
+    } catch (error) {
+      console.error('❌ Error fetching employee data:', error)
+    } finally {
+      setIsLoadingEmployeeData(false)
+    }
+  }
 
   // Fetch dashboard statistics
   const fetchDashboardStats = async () => {
@@ -599,6 +951,17 @@ export default function DashboardPage() {
     fetchEmployees()
   }, [])
 
+  // Fetch employee dashboard data for non-admin users OR admin viewing personal
+  useEffect(() => {
+    const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+    const shouldShowEmployeeView = !isAdmin || viewPersonal
+    console.log('🔄 useEffect triggered - Status:', status, 'IsAdmin:', isAdmin, 'ViewPersonal:', viewPersonal, 'EmpId:', session?.user?.emp_id)
+    if (status === 'authenticated' && shouldShowEmployeeView && session?.user?.emp_id) {
+      console.log('✅ Calling fetchEmployeeData...')
+      fetchEmployeeData()
+    }
+  }, [status, session?.user?.user_level, session?.user?.emp_id, viewPersonal])
+
   // Handle input changes for new employee form
   const handleInputChange = (field: keyof NewEmployee, value: string | number) => {
     setNewEmployee(prev => ({
@@ -612,6 +975,403 @@ export default function DashboardPage() {
     setIsAddDialogOpen(true)
   }
 
+  // Check if user is admin
+  const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
+
+  // Show employee dashboard if: user is employee OR admin viewing personal dashboard
+  const showEmployeeDashboard = !isAdmin || viewPersonal
+
+  // Counter animations for circular charts (hooks must be called unconditionally!)
+  const animatedAttendanceDays = useCountUp(employeeData.attendanceDays, 1500, !isLoadingEmployeeData && showEmployeeDashboard)
+  const animatedOnTime = useCountUp(employeeData.onTime, 1500, !isLoadingEmployeeData && showEmployeeDashboard)
+  const animatedLateArrivals = useCountUp(employeeData.lateArrivals, 1500, !isLoadingEmployeeData && showEmployeeDashboard)
+  const animatedAbsentDays = useCountUp(employeeData.absentDays, 1500, !isLoadingEmployeeData && showEmployeeDashboard)
+  const animatedLeaveBalance = useCountUp(employeeData.leaveBalance, 1500, !isLoadingEmployeeData && showEmployeeDashboard)
+
+  // Debug leave balance percentage
+  const leavePercentage = employeeData.totalAllocatedLeaves > 0
+    ? (employeeData.leaveBalance / employeeData.totalAllocatedLeaves * 100).toFixed(1)
+    : 0
+
+  console.log('📊 Dashboard - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin, '| View Personal:', viewPersonal, '| Show Employee Dashboard:', showEmployeeDashboard)
+
+  // Show loading state while session is loading
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading Dashboard...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (showEmployeeDashboard) {
+    console.log('📊 Leave Circle - Balance:', employeeData.leaveBalance, 'Total:', employeeData.totalAllocatedLeaves, 'Percentage:', leavePercentage + '%')
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+        {/* Top Navigation */}
+        <TopNavigation session={session} />
+
+        {/* Employee Dashboard Content */}
+        <main className="container mx-auto px-6 py-6 space-y-6">
+          {/* Back to Admin Dashboard button (only for admins viewing personal) */}
+          {isAdmin && viewPersonal && (
+            <div className="flex justify-start">
+              <Button
+                onClick={() => window.location.href = '/dashboard'}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Admin Dashboard
+              </Button>
+            </div>
+          )}
+
+          {/* Welcome Header */}
+          <div className="rounded-lg p-6">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Hello {session?.user?.name || 'Employee'}!</h1>
+            <p className="text-gray-600">Welcome back! Here's your overview for today.</p>
+          </div>
+
+          {/* Personal Metrics Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="hover:shadow-lg transition-all border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-600 mb-2">Today's Status</p>
+                    <p className="text-2xl font-bold text-slate-800">{employeeData.todayStatus}</p>
+                    <p className="text-xs text-slate-500 mt-1">Attendance</p>
+                  </div>
+                  <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <UserCheck className="h-5 w-5 text-emerald-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-all border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-600 mb-2">Leave Balance</p>
+                    <p className="text-2xl font-bold text-slate-800">{employeeData.leaveBalance}</p>
+                    <p className="text-xs text-slate-500 mt-1">Days Available</p>
+                  </div>
+                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <Calendar className="h-5 w-5 text-purple-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-all border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-600 mb-2">Pending Leaves</p>
+                    <p className="text-2xl font-bold text-slate-800">{employeeData.pendingLeaves}</p>
+                    <p className="text-xs text-slate-500 mt-1">Applications</p>
+                  </div>
+                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <Clock className="h-5 w-5 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-all border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-600 mb-2">This Month</p>
+                    <p className="text-2xl font-bold text-slate-800">{employeeData.workingDays}</p>
+                    <p className="text-xs text-slate-500 mt-1">Working Days</p>
+                  </div>
+                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <CalendarDays className="h-5 w-5 text-amber-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Attendance Chart */}
+          <Card className="border-0 shadow-2xl bg-gradient-to-br from-purple-50 to-indigo-50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-gray-800">
+                <Clock className="h-5 w-5 text-blue-600" />
+                This Month's Attendance Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoadingEmployeeData ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-500">Loading attendance data...</p>
+                  </div>
+                </div>
+              ) : (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                {/* Circular Progress - Present Days */}
+                <div className="flex flex-col items-center justify-center p-4">
+                  <div className="relative w-32 h-32">
+                    <svg className="transform -rotate-90 w-32 h-32">
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="56"
+                        stroke="#e5e7eb"
+                        strokeWidth="12"
+                        fill="none"
+                      />
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="56"
+                        stroke="#10b981"
+                        strokeWidth="12"
+                        fill="none"
+                        strokeDasharray={`${2 * Math.PI * 56}`}
+                        strokeDashoffset={`${2 * Math.PI * 56 * (1 - (employeeData.attendanceDays / 22))}`}
+                        className="transition-all duration-1000 ease-out"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-3xl font-bold text-gray-800">{animatedAttendanceDays}</span>
+                      <span className="text-xs text-gray-500">days</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-center">
+                    <p className="text-sm font-semibold text-gray-700">Present</p>
+                    <p className="text-xs text-gray-500">Total working days</p>
+                  </div>
+                </div>
+
+                {/* Circular Progress - On Time */}
+                <div className="flex flex-col items-center justify-center p-4">
+                  <div className="relative w-32 h-32">
+                    <svg className="transform -rotate-90 w-32 h-32">
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="56"
+                        stroke="#e5e7eb"
+                        strokeWidth="12"
+                        fill="none"
+                      />
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="56"
+                        stroke="#3b82f6"
+                        strokeWidth="12"
+                        fill="none"
+                        strokeDasharray={`${2 * Math.PI * 56}`}
+                        strokeDashoffset={`${2 * Math.PI * 56 * (1 - (employeeData.onTime / (employeeData.attendanceDays || 1)))}`}
+                        className="transition-all duration-1000 ease-out delay-150"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-3xl font-bold text-gray-800">{animatedOnTime}</span>
+                      <span className="text-xs text-gray-500">days</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-center">
+                    <p className="text-sm font-semibold text-gray-700">On Time</p>
+                    <p className="text-xs text-gray-500">Punctual arrivals</p>
+                  </div>
+                </div>
+
+                {/* Circular Progress - Late Arrivals */}
+                <div className="flex flex-col items-center justify-center p-4">
+                  <div className="relative w-32 h-32">
+                    <svg className="transform -rotate-90 w-32 h-32">
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="56"
+                        stroke="#e5e7eb"
+                        strokeWidth="12"
+                        fill="none"
+                      />
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="56"
+                        stroke="#f59e0b"
+                        strokeWidth="12"
+                        fill="none"
+                        strokeDasharray={`${2 * Math.PI * 56}`}
+                        strokeDashoffset={`${2 * Math.PI * 56 * (1 - (employeeData.lateArrivals / (employeeData.attendanceDays || 1)))}`}
+                        className="transition-all duration-1000 ease-out delay-300"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-3xl font-bold text-gray-800">{animatedLateArrivals}</span>
+                      <span className="text-xs text-gray-500">days</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-center">
+                    <p className="text-sm font-semibold text-gray-700">Late</p>
+                    <p className="text-xs text-gray-500">After 9:00 AM</p>
+                  </div>
+                </div>
+
+                {/* Circular Progress - Absent Days */}
+                <div className="flex flex-col items-center justify-center p-4">
+                  <div className="relative w-32 h-32">
+                    <svg className="transform -rotate-90 w-32 h-32">
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="56"
+                        stroke="#e5e7eb"
+                        strokeWidth="12"
+                        fill="none"
+                      />
+                      <circle
+                        cx="64"
+                        cy="64"
+                        r="56"
+                        stroke="#ef4444"
+                        strokeWidth="12"
+                        fill="none"
+                        strokeDasharray={`${2 * Math.PI * 56}`}
+                        strokeDashoffset={`${employeeData.workingDays > 0 ? 2 * Math.PI * 56 * (1 - (employeeData.absentDays / employeeData.workingDays)) : 2 * Math.PI * 56}`}
+                        className="transition-all duration-1000 ease-out delay-450"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-3xl font-bold text-gray-800">{animatedAbsentDays}</span>
+                      <span className="text-xs text-gray-500">days</span>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-center">
+                    <p className="text-sm font-semibold text-gray-700">Absent</p>
+                    <p className="text-xs text-gray-500">Days missed</p>
+                  </div>
+                </div>
+              </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Info Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-purple-600" />
+                  My Recent Leave Applications
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {recentLeaves.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500">
+                    <Calendar className="h-12 w-12 mx-auto mb-4 text-slate-300" />
+                    <p>No recent leave applications</p>
+                    <Button
+                      onClick={() => window.location.href = '/leaves'}
+                      variant="ghost"
+                      className="mt-2 text-blue-600 hover:text-blue-700"
+                    >
+                      View All Applications →
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recentLeaves.map((leave: any) => {
+                      const getStatusColor = (approved: number) => {
+                        switch(approved) {
+                          case 1: return 'bg-green-100 text-green-700'
+                          case 2: return 'bg-red-100 text-red-700'
+                          default: return 'bg-amber-100 text-amber-700'
+                        }
+                      }
+                      const getStatusText = (approved: number) => {
+                        switch(approved) {
+                          case 1: return 'Approved'
+                          case 2: return 'Rejected'
+                          default: return 'Pending'
+                        }
+                      }
+                      return (
+                        <div key={leave.id} className="p-3 bg-slate-50 rounded-lg">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                              <p className="font-medium text-slate-800">{leave.leave_type_name || 'Leave'}</p>
+                              <p className="text-xs text-slate-500">
+                                {leave.from_date ? new Date(leave.from_date).toLocaleDateString('en-GB') : 'N/A'} - {leave.to_date ? new Date(leave.to_date).toLocaleDateString('en-GB') : 'N/A'}
+                              </p>
+                            </div>
+                            <span className={`px-2 py-1 text-xs font-medium rounded ${getStatusColor(leave.approved)}`}>
+                              {getStatusText(leave.approved)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-slate-600">{leave.no_of_days || 0} {leave.no_of_days === 1 ? 'day' : 'days'}</p>
+                        </div>
+                      )
+                    })}
+                    <Button
+                      onClick={() => window.location.href = '/leaves'}
+                      variant="ghost"
+                      className="w-full mt-2 text-blue-600 hover:text-blue-700"
+                    >
+                      View All Applications →
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-emerald-600" />
+                  Attendance Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                    <span className="text-sm font-medium text-slate-600">This Month</span>
+                    <span className="text-lg font-bold text-slate-800">{employeeData.attendanceDays} {employeeData.attendanceDays === 1 ? 'Day' : 'Days'}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                    <span className="text-sm font-medium text-slate-600">On Time</span>
+                    <span className="text-lg font-bold text-green-600">{employeeData.onTime} {employeeData.onTime === 1 ? 'Day' : 'Days'}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                    <span className="text-sm font-medium text-slate-600">Late Arrivals</span>
+                    <span className="text-lg font-bold text-amber-600">{employeeData.lateArrivals} {employeeData.lateArrivals === 1 ? 'Day' : 'Days'}</span>
+                  </div>
+                  <Button
+                    onClick={() => window.location.href = '/attendance'}
+                    variant="outline"
+                    className="w-full mt-2"
+                  >
+                    View Detailed Attendance →
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // Admin Dashboard (user_level 1)
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Top Navigation */}
