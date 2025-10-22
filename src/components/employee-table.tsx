@@ -314,7 +314,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
       console.log('🔍 Designation in editData:', editData.designation)
       console.log('🔍 DesignationId in editData:', editData.designationId)
 
-      const response = await fetch(`/api/employees/${editData.id}`, {
+      const response = await fetch(`/api/employees/${editData.empId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

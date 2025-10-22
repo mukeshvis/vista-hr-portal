@@ -208,6 +208,16 @@ function LeavesPageContent() {
     reason: ''
   })
 
+  // Edit Leave Balance state
+  const [isEditBalanceDialogOpen, setIsEditBalanceDialogOpen] = useState(false)
+  const [editingBalance, setEditingBalance] = useState<{
+    empId: string
+    employeeName: string
+    currentBalance: number
+  } | null>(null)
+  const [newTotalAllocated, setNewTotalAllocated] = useState<number>(0)
+  const [isUpdatingBalance, setIsUpdatingBalance] = useState(false)
+
   // Helper function to calculate working days excluding weekends (Saturday & Sunday)
   const calculateWorkingDays = (fromDate: Date, toDate: Date): number => {
     let count = 0
@@ -403,7 +413,11 @@ function LeavesPageContent() {
         console.log('✅ Employee balances fetched:', data.length, 'employees')
         setEmployeeBalances(data)
       } else {
+        const errorData = await res.json().catch(() => ({}))
         console.error('❌ Failed to fetch employee balances:', res.status, res.statusText)
+        console.error('❌ Error details:', errorData)
+        console.error('❌ Error message:', errorData.details)
+        console.error('❌ Error code:', errorData.code)
       }
     } catch (error) {
       console.error('❌ Error fetching employee balances:', error)
@@ -524,6 +538,65 @@ function LeavesPageContent() {
       console.error('Error fetching employee leave details:', error)
       setErrorMessage('Failed to fetch employee leave details')
       setShowErrorPopup(true)
+    }
+  }
+
+  // Handle opening edit balance dialog
+  const handleEditBalance = (empId: string, employeeName: string, currentBalance: number) => {
+    setEditingBalance({ empId, employeeName, currentBalance })
+    setNewTotalAllocated(currentBalance)
+    setIsEditBalanceDialogOpen(true)
+  }
+
+  // Handle updating leave balance
+  const handleUpdateBalance = async () => {
+    if (!editingBalance) return
+
+    // Validate input
+    if (newTotalAllocated < 0) {
+      setErrorMessage('Total allocated leaves cannot be negative')
+      setShowErrorPopup(true)
+      return
+    }
+
+    try {
+      setIsUpdatingBalance(true)
+
+      const response = await fetch('/api/leaves/employees-balance', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          empId: editingBalance.empId,
+          totalAllocated: newTotalAllocated
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+
+        // Close dialog
+        setIsEditBalanceDialogOpen(false)
+        setEditingBalance(null)
+
+        // Show success message
+        setSuccessMessage(data.message || 'Leave balance updated successfully!')
+        setShowSuccessPopup(true)
+
+        // Refresh employee balances
+        await fetchEmployeeBalances(selectedYear)
+      } else {
+        const errorData = await response.json()
+        setErrorMessage(errorData.error || 'Failed to update leave balance')
+        setShowErrorPopup(true)
+      }
+    } catch (error) {
+      console.error('Error updating leave balance:', error)
+      setErrorMessage('Error updating leave balance. Please try again.')
+      setShowErrorPopup(true)
+    } finally {
+      setIsUpdatingBalance(false)
     }
   }
 
@@ -4565,6 +4638,80 @@ function LeavesPageContent() {
               </Button>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Leave Balance Dialog */}
+      <Dialog open={isEditBalanceDialogOpen} onOpenChange={setIsEditBalanceDialogOpen}>
+        <DialogContent className="max-w-md bg-white">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5 text-blue-600" />
+              Edit Leave Balance
+            </DialogTitle>
+            <DialogDescription>
+              Update the total allocated leaves for {editingBalance?.employeeName}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Current Balance Info */}
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-gray-700">Employee:</span>
+                <span className="text-sm text-gray-900">{editingBalance?.employeeName}</span>
+              </div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium text-gray-700">Employee ID:</span>
+                <span className="text-sm text-gray-900">{editingBalance?.empId}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">Current Balance:</span>
+                <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-0">
+                  {editingBalance?.currentBalance} days
+                </Badge>
+              </div>
+            </div>
+
+            {/* New Balance Input */}
+            <div className="space-y-2">
+              <Label htmlFor="newTotalAllocated">New Total Allocated Leaves</Label>
+              <Input
+                id="newTotalAllocated"
+                type="number"
+                min="0"
+                step="0.5"
+                value={newTotalAllocated}
+                onChange={(e) => setNewTotalAllocated(parseFloat(e.target.value) || 0)}
+                className="w-full"
+                placeholder="Enter new total allocated leaves"
+              />
+              <p className="text-xs text-gray-500">
+                Enter the prorated leave balance based on the employee's joining date
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsEditBalanceDialogOpen(false)
+                setEditingBalance(null)
+              }}
+              disabled={isUpdatingBalance}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateBalance}
+              disabled={isUpdatingBalance}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {isUpdatingBalance ? 'Updating...' : 'Update Balance'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
