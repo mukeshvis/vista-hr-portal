@@ -451,7 +451,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       variant="ghost"
                       size="sm"
                       className="h-8 px-3 py-2 text-sm"
-                      onClick={() => handleEditEmployee(employee.id)}
+                      onClick={() => handleEditEmployee(employee.empId || employee.id)}
                       disabled={isPageLoading}
                     >
                       <Edit className="h-4 w-4 mr-1 text-blue-500" />
@@ -461,7 +461,7 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                       variant="ghost"
                       size="sm"
                       className="h-8 px-3 py-2 text-sm"
-                      onClick={() => handleViewEmployee(employee.id)}
+                      onClick={() => handleViewEmployee(employee.empId || employee.id)}
                       disabled={isPageLoading}
                     >
                       <Eye className="h-4 w-4 mr-1 text-green-500" />
