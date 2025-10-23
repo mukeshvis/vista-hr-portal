@@ -18,9 +18,12 @@ import {
   Calendar,
   FileText,
   Settings,
+  Menu,
+  X,
 } from "lucide-react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
+import { useState } from "react"
 
 interface TopNavigationProps {
   session: {
@@ -45,9 +48,25 @@ const getMenuItems = (isAdmin: boolean) => [
 ]
 
 export function TopNavigation({ session }: TopNavigationProps) {
+  // Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
   // Check URL parameters
   const searchParams = useSearchParams()
   const viewPersonal = searchParams.get('view') === 'personal'
+
+  // Don't render navigation until session is fully loaded
+  if (!session || !session.user) {
+    return (
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 h-16 flex items-center px-4">
+        <div className="animate-pulse flex space-x-4 w-full">
+          <div className="h-8 w-32 bg-gray-200 rounded"></div>
+          <div className="flex-1"></div>
+          <div className="h-8 w-24 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    )
+  }
 
   // Check if user is admin
   const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
@@ -72,20 +91,19 @@ export function TopNavigation({ session }: TopNavigationProps) {
   })
 
   return (
-    <header className="bg-background border-b border-gray-100">
-      <div className="container mx-auto px-6">
+    <header className="bg-background border-b border-gray-100 sticky top-0 z-50">
+      <div className="container mx-auto px-4 md:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Left: App Title */}
           <div className="flex items-center">
-            <Link href="/dashboard" className="text-xl font-bold text-black">
+            <Link href="/dashboard" className="text-lg md:text-xl font-bold text-black">
               VIS HR Portal
             </Link>
           </div>
 
-          {/* Center: Navigation Menu */}
-          <nav className="hidden md:flex items-center space-x-8">
+          {/* Center: Desktop Navigation Menu */}
+          <nav className="hidden md:flex items-center space-x-6 lg:space-x-8">
             {visibleMenuItems.map((item) => {
-              // Preserve view=personal parameter in navigation links when admin viewing personal
               const href = viewPersonal && isAdmin ? `${item.href}?view=personal` : item.href
               return (
                 <Link
@@ -100,16 +118,16 @@ export function TopNavigation({ session }: TopNavigationProps) {
             })}
           </nav>
 
-          {/* Right: User Profile & Sign Out */}
-          <div className="flex items-center gap-3">
-            {/* User Profile Dropdown */}
+          {/* Right: User Profile & Hamburger */}
+          <div className="flex items-center gap-2 md:gap-3">
+            {/* User Profile Dropdown - Hidden on small mobile */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center gap-2">
+                <Button variant="ghost" className="hidden sm:flex items-center gap-2 px-2 md:px-3">
                   <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center">
                     <User className="h-4 w-4" />
                   </div>
-                  <span className="text-sm font-medium hidden sm:block">
+                  <span className="text-sm font-medium hidden md:block">
                     {session?.user?.name || session?.user?.username || "User"}
                   </span>
                   <ChevronDown className="h-4 w-4" />
@@ -125,10 +143,57 @@ export function TopNavigation({ session }: TopNavigationProps) {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Sign Out Button */}
-            <SignOutButton />
+            {/* Sign Out Button - Hidden on mobile */}
+            <div className="hidden md:block">
+              <SignOutButton />
+            </div>
+
+            {/* Mobile Hamburger Menu Button */}
+            <Button
+              variant="ghost"
+              className="md:hidden p-2"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </Button>
           </div>
         </div>
+
+        {/* Mobile Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-100 py-4 space-y-1">
+            {visibleMenuItems.map((item) => {
+              const href = viewPersonal && isAdmin ? `${item.href}?view=personal` : item.href
+              return (
+                <Link
+                  key={item.href}
+                  href={href}
+                  className="flex items-center gap-3 px-4 py-3 text-base text-black hover:bg-gray-50 rounded-lg transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <item.icon className={`h-5 w-5 ${item.color}`} />
+                  {item.label}
+                </Link>
+              )
+            })}
+
+            {/* Mobile User Info and Sign Out */}
+            <div className="border-t border-gray-100 mt-4 pt-4 px-4 space-y-3">
+              <div className="flex items-center gap-3 py-2">
+                <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                  <User className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-black">
+                    {session?.user?.name || session?.user?.username || "User"}
+                  </p>
+                  <p className="text-xs text-gray-500">{session?.user?.email || ""}</p>
+                </div>
+              </div>
+              <SignOutButton />
+            </div>
+          </div>
+        )}
       </div>
     </header>
   )

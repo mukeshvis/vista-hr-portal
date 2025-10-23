@@ -64,7 +64,7 @@ interface EmployeeProfile {
 export const dynamic = 'force-dynamic'
 
 export default function EmployeeProfilePage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const params = useParams()
   const router = useRouter()
   const [employee, setEmployee] = useState<EmployeeProfile | null>(null)
@@ -119,6 +119,24 @@ export default function EmployeeProfilePage() {
   }
 
 
+  // Show loading state while session is loading
+  if (status === 'loading' || !session) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-orange-600 mx-auto mb-6"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -mt-3">
+              <div className="h-3 w-3 bg-orange-600 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+          <p className="text-xl font-semibold text-gray-700 mb-2">Loading Employee Profile</p>
+          <p className="text-sm text-gray-500">Please wait...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -162,7 +180,9 @@ export default function EmployeeProfilePage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNavigation session={null} />
+      <Suspense fallback={<div className="h-16 bg-background border-b" />}>
+        <TopNavigation session={session} />
+      </Suspense>
 
       <main className="container mx-auto px-6 py-6">
         {/* Header with Back Button */}

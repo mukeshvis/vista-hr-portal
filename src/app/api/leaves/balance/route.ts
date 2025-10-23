@@ -39,7 +39,52 @@ export async function GET(request: NextRequest) {
       AND ld.status IN (1, 2)
     ` as any[]
 
-    // Get used leaves for selected year
+    console.log('📋 Raw allocated leaves from DB:', allocatedLeaves)
+
+    // Check if all leave types have the same value (e.g., all 40)
+    // If yes, apply standard leave policy distribution
+    const allSame = allocatedLeaves.every((l: any) => l.allocated === allocatedLeaves[0]?.allocated)
+    const totalLeaves = allocatedLeaves[0]?.allocated || 40
+
+    console.log(`🔍 All leave types have same value? ${allSame}, Total: ${totalLeaves}`)
+
+    // Standard leave policy breakdown (if total is 40)
+    const standardPolicy: Record<string, number> = {
+      'annual': 22,      // 55%
+      'sick': 8,         // 20%
+      'emergency': 10    // 25%
+    }
+
+    // Apply correct allocation per leave type
+    const correctedAllocations = allocatedLeaves.map((allocated: any) => {
+      let correctAllocation = allocated.allocated
+
+      // If all types have same value (like 40), use standard policy breakdown
+      if (allSame && totalLeaves === 40) {
+        const leaveTypeName = allocated.leave_type_name?.toLowerCase() || ''
+
+        if (leaveTypeName.includes('annual')) {
+          correctAllocation = standardPolicy.annual
+        } else if (leaveTypeName.includes('sick')) {
+          correctAllocation = standardPolicy.sick
+        } else if (leaveTypeName.includes('emergency')) {
+          correctAllocation = standardPolicy.emergency
+        }
+      }
+
+      return {
+        ...allocated,
+        allocated: correctAllocation
+      }
+    })
+
+    console.log('✅ Corrected allocations:', correctedAllocations)
+
+    // Get used leaves for selected year (using July-based leave year)
+    const yearNum = parseInt(year)
+    const fromDate = `${yearNum}-07-01`
+    const toDate = `${yearNum + 1}-06-30`
+
     const usedLeaves = await prisma.$queryRaw`
       SELECT
         la.leave_type,
@@ -48,19 +93,25 @@ export async function GET(request: NextRequest) {
       LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
       WHERE la.emp_id = ${empId}
       AND la.approved = 1
-      AND YEAR(STR_TO_DATE(lad.from_date, '%Y-%m-%d')) = ${year}
+      AND STR_TO_DATE(lad.from_date, '%Y-%m-%d') >= ${fromDate}
+      AND STR_TO_DATE(lad.from_date, '%Y-%m-%d') <= ${toDate}
       GROUP BY la.leave_type
     ` as any[]
 
+    console.log('📊 Used leaves:', usedLeaves)
+
     // Combine allocated and used
-    const balance = allocatedLeaves.map(allocated => {
-      const used = usedLeaves.find(u => u.leave_type === allocated.leave_type_id)
+    const balance = correctedAllocations.map((allocated: any) => {
+      const used = usedLeaves.find((u: any) => u.leave_type === allocated.leave_type_id)
+      const allocatedNum = Number(allocated.allocated) || 0
+      const usedNum = Number(used?.used) || 0
+
       return {
         leaveTypeId: allocated.leave_type_id,
         leaveTypeName: allocated.leave_type_name,
-        allocated: allocated.allocated || 0,
-        used: used?.used || 0,
-        remaining: (allocated.allocated || 0) - (used?.used || 0)
+        allocated: allocatedNum,
+        used: usedNum,
+        remaining: allocatedNum - usedNum
       }
     })
 

@@ -50,7 +50,7 @@ interface AttendanceLog {
 export const dynamic = 'force-dynamic'
 
 function AttendancePageContent() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const searchParams = useSearchParams()
   const viewPersonal = searchParams.get('view') === 'personal'
 
@@ -530,6 +530,24 @@ function AttendancePageContent() {
   const absentCount = attendanceRecords.filter(r => r.attendanceStatus === 'Absent').length
   const lateCount = attendanceRecords.filter(r => r.attendanceStatus === 'Late').length
 
+  // Show loading state while session is loading
+  if (status === 'loading' || !session) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-green-600 mx-auto mb-6"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -mt-3">
+              <div className="h-3 w-3 bg-green-600 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+          <p className="text-xl font-semibold text-gray-700 mb-2">Loading Attendance</p>
+          <p className="text-sm text-gray-500">Please wait...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Top Navigation */}
@@ -538,45 +556,47 @@ function AttendancePageContent() {
       </Suspense>
 
       {/* Attendance Content */}
-      <main className="container mx-auto px-6 py-6 space-y-6">
+      <main className="container mx-auto px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
         {/* Back to Admin Dashboard button (only for admins viewing personal) */}
         {isActualAdmin && viewPersonal && (
           <div className="flex justify-start">
             <Button
               onClick={() => window.location.href = '/attendance'}
               variant="outline"
-              className="flex items-center gap-2"
+              size="sm"
+              className="flex items-center gap-2 text-xs md:text-sm"
             >
-              <Settings className="h-4 w-4" />
-              Back to Admin View
+              <Settings className="h-3 w-3 md:h-4 md:w-4" />
+              <span className="hidden sm:inline">Back to Admin View</span>
+              <span className="sm:hidden">Back</span>
             </Button>
           </div>
         )}
 
         {/* Header Section */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">
               {isAdmin ? 'Attendance Management' : 'My Attendance'}
             </h1>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
-              <Calendar className="h-4 w-4 text-purple-600" />
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-1 sm:gap-2 bg-purple-50 border border-purple-200 rounded-lg px-2 sm:px-3 py-2 w-full sm:w-auto overflow-x-auto">
+              <Calendar className="h-4 w-4 text-purple-600 flex-shrink-0" />
               <select
                 value={selectedDate.split('-')[0]}
                 onChange={(e) => updateDate(e.target.value)}
-                className="bg-transparent border-none outline-none text-sm font-medium text-gray-700"
+                className="bg-transparent border-none outline-none text-xs sm:text-sm font-medium text-gray-700 min-w-[60px]"
               >
                 {Array.from({length: 10}, (_, i) => new Date().getFullYear() - 5 + i).map(year => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
-              <span className="text-gray-400">-</span>
+              <span className="text-gray-400 text-xs">-</span>
               <select
                 value={selectedDate.split('-')[1]}
                 onChange={(e) => updateDate(undefined, e.target.value)}
-                className="bg-transparent border-none outline-none text-sm font-medium text-gray-700"
+                className="bg-transparent border-none outline-none text-xs sm:text-sm font-medium text-gray-700 min-w-[50px]"
               >
                 {Array.from({length: 12}, (_, i) => i + 1).map(month => (
                   <option key={month} value={month.toString().padStart(2, '0')}>
@@ -584,11 +604,11 @@ function AttendancePageContent() {
                   </option>
                 ))}
               </select>
-              <span className="text-gray-400">-</span>
+              <span className="text-gray-400 text-xs">-</span>
               <select
                 value={selectedDate.split('-')[2]}
                 onChange={(e) => updateDate(undefined, undefined, e.target.value)}
-                className="bg-transparent border-none outline-none text-sm font-medium text-gray-700"
+                className="bg-transparent border-none outline-none text-xs sm:text-sm font-medium text-gray-700 min-w-[40px]"
               >
                 {Array.from({length: getDaysInMonth(parseInt(selectedDate.split('-')[0]), parseInt(selectedDate.split('-')[1]))}, (_, i) => i + 1).map(day => (
                   <option key={day} value={day.toString().padStart(2, '0')}>{day}</option>
@@ -600,10 +620,12 @@ function AttendancePageContent() {
               <Button
                 variant="outline"
                 onClick={() => window.location.href = '/attendance/holidays'}
-                className="flex items-center gap-2"
+                size="sm"
+                className="flex items-center gap-2 w-full sm:w-auto text-xs md:text-sm"
               >
-                <Settings className="w-4 h-4" />
-                Manage Holidays
+                <Settings className="w-3 h-3 md:w-4 md:h-4" />
+                <span className="hidden md:inline">Manage Holidays</span>
+                <span className="md:hidden">Holidays</span>
               </Button>
             )}
           </div>
@@ -613,31 +635,33 @@ function AttendancePageContent() {
         {/* Attendance Table */}
         <Card className="border-0 shadow-sm">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-xl text-slate-800 flex items-center gap-2">
-                <Clock className="h-5 w-5 text-orange-600" />
-                {isAdmin ? 'Daily Attendance' : 'My Daily Attendance'} - {new Date(selectedDate).toLocaleDateString('en-GB', {
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+              <CardTitle className="text-base md:text-lg lg:text-xl text-slate-800 flex items-center gap-2 flex-wrap">
+                <Clock className="h-4 w-4 md:h-5 md:w-5 text-orange-600 flex-shrink-0" />
+                <span>{isAdmin ? 'Daily Attendance' : 'My Daily Attendance'}</span>
+                <span className="text-sm md:text-base text-muted-foreground">- {new Date(selectedDate).toLocaleDateString('en-GB', {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric'
-                })}
+                })}</span>
               </CardTitle>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
                 {isAdmin && (
-                  <div className="relative">
+                  <div className="relative flex-1 sm:flex-none">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                     <Input
                       placeholder="Search employees..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 w-96"
+                      className="pl-10 w-full sm:w-64 md:w-80 text-sm"
                     />
                   </div>
                 )}
                 <Button
-                  className="bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
+                  className="bg-purple-600 hover:bg-purple-700 text-white border-purple-600 w-full sm:w-auto text-sm"
                   onClick={() => fetchEmployees(false)}
                   disabled={loading}
+                  size="sm"
                 >
                   {loading ? 'Loading...' : 'Refresh'}
                 </Button>
@@ -648,123 +672,204 @@ function AttendancePageContent() {
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                <span className="ml-3 text-gray-600">Loading attendance data...</span>
+                <span className="ml-3 text-sm md:text-base text-gray-600">Loading attendance data...</span>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-purple-100 border border-purple-200 rounded-lg">
-                    <tr>
-                      <th className="text-left py-4 px-4 font-semibold text-purple-800">
-                        <div className="flex items-center gap-2">
-                          <Users className="h-4 w-4 text-blue-600" />
-                          Employee Name
-                        </div>
-                      </th>
-                      <th className="text-left py-4 px-4 font-semibold text-purple-800">
-                        <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          Attendance Status
-                        </div>
-                      </th>
-                      <th className="text-left py-4 px-4 font-semibold text-purple-800">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-emerald-600" />
-                          Time In
-                        </div>
-                      </th>
-                      <th className="text-left py-4 px-4 font-semibold text-purple-800">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-red-600" />
-                          Time Out
-                        </div>
-                      </th>
-                      <th className="text-left py-4 px-4 font-semibold text-purple-800">
-                        <div className="flex items-center gap-2">
-                          <Settings className="h-4 w-4 text-purple-600" />
-                          Check Mode
-                        </div>
-                      </th>
-                      <th className="text-left py-4 px-4 font-semibold text-purple-800">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-amber-600" />
-                          Total Time
-                        </div>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRecords.length > 0 ? (
-                      filteredRecords.map((record, index) => (
-                        <tr key={index} className="border-b-2 border-gray-200 hover:bg-gray-50 transition-colors">
-                          <td className="py-3 px-4">
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-purple-100 border border-purple-200 rounded-lg">
+                      <tr>
+                        <th className="text-left py-3 px-3 font-semibold text-purple-800 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-blue-600" />
+                            Employee Name
+                          </div>
+                        </th>
+                        <th className="text-left py-3 px-3 font-semibold text-purple-800 text-sm">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            Status
+                          </div>
+                        </th>
+                        <th className="text-left py-3 px-3 font-semibold text-purple-800 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-emerald-600" />
+                            Time In
+                          </div>
+                        </th>
+                        <th className="text-left py-3 px-3 font-semibold text-purple-800 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-red-600" />
+                            Time Out
+                          </div>
+                        </th>
+                        <th className="text-left py-3 px-3 font-semibold text-purple-800 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Settings className="h-4 w-4 text-purple-600" />
+                            Mode
+                          </div>
+                        </th>
+                        <th className="text-left py-3 px-3 font-semibold text-purple-800 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-amber-600" />
+                            Total Time
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRecords.length > 0 ? (
+                        filteredRecords.map((record, index) => (
+                          <tr key={index} className="border-b-2 border-gray-200 hover:bg-gray-50 transition-colors">
+                            <td className="py-3 px-3">
+                              <button
+                                onClick={() => handleEmployeeClick(record.pinAuto, record.employeeName)}
+                                className="font-medium text-sm text-black hover:text-blue-600 hover:underline cursor-pointer transition-colors duration-200"
+                              >
+                                {record.employeeName}
+                              </button>
+                            </td>
+                            <td className="py-3 px-3">
+                              {getAttendanceStatusBadge(record.attendanceStatus)}
+                            </td>
+                            <td className="py-3 px-3 text-gray-700">
+                              <span className="bg-purple-100 px-2 py-1 rounded text-xs text-black">
+                                {record.timeIn}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-gray-700">
+                              <span className="bg-orange-100 px-2 py-1 rounded text-xs text-black">
+                                {record.timeOut}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3">
+                              {getCombinedVerifyMode(record.checkInVerifyMode, record.checkOutVerifyMode)}
+                            </td>
+                            <td className="py-3 px-3 text-gray-700">
+                              {(() => {
+                                const styles = getTotalTimeStyles(record.totalTime, record.attendanceStatus, record.pinAuto)
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    <span className={`${styles.bgColor} ${styles.textColor} px-2 py-1 rounded text-xs whitespace-nowrap`}>
+                                      {record.totalTime}
+                                    </span>
+                                    {styles.showAlert && (
+                                      <span className="text-red-600 text-xs font-semibold whitespace-nowrap">
+                                        {styles.alertMessage}
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              })()}
+                            </td>
+                          </tr>
+                        ))
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                  {filteredRecords.length > 0 ? (
+                    filteredRecords.map((record, index) => (
+                      <Card key={index} className="border border-gray-200 shadow-sm">
+                        <CardContent className="p-3 space-y-2">
+                          {/* Employee Name */}
+                          <div className="flex items-center justify-between pb-2 border-b">
                             <button
                               onClick={() => handleEmployeeClick(record.pinAuto, record.employeeName)}
-                              className="font-medium text-black hover:text-blue-600 hover:underline cursor-pointer transition-colors duration-200"
+                              className="font-semibold text-sm text-black hover:text-blue-600 cursor-pointer flex items-center gap-2"
                             >
+                              <Users className="h-4 w-4 text-blue-600" />
                               {record.employeeName}
                             </button>
-                          </td>
-                          <td className="py-3 px-4">
                             {getAttendanceStatusBadge(record.attendanceStatus)}
-                          </td>
-                          <td className="py-3 px-4 text-gray-700">
-                            <span className="bg-purple-100 px-2 py-1 rounded text-sm text-black">
-                              {record.timeIn}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-gray-700">
-                            <span className="bg-orange-100 px-2 py-1 rounded text-sm text-black">
-                              {record.timeOut}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4">
-                            {getCombinedVerifyMode(record.checkInVerifyMode, record.checkOutVerifyMode)}
-                          </td>
-                          <td className="py-3 px-4 text-gray-700">
-                            {(() => {
-                              const styles = getTotalTimeStyles(record.totalTime, record.attendanceStatus, record.pinAuto)
-                              return (
-                                <div className="flex items-center gap-3">
-                                  <span className={`${styles.bgColor} ${styles.textColor} px-2 py-1 rounded text-sm whitespace-nowrap`}>
-                                    {record.totalTime}
-                                  </span>
-                                  {styles.showAlert && (
-                                    <span className="text-red-600 text-xs font-semibold whitespace-nowrap">
-                                      {styles.alertMessage}
-                                    </span>
-                                  )}
-                                </div>
-                              )
-                            })()}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="text-center py-8">
-                          {searchTerm ? (
-                            <div className="text-gray-500">No employees found matching your search.</div>
-                          ) : !isAdmin && attendanceRecords.length > 0 ? (
-                            <div className="space-y-3">
-                              <div className="text-amber-600 font-semibold flex items-center justify-center gap-2">
-                                <AlertCircle className="h-5 w-5" />
-                                Your attendance record is not visible
-                              </div>
-                              <div className="text-gray-600 text-sm max-w-md mx-auto">
-                                Your account (ID: <code className="bg-gray-100 px-2 py-1 rounded">{session?.user?.emp_id}</code>) could not be matched with the biometric system.
-                                <br />Please contact HR or check the browser console for details.
-                              </div>
+                          </div>
+
+                          {/* Time Details */}
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <p className="text-gray-500 mb-1 flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-emerald-600" />
+                                Time In
+                              </p>
+                              <span className="bg-purple-100 px-2 py-1 rounded text-black inline-block">
+                                {record.timeIn}
+                              </span>
                             </div>
-                          ) : (
-                            <div className="text-gray-500">No attendance data available.</div>
-                          )}
-                        </td>
-                      </tr>
+                            <div>
+                              <p className="text-gray-500 mb-1 flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-red-600" />
+                                Time Out
+                              </p>
+                              <span className="bg-orange-100 px-2 py-1 rounded text-black inline-block">
+                                {record.timeOut}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Check Mode & Total Time */}
+                          <div className="grid grid-cols-1 gap-2 text-xs pt-2 border-t">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500 flex items-center gap-1">
+                                <Settings className="h-3 w-3 text-purple-600" />
+                                Mode:
+                              </span>
+                              {getCombinedVerifyMode(record.checkInVerifyMode, record.checkOutVerifyMode)}
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500 flex items-center gap-1">
+                                <Calendar className="h-3 w-3 text-amber-600" />
+                                Total:
+                              </span>
+                              {(() => {
+                                const styles = getTotalTimeStyles(record.totalTime, record.attendanceStatus, record.pinAuto)
+                                return (
+                                  <div className="flex items-center gap-2">
+                                    <span className={`${styles.bgColor} ${styles.textColor} px-2 py-1 rounded whitespace-nowrap`}>
+                                      {record.totalTime}
+                                    </span>
+                                    {styles.showAlert && (
+                                      <span className="text-red-600 text-xs font-semibold">
+                                        {styles.alertMessage}
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              })()}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : null}
+                </div>
+
+                {/* No Records Message */}
+                {filteredRecords.length === 0 && (
+                  <div className="text-center py-8">
+                    {searchTerm ? (
+                      <div className="text-gray-500 text-sm md:text-base">No employees found matching your search.</div>
+                    ) : !isAdmin && attendanceRecords.length > 0 ? (
+                      <div className="space-y-3 px-4">
+                        <div className="text-amber-600 font-semibold flex items-center justify-center gap-2 text-sm md:text-base">
+                          <AlertCircle className="h-4 w-4 md:h-5 md:w-5" />
+                          Your attendance record is not visible
+                        </div>
+                        <div className="text-gray-600 text-xs md:text-sm max-w-md mx-auto">
+                          Your account (ID: <code className="bg-gray-100 px-2 py-1 rounded text-xs">{session?.user?.emp_id}</code>) could not be matched with the biometric system.
+                          <br />Please contact HR or check the browser console for details.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-gray-500 text-sm md:text-base">No attendance data available.</div>
                     )}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>

@@ -10,6 +10,9 @@ interface DepartmentResult {
   department_name: string
 }
 
+// Disable SSL certificate verification for external API
+process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
+
 export async function GET() {
   try {
     // Get total employee count from external_employees (attendance system)
@@ -22,14 +25,55 @@ export async function GET() {
       SELECT COUNT(*) as count FROM external_employees
     ` as CountResult[]
 
-    // Get today's attendance statistics from user_attendance table
-    // Use DATE() to compare dates in database's local timezone
-    const presentToday = await prisma.$queryRaw`
-      SELECT COUNT(DISTINCT user_id) as count
-      FROM user_attendance
-      WHERE state = 'Check In'
-      AND DATE(punch_time) = CURDATE()
-    ` as CountResult[]
+    // Fetch real-time attendance from external API for today
+    let presentCount = 0
+    try {
+      const today = new Date()
+      const formattedDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`
+
+      console.log('📊 Dashboard: Fetching real-time attendance for:', formattedDate)
+
+      const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'HR-Portal/1.0',
+        },
+        body: JSON.stringify({
+          start_date: formattedDate,
+          end_date: formattedDate
+        }),
+        signal: AbortSignal.timeout(8000) // 8 second timeout
+      })
+
+      if (response.ok) {
+        const responseText = await response.text()
+        if (!responseText.includes('java.sql.') && !responseText.includes('Exception')) {
+          const apiData = JSON.parse(responseText)
+          const logs = Array.isArray(apiData) ? apiData : (apiData.data || [])
+
+          // Count distinct user_ids with Check In status today
+          const uniqueCheckIns = new Set(
+            logs
+              .filter((log: any) => log.state === 'Check In')
+              .map((log: any) => log.user_id)
+          )
+          presentCount = uniqueCheckIns.size
+
+          console.log('✅ Dashboard: Real-time present count:', presentCount)
+        }
+      }
+    } catch (apiError) {
+      console.error('⚠️ Dashboard: External API failed, falling back to database:', apiError)
+      // Fallback to database if API fails
+      const presentToday = await prisma.$queryRaw`
+        SELECT COUNT(DISTINCT user_id) as count
+        FROM user_attendance
+        WHERE state = 'Check In'
+        AND DATE(punch_time) = CURDATE()
+      ` as CountResult[]
+      presentCount = Number(presentToday[0]?.count || 0)
+    }
 
     // Get departments count and list from department table (all departments)
     const departmentsCount = await prisma.$queryRaw`
@@ -44,7 +88,7 @@ export async function GET() {
     // Calculate some basic stats
     const totalCount = Number(totalEmployees[0]?.count || 0)
     const activeCount = Number(activeEmployees[0]?.count || 0)
-    const presentCount = Number(presentToday[0]?.count || 0)
+    // presentCount is already calculated from external API above
     const deptCount = Number(departmentsCount[0]?.count || 0)
 
     // Calculate absent count (active employees - present today)

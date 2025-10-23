@@ -605,6 +605,10 @@ function DashboardPageContent() {
   })
   const [recentLeaves, setRecentLeaves] = useState<any[]>([])
   const [isLoadingEmployeeData, setIsLoadingEmployeeData] = useState(true)
+  const [employeeEmploymentStatus, setEmployeeEmploymentStatus] = useState<string>('')
+  const [showBirthdayCard, setShowBirthdayCard] = useState(false)
+  const [birthdayEmployees, setBirthdayEmployees] = useState<Array<{emp_id: string, name: string}>>([])
+  const [isMyBirthday, setIsMyBirthday] = useState(false)
 
   // Fetch employee dashboard data
   const fetchEmployeeData = async () => {
@@ -619,6 +623,14 @@ function DashboardPageContent() {
       const currentDate = new Date().toISOString().split('T')[0]
 
       console.log('📅 Date range:', { currentYear, currentMonth })
+
+      // Fetch employee employment status
+      const employeeStatusRes = await fetch(`/api/employees/${empId}`)
+      if (employeeStatusRes.ok) {
+        const employeeInfo = await employeeStatusRes.json()
+        setEmployeeEmploymentStatus(employeeInfo.employmentStatus || '')
+        console.log('👤 Employee Employment Status:', employeeInfo.employmentStatus)
+      }
 
       // Fetch leave balance
       const leaveBalanceRes = await fetch(`/api/leaves/balance?empId=${empId}&year=${currentYear}`)
@@ -954,6 +966,49 @@ function DashboardPageContent() {
     fetchEmployees()
   }, [])
 
+  // Check birthdays for ALL employees (global birthday check)
+  useEffect(() => {
+    const checkBirthdaysToday = async () => {
+      if (status === 'authenticated') {
+        console.log('🎂 Checking for birthdays today (global)...')
+        try {
+          const response = await fetch('/api/employees/birthdays-today')
+          if (response.ok) {
+            const data = await response.json()
+            console.log('🎂 Birthday API response:', data)
+
+            if (data.success && data.count > 0) {
+              const employees = data.employees.map((emp: any) => ({
+                emp_id: emp.emp_id,
+                name: emp.name
+              }))
+              console.log('🎉 BIRTHDAYS TODAY:', employees)
+
+              // Check if logged-in user's birthday
+              const myBirthday = employees.some((emp: any) => emp.emp_id === session?.user?.emp_id)
+              console.log('🎂 Is it my birthday?', myBirthday)
+
+              setBirthdayEmployees(employees)
+              setIsMyBirthday(myBirthday)
+              setShowBirthdayCard(true)
+
+              // Auto-close after 8 seconds (longer to read the message)
+              setTimeout(() => {
+                setShowBirthdayCard(false)
+              }, 8000)
+            } else {
+              console.log('📅 No birthdays today')
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error checking birthdays:', error)
+        }
+      }
+    }
+
+    checkBirthdaysToday()
+  }, [status])
+
   // Fetch employee dashboard data for non-admin users OR admin viewing personal
   useEffect(() => {
     const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
@@ -999,12 +1054,20 @@ function DashboardPageContent() {
   console.log('📊 Dashboard - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin, '| View Personal:', viewPersonal, '| Show Employee Dashboard:', showEmployeeDashboard)
 
   // Show loading state while session is loading
-  if (status === 'loading') {
+  if (status === 'loading' || !session) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-lg text-gray-600">Loading Dashboard...</p>
+          <div className="relative">
+            {/* Outer rotating ring */}
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-blue-600 mx-auto mb-6"></div>
+            {/* Inner pulsing dot */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -mt-3">
+              <div className="h-3 w-3 bg-blue-600 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+          <p className="text-xl font-semibold text-gray-700 mb-2">Loading Dashboard</p>
+          <p className="text-sm text-gray-500">Please wait while we prepare your workspace...</p>
         </div>
       </div>
     )
@@ -1021,7 +1084,7 @@ function DashboardPageContent() {
         </Suspense>
 
         {/* Employee Dashboard Content */}
-        <main className="container mx-auto px-6 py-6 space-y-6">
+        <main className="container mx-auto px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
           {/* Back to Admin Dashboard button (only for admins viewing personal) */}
           {isAdmin && viewPersonal && (
             <div className="flex justify-start">
@@ -1037,9 +1100,9 @@ function DashboardPageContent() {
           )}
 
           {/* Welcome Header */}
-          <div className="rounded-lg p-6">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Hello {session?.user?.name || 'Employee'}!</h1>
-            <p className="text-gray-600">Welcome back! Here's your overview for today.</p>
+          <div className="rounded-lg p-4 md:p-6">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Hello {session?.user?.name || 'Employee'}!</h1>
+            <p className="text-sm md:text-base text-gray-600">Welcome back! Here's your overview for today.</p>
           </div>
 
           {/* Personal Metrics Grid */}
@@ -1061,16 +1124,30 @@ function DashboardPageContent() {
 
             <Card className="hover:shadow-lg transition-all border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100">
               <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600 mb-2">Leave Balance</p>
-                    <p className="text-2xl font-bold text-slate-800">{employeeData.leaveBalance}</p>
-                    <p className="text-xs text-slate-500 mt-1">Days Available</p>
+                {employeeEmploymentStatus && employeeEmploymentStatus.toLowerCase() !== 'permanent' ? (
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <AlertCircle className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-600 mb-1">Leave Balance</p>
+                      <p className="text-sm text-amber-700 leading-relaxed">
+                        Not yet permanent. Contact HR for leave information.
+                      </p>
+                    </div>
                   </div>
-                  <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                    <Calendar className="h-5 w-5 text-purple-600" />
+                ) : (
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-600 mb-2">Leave Balance</p>
+                      <p className="text-2xl font-bold text-slate-800">{employeeData.leaveBalance}</p>
+                      <p className="text-xs text-slate-500 mt-1">Days Available</p>
+                    </div>
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Calendar className="h-5 w-5 text-purple-600" />
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1281,7 +1358,19 @@ function DashboardPageContent() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {recentLeaves.length === 0 ? (
+                {employeeEmploymentStatus && employeeEmploymentStatus.toLowerCase() !== 'permanent' ? (
+                  <div className="text-center py-8">
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center">
+                        <AlertCircle className="h-6 w-6 text-amber-600" />
+                      </div>
+                    </div>
+                    <p className="text-sm text-amber-700 mb-2 font-medium">Not Yet Permanent</p>
+                    <p className="text-xs text-slate-600">
+                      Please contact HR for leave applications.
+                    </p>
+                  </div>
+                ) : recentLeaves.length === 0 ? (
                   <div className="text-center py-8 text-slate-500">
                     <Calendar className="h-12 w-12 mx-auto mb-4 text-slate-300" />
                     <p>No recent leave applications</p>
@@ -1372,6 +1461,58 @@ function DashboardPageContent() {
             </Card>
           </div>
         </main>
+
+        {/* Birthday Card - Employee Dashboard */}
+        {showBirthdayCard && birthdayEmployees.length > 0 && (
+          <div className="fixed bottom-4 right-4 left-4 md:left-auto z-[9999] animate-in slide-in-from-bottom-5 duration-700">
+            <div className="relative bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 rounded-2xl shadow-xl p-4 w-full md:w-72 border-2 border-white">
+              <div className="text-center space-y-2">
+                <div className="text-4xl mb-1">🎂</div>
+
+                {isMyBirthday ? (
+                  <>
+                    <h2 className="text-lg font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
+                      IT'S YOUR SPECIAL DAY!
+                    </h2>
+                    <p className="text-sm font-semibold text-gray-800">
+                      Happy Birthday, {birthdayEmployees.find(emp => emp.emp_id === session?.user?.emp_id)?.name}!
+                    </p>
+                    <div className="bg-gradient-to-r from-pink-100 to-purple-100 rounded-lg p-2 mt-2">
+                      <p className="text-xs text-gray-700">
+                        May your day be filled with joy and wonderful moments!
+                      </p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="text-base font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
+                      TIME TO CELEBRATE!
+                    </h2>
+                    <div className="space-y-1">
+                      {birthdayEmployees.map((emp, index) => (
+                        <p key={index} className="text-sm font-semibold text-purple-700">
+                          {emp.name}
+                        </p>
+                      ))}
+                    </div>
+                    <div className="bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg p-2 mt-2">
+                      <p className="text-xs text-gray-800 font-medium">
+                        Don't forget to wish them a wonderful birthday!
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <button
+                onClick={() => setShowBirthdayCard(false)}
+                className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-xl font-bold bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center shadow transition-all"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -1385,7 +1526,7 @@ function DashboardPageContent() {
       </Suspense>
 
       {/* Dashboard Content */}
-      <main className="container mx-auto px-6 py-6 space-y-6">
+      <main className="container mx-auto px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
@@ -1684,6 +1825,58 @@ function DashboardPageContent() {
         onClose={() => setShowErrorPopup(false)}
         message={errorMessage}
       />
+
+      {/* Birthday Card - Admin Dashboard */}
+      {showBirthdayCard && birthdayEmployees.length > 0 && (
+        <div className="fixed bottom-4 right-4 left-4 md:left-auto z-[9999] animate-in slide-in-from-bottom-5 duration-700">
+          <div className="relative bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 rounded-2xl shadow-xl p-4 w-full md:w-72 border-2 border-white">
+            <div className="text-center space-y-2">
+              <div className="text-4xl mb-1">🎂</div>
+
+              {isMyBirthday ? (
+                <>
+                  <h2 className="text-lg font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    IT'S YOUR SPECIAL DAY!
+                  </h2>
+                  <p className="text-sm font-semibold text-gray-800">
+                    Happy Birthday, {birthdayEmployees.find(emp => emp.emp_id === session?.user?.emp_id)?.name}!
+                  </p>
+                  <div className="bg-gradient-to-r from-pink-100 to-purple-100 rounded-lg p-2 mt-2">
+                    <p className="text-xs text-gray-700">
+                      May your day be filled with joy and wonderful moments!
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-base font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
+                    TIME TO CELEBRATE!
+                  </h2>
+                  <div className="space-y-1">
+                    {birthdayEmployees.map((emp, index) => (
+                      <p key={index} className="text-sm font-semibold text-purple-700">
+                        {emp.name}
+                      </p>
+                    ))}
+                  </div>
+                  <div className="bg-gradient-to-r from-yellow-100 to-orange-100 rounded-lg p-2 mt-2">
+                    <p className="text-xs text-gray-800 font-medium">
+                      Don't forget to wish them a wonderful birthday!
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button
+              onClick={() => setShowBirthdayCard(false)}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-xl font-bold bg-white/80 hover:bg-white rounded-full w-6 h-6 flex items-center justify-center shadow transition-all"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

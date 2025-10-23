@@ -15,12 +15,13 @@ export async function GET(request: NextRequest) {
           e.emp_name as name,
           e.designation_id,
           e.emp_gender as gender,
-          e.active as status,
+          e.status,
           COALESCE(d.designation_name, 'Unknown') as designation,
           COALESCE(g.employee_grade_type, 'N/A') as group_level
         FROM employee e
         LEFT JOIN designation d ON e.designation_id = d.id
         LEFT JOIN grades g ON e.emp_grade_id = g.id
+        WHERE e.status = 1
         ORDER BY e.emp_name ASC
         LIMIT 1000
       ` as any[]
@@ -277,14 +278,14 @@ export async function DELETE(request: NextRequest) {
 
     console.log('🗑️ Deleting employee with ID:', id)
 
-    // Soft delete by setting active = 0
+    // Soft delete by setting status = 0 (inactive)
     await prisma.$executeRaw`
       UPDATE employee
-      SET active = 0
+      SET status = 0
       WHERE id = ${parseInt(id)}
     `
 
-    console.log('✅ Employee soft deleted successfully')
+    console.log('✅ Employee soft deleted successfully (status set to 0)')
 
     return NextResponse.json({
       success: true,

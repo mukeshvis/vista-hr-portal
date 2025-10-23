@@ -87,7 +87,7 @@ interface NewUser {
 export const dynamic = 'force-dynamic'
 
 export default function PortalSystemPage() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
 
   // Tab Management
   const [activeTab, setActiveTab] = useState('grades')
@@ -1160,6 +1160,24 @@ export default function PortalSystemPage() {
       fetchUsers()
     }
   }, [fetchDesignations, fetchGrades, fetchDesignationsData, fetchWorkingHoursPolicies, fetchUsers, activeTab])
+
+  // Show loading state while session is loading
+  if (status === 'loading' || !session) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-indigo-600 mx-auto mb-6"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -mt-3">
+              <div className="h-3 w-3 bg-indigo-600 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+          <p className="text-xl font-semibold text-gray-700 mb-2">Loading Portal System</p>
+          <p className="text-sm text-gray-500">Please wait...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -68,7 +68,7 @@ interface EmployeeLeaveBalance {
 }
 
 function LeavesPageContent() {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
   const viewPersonal = searchParams.get('view') === 'personal'
@@ -217,6 +217,8 @@ function LeavesPageContent() {
   } | null>(null)
   const [newTotalAllocated, setNewTotalAllocated] = useState<number>(0)
   const [isUpdatingBalance, setIsUpdatingBalance] = useState(false)
+  const [employmentStatus, setEmploymentStatus] = useState<string>('')
+  const [loadingEmploymentStatus, setLoadingEmploymentStatus] = useState(true)
 
   // Helper function to calculate working days excluding weekends (Saturday & Sunday)
   const calculateWorkingDays = (fromDate: Date, toDate: Date): number => {
@@ -235,6 +237,31 @@ function LeavesPageContent() {
 
     return count
   }
+
+  // Fetch employee's employment status
+  useEffect(() => {
+    const fetchEmploymentStatus = async () => {
+      if (!isAdmin && session?.user?.emp_id) {
+        try {
+          setLoadingEmploymentStatus(true)
+          const response = await fetch(`/api/employees/${session.user.emp_id}`)
+          if (response.ok) {
+            const data = await response.json()
+            setEmploymentStatus(data.employmentStatus || '')
+            console.log('👤 Employee Employment Status:', data.employmentStatus)
+          }
+        } catch (error) {
+          console.error('Error fetching employment status:', error)
+        } finally {
+          setLoadingEmploymentStatus(false)
+        }
+      } else {
+        setLoadingEmploymentStatus(false)
+      }
+    }
+
+    fetchEmploymentStatus()
+  }, [isAdmin, session?.user?.emp_id])
 
   useEffect(() => {
     if (session?.user?.emp_id) {
@@ -1740,6 +1767,24 @@ function LeavesPageContent() {
     }
   }
 
+  // Show loading state while session is loading
+  if (status === 'loading' || !session) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="relative">
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-purple-600 mx-auto mb-6"></div>
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -mt-3">
+              <div className="h-3 w-3 bg-purple-600 rounded-full animate-pulse"></div>
+            </div>
+          </div>
+          <p className="text-xl font-semibold text-gray-700 mb-2">Loading Leaves</p>
+          <p className="text-sm text-gray-500">Please wait...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Suspense fallback={<div className="h-16 bg-background border-b" />}>
@@ -1811,29 +1856,45 @@ function LeavesPageContent() {
                 Add Leave
               </Button>
             )}
-            <Button
-              onClick={() => setIsApplyDialogOpen(true)}
-              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Apply for Leave
-            </Button>
-            <Button
-              onClick={() => {
-                // Check if employee has reached the 6-month limit (4 days)
-                if (remoteValidation?.usage?.sixMonths?.used >= 4) {
-                  setShowRemoteLimitReachedDialog(true)
-                } else {
-                  setIsApplyRemoteDialogOpen(true)
-                }
-              }}
-              className={`bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto ${
-                remoteValidation?.usage?.sixMonths?.used >= 4 ? 'opacity-60 cursor-not-allowed' : ''
-              }`}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Apply Remote
-            </Button>
+            {/* Check if employee is permanent before showing Apply buttons */}
+            {!loadingEmploymentStatus && (
+              <>
+                {!isAdmin && employmentStatus && employmentStatus.toLowerCase() !== 'permanent' ? (
+                  <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 w-full sm:w-auto">
+                    <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                    <p className="text-sm text-amber-800">
+                      You are not yet permanent. Please contact HR for leave or remote work requests.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Button
+                      onClick={() => setIsApplyDialogOpen(true)}
+                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Apply for Leave
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        // Check if employee has reached the 6-month limit (4 days)
+                        if (remoteValidation?.usage?.sixMonths?.used >= 4) {
+                          setShowRemoteLimitReachedDialog(true)
+                        } else {
+                          setIsApplyRemoteDialogOpen(true)
+                        }
+                      }}
+                      className={`bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto ${
+                        remoteValidation?.usage?.sixMonths?.used >= 4 ? 'opacity-60 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Apply Remote
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
 
