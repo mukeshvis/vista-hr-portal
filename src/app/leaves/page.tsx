@@ -87,12 +87,15 @@ function LeavesPageContent() {
   const [remoteApplications, setRemoteApplications] = useState<any[]>([])
   const [myRemoteApplications, setMyRemoteApplications] = useState<any[]>([])
   const [pendingRemoteApplications, setPendingRemoteApplications] = useState<any[]>([])
+  const [managerRemoteApplications, setManagerRemoteApplications] = useState<any[]>([])
   const [employeeRemoteBalances, setEmployeeRemoteBalances] = useState<any[]>([])
   const [loadingRemoteBalances, setLoadingRemoteBalances] = useState(false)
+  const [loadingManagerRemote, setLoadingManagerRemote] = useState(false)
   const [searchRemoteBalance, setSearchRemoteBalance] = useState('')
   const [searchMyRemote, setSearchMyRemote] = useState('')
   const [searchAllRemote, setSearchAllRemote] = useState('')
   const [searchPendingRemote, setSearchPendingRemote] = useState('')
+  const [searchManagerRemote, setSearchManagerRemote] = useState('')
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM format
   const [isEmployeeDetailsDialogOpen, setIsEmployeeDetailsDialogOpen] = useState(false)
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState<any>(null)
@@ -116,7 +119,9 @@ function LeavesPageContent() {
     fromDate: '',
     toDate: '',
     numberOfDays: 1,
-    reason: ''
+    reason: '',
+    managerName: '',
+    managerId: ''
   })
   const [addRemoteData, setAddRemoteData] = useState({
     empId: '',
@@ -326,6 +331,9 @@ function LeavesPageContent() {
       await fetchRemoteApplications('my')
       await fetchRemoteApplications('pending')
 
+      // Fetch manager remote applications (fetches all for admins/managers)
+      await fetchManagerRemoteApplications()
+
       // Fetch employee remote balances
       await fetchEmployeeRemoteBalances()
 
@@ -502,6 +510,29 @@ function LeavesPageContent() {
     }
   }
 
+  const fetchManagerRemoteApplications = async (managerId?: string) => {
+    try {
+      setLoadingManagerRemote(true)
+      // If managerId not provided, fetch all manager approvals (for HR view)
+      const url = managerId
+        ? `/api/remote-work/manager-approvals?managerId=${managerId}`
+        : `/api/remote-work/manager-approvals`
+
+      console.log(`🔍 Fetching manager remote applications${managerId ? ` for manager ${managerId}` : ' (all managers)'}`)
+
+      const res = await fetch(url)
+      if (res.ok) {
+        const data = await res.json()
+        setManagerRemoteApplications(data)
+        console.log(`✅ Loaded ${data.length} manager remote work applications`)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching manager remote applications:', error)
+    } finally {
+      setLoadingManagerRemote(false)
+    }
+  }
+
   const fetchRemoteValidation = async () => {
     try {
       if (!currentEmpId) return
@@ -537,6 +568,9 @@ function LeavesPageContent() {
       await fetchRemoteApplications('my')
       await fetchRemoteApplications('pending')
       await fetchRemoteValidation()
+    } else if (value === 'manager-remote') {
+      // Fetch ALL manager remote approvals
+      await fetchManagerRemoteApplications()
     }
   }
 
@@ -1413,6 +1447,28 @@ function LeavesPageContent() {
     calculateAddRemoteDays()
   }, [calculateAddRemoteDays])
 
+  // Fetch manager info when Apply Remote dialog opens
+  useEffect(() => {
+    const fetchManagerInfo = async () => {
+      if (isApplyRemoteDialogOpen && session?.user?.emp_id) {
+        try {
+          const response = await fetch(`/api/leaves/employee-info?empId=${session.user.emp_id}`)
+          if (response.ok) {
+            const empData = await response.json()
+            setRemoteWorkData(prev => ({
+              ...prev,
+              managerId: empData.manager_emp_id || '',
+              managerName: empData.manager_name || 'Not Assigned'
+            }))
+          }
+        } catch (error) {
+          console.error('Error fetching manager info:', error)
+        }
+      }
+    }
+    fetchManagerInfo()
+  }, [isApplyRemoteDialogOpen, session?.user?.emp_id])
+
   // Filter functions for remote tabs
   const filteredEmployeeRemoteBalances = useMemo(() => {
     if (!searchRemoteBalance) return employeeRemoteBalances
@@ -1456,6 +1512,19 @@ function LeavesPageContent() {
     )
   }, [pendingRemoteApplications, searchPendingRemote])
 
+  const filteredManagerRemoteApplications = useMemo(() => {
+    if (!searchManagerRemote) return managerRemoteApplications
+    const searchLower = searchManagerRemote.toLowerCase()
+    return managerRemoteApplications.filter(app =>
+      app.employee_name?.toLowerCase().includes(searchLower) ||
+      app.emp_id?.toLowerCase().includes(searchLower) ||
+      app.reporting_manager_name?.toLowerCase().includes(searchLower) ||
+      app.reason?.toLowerCase().includes(searchLower) ||
+      new Date(app.from_date || app.date).toLocaleDateString('en-GB').includes(searchLower) ||
+      new Date(app.to_date || app.date).toLocaleDateString('en-GB').includes(searchLower)
+    )
+  }, [managerRemoteApplications, searchManagerRemote])
+
   // Handle remote work application submission
   const handleRemoteApplication = async () => {
     try {
@@ -1471,15 +1540,11 @@ function LeavesPageContent() {
       const empId = session?.user?.emp_id || currentEmpId
       const employeeName = session?.user?.name || 'Unknown'
 
-      // Get manager info from current employee data (already loaded)
-      const employee = await fetch(`/api/leaves/employees?empId=${empId}`)
-      const empData = await employee.json()
-
       console.log('📝 Submitting remote application for:', {
         empId,
         employeeName,
-        managerId: empData[0]?.manager_id,
-        managerName: empData[0]?.manager_name
+        managerId: remoteWorkData.managerId,
+        managerName: remoteWorkData.managerName
       })
 
       const response = await fetch('/api/remote-work/applications', {
@@ -1492,8 +1557,8 @@ function LeavesPageContent() {
           toDate: remoteWorkData.toDate,
           numberOfDays: remoteWorkData.numberOfDays,
           reason: remoteWorkData.reason,
-          managerId: empData[0]?.manager_id,
-          managerName: empData[0]?.manager_name
+          managerId: remoteWorkData.managerId,
+          managerName: remoteWorkData.managerName
         })
       })
 
@@ -1503,7 +1568,7 @@ function LeavesPageContent() {
         setSuccessMessage('Remote work application submitted successfully')
         setShowSuccessPopup(true)
         setIsApplyRemoteDialogOpen(false)
-        setRemoteWorkData({ fromDate: '', toDate: '', numberOfDays: 1, reason: '' })
+        setRemoteWorkData({ fromDate: '', toDate: '', numberOfDays: 1, reason: '', managerName: '', managerId: '' })
 
         // Refresh remote applications
         await fetchRemoteApplications('all')
@@ -2817,6 +2882,9 @@ function LeavesPageContent() {
                       {isAdmin && (
                         <TabsTrigger value="pending-remote" className="whitespace-nowrap">Pending Remote Approvals</TabsTrigger>
                       )}
+                      {isAdmin && (
+                        <TabsTrigger value="manager-remote" className="whitespace-nowrap">Reporting Manager Remote Approvals</TabsTrigger>
+                      )}
                     </TabsList>
                   </div>
 
@@ -3167,6 +3235,167 @@ function LeavesPageContent() {
                                     <XCircle className="h-3 w-3 mr-1" />
                                     Reject
                                   </button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* Reporting Manager Remote Approvals */}
+                  <TabsContent value="manager-remote">
+                    <div className="mb-4">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          placeholder="Search by employee name, manager, reason..."
+                          value={searchManagerRemote}
+                          onChange={(e) => setSearchManagerRemote(e.target.value)}
+                          className="pl-10 w-full"
+                        />
+                      </div>
+                      {searchManagerRemote && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Found {filteredManagerRemoteApplications.length} of {managerRemoteApplications.length} applications
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle px-4 sm:px-0">
+                        <Table className="min-w-full">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-gray-600" />
+                              <span className="text-gray-700 font-semibold">Employee</span>
+                            </div>
+                          </TableHead>
+                          <TableHead>
+                            <div className="flex items-center gap-2">
+                              <Users className="h-4 w-4 text-gray-600" />
+                              <span className="text-gray-700 font-semibold">Reporting Manager</span>
+                            </div>
+                          </TableHead>
+                          <TableHead>
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="h-4 w-4 text-gray-600" />
+                              <span className="text-gray-700 font-semibold">From Date</span>
+                            </div>
+                          </TableHead>
+                          <TableHead>
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="h-4 w-4 text-gray-600" />
+                              <span className="text-gray-700 font-semibold">To Date</span>
+                            </div>
+                          </TableHead>
+                          <TableHead>
+                            <span className="text-gray-700 font-semibold">Days</span>
+                          </TableHead>
+                          <TableHead>
+                            <span className="text-gray-700 font-semibold">Reason</span>
+                          </TableHead>
+                          <TableHead>
+                            <div className="flex items-center gap-2">
+                              <Activity className="h-4 w-4 text-gray-600" />
+                              <span className="text-gray-700 font-semibold">Status</span>
+                            </div>
+                          </TableHead>
+                          <TableHead>
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="h-4 w-4 text-gray-600" />
+                              <span className="text-gray-700 font-semibold">Actions</span>
+                            </div>
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loadingManagerRemote ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-12">
+                              <div className="flex flex-col items-center gap-2">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                                <p className="text-muted-foreground text-sm">Loading manager remote work applications...</p>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : filteredManagerRemoteApplications.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                              {searchManagerRemote ? 'No matching applications found' : 'No remote work applications for your team members'}
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredManagerRemoteApplications.map((app) => (
+                            <TableRow key={app.id}>
+                              <TableCell className="font-medium">{app.employee_name}</TableCell>
+                              <TableCell className="text-sm">
+                                <div className="flex items-center gap-1">
+                                  <Users className="h-3 w-3 text-purple-600" />
+                                  <span className="font-medium text-purple-700">{app.reporting_manager_name || 'N/A'}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>
+                                <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300">
+                                  {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
+                                </span>
+                              </TableCell>
+                              <TableCell className="max-w-xs truncate">{app.reason || 'N/A'}</TableCell>
+                              <TableCell>
+                                {app.approval_status === 'Pending' && (
+                                  <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-300">
+                                    Pending
+                                  </span>
+                                )}
+                                {app.approval_status === 'Approved' && (
+                                  <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-green-100 text-green-700 border border-green-300">
+                                    Approved
+                                  </span>
+                                )}
+                                {app.approval_status === 'Rejected' && (
+                                  <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                                    Rejected
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  {app.approval_status === 'Approved' ? (
+                                    <span className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-green-100 text-green-700 border border-green-300">
+                                      <CheckCircle className="h-3 w-3 mr-1" />
+                                      Approved
+                                    </span>
+                                  ) : app.approval_status === 'Rejected' ? (
+                                    <span className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-red-100 text-red-700 border border-red-300">
+                                      <XCircle className="h-3 w-3 mr-1" />
+                                      Rejected
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <button
+                                        className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors cursor-pointer"
+                                        onClick={() => handleRemoteApproval(app.id, 'approve')}
+                                      >
+                                        <CheckCircle className="h-3 w-3 mr-1" />
+                                        Approve
+                                      </button>
+                                      <button
+                                        className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer"
+                                        onClick={() => handleRemoteApproval(app.id, 'reject')}
+                                      >
+                                        <XCircle className="h-3 w-3 mr-1" />
+                                        Reject
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -4121,6 +4350,18 @@ function LeavesPageContent() {
                   {remoteValidation.reason}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Reporting Manager Info */}
+          {remoteWorkData.managerName && (
+            <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 mb-2">
+                <User className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-semibold text-gray-700">Reporting Manager</span>
+              </div>
+              <p className="text-base font-bold text-blue-700">{remoteWorkData.managerName}</p>
+              <p className="text-xs text-gray-600 mt-1">Your application will be sent to your manager for approval</p>
             </div>
           )}
 

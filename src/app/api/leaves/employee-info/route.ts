@@ -10,13 +10,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Employee ID is required' }, { status: 400 })
     }
 
-    // Get employee info with manager name
+    // Get employee info with manager name and manager emp_id
     const employeeInfo = await prisma.$queryRaw`
       SELECT
         e.emp_id,
         e.emp_name,
         e.reporting_manager,
-        (SELECT emp_name FROM employee WHERE id = e.reporting_manager LIMIT 1) as manager_name
+        (SELECT emp_name FROM employee WHERE id = e.reporting_manager LIMIT 1) as manager_name,
+        (SELECT emp_id FROM employee WHERE id = e.reporting_manager LIMIT 1) as manager_emp_id
       FROM employee e
       WHERE e.emp_id = ${empId}
       LIMIT 1

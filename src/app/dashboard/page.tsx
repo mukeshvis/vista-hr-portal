@@ -1699,12 +1699,12 @@ function DashboardPageContent() {
 
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
+            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-200 to-blue-300">
               <CardContent className="p-8 pt-10">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm font-medium text-slate-600">Total Employees</p>
+                      <p className="text-sm font-medium text-slate-700">Total Employees</p>
                     </div>
                     <p className="text-3xl font-bold text-slate-800">{dashboardData.totalEmployees.toLocaleString()}</p>
                     <div className="flex items-center gap-1 mt-2">
@@ -1721,12 +1721,12 @@ function DashboardPageContent() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100">
+            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-emerald-200 to-emerald-300">
               <CardContent className="p-8 pt-10">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm font-medium text-slate-600">Present Today</p>
+                      <p className="text-sm font-medium text-slate-700">Present Today</p>
                     </div>
                     <p className="text-3xl font-bold text-slate-800">{dashboardData.presentToday.toLocaleString()}</p>
                     <div className="flex items-center gap-1 mt-2">
@@ -1743,12 +1743,12 @@ function DashboardPageContent() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-rose-50 to-rose-100">
+            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-rose-200 to-rose-300">
               <CardContent className="p-8 pt-10">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm font-medium text-slate-600">Pending Leaves</p>
+                      <p className="text-sm font-medium text-slate-700">Pending Leaves</p>
                       {dashboardData.pendingLeaves > 5 && <Badge variant="destructive" className="text-xs animate-pulse">Urgent</Badge>}
                     </div>
                     <p className="text-3xl font-bold text-slate-800">{dashboardData.pendingLeaves}</p>
@@ -1770,9 +1770,9 @@ function DashboardPageContent() {
 
           {/* Secondary Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            <Card className="p-4 border-0 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-purple-50 to-purple-100">
+            <Card className="p-4 border-1 border-purple-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-purple-100 to-purple-200 ">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center">
                   <Building className="h-5 w-5 text-purple-600" />
                 </div>
                 <div>
@@ -1781,9 +1781,9 @@ function DashboardPageContent() {
                 </div>
               </div>
             </Card>
-            <Card className="p-4 border-0 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-red-50 to-red-100">
+            <Card className="p-4 border-1 border-red-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-red-100 to-red-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-red-200 rounded-lg flex items-center justify-center">
                   <UserX className="h-5 w-5 text-red-600" />
                 </div>
                 <div>
@@ -1792,9 +1792,9 @@ function DashboardPageContent() {
                 </div>
               </div>
             </Card>
-            <Card className="p-4 border-0 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-amber-50 to-amber-100">
+            <Card className="p-4 border-1 border-amber-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-amber-100 to-amber-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-amber-200 rounded-lg flex items-center justify-center">
                   <AlertCircle className="h-5 w-5 text-amber-600" />
                 </div>
                 <div>
@@ -1803,9 +1803,9 @@ function DashboardPageContent() {
                 </div>
               </div>
             </Card>
-            <Card className="p-4 border-0 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-blue-50 to-blue-100">
+            <Card className="p-4 border-1 border-blue-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-blue-100 to-blue-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center">
                   <CalendarDays className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
@@ -1814,9 +1814,9 @@ function DashboardPageContent() {
                 </div>
               </div>
             </Card>
-            <Card className="p-4 border-0 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-emerald-50 to-emerald-100">
+            <Card className="p-4 border-1 border-emerald-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-emerald-100 to-emerald-200">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-emerald-200 rounded-lg flex items-center justify-center">
                   <CheckCircle className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
         FROM employee e
         LEFT JOIN designation d ON e.designation_id = d.id
         LEFT JOIN grades g ON e.emp_grade_id = g.id
-        WHERE e.status = 1
+        WHERE e.status IN (0, 1)
         ORDER BY e.emp_name ASC
         LIMIT 1000
       ` as any[]

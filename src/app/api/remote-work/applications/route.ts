@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma, executeWithRetry } from '@/lib/database/prisma'
+import { transporter } from '@/lib/email/nodemailer'
+import { generateRemoteWorkApplicationEmail } from '@/lib/email/remote-work-templates'
+import { generateApprovalToken } from '@/lib/email/token'
+import { getEmailBaseUrl } from '@/lib/utils/url'
 
 // GET - Fetch remote work applications
 export async function GET(request: NextRequest) {
@@ -259,7 +263,7 @@ export async function POST(request: NextRequest) {
             number_of_days: numberOfDays,
             date: new Date(fromDate), // Keep for backward compatibility
             reason: reason || null,
-            manager_id: managerId || null,
+            manager_id: null, // Not used - manager is identified via emp_id's reporting_manager
             manager_name: managerName || null,
             approval_status: 'Pending',
             approved: 0,
@@ -270,10 +274,109 @@ export async function POST(request: NextRequest) {
 
       console.log('✅ Remote work application created:', newApplication.id)
 
+      // Send email notification to manager and HR
+      try {
+        const baseUrl = getEmailBaseUrl()
+
+        // Get manager email
+        let managerEmail: string | null = null
+        if (managerId) {
+          const manager = await executeWithRetry(async () => {
+            return await prisma.employee.findFirst({
+              where: {
+                emp_id: managerId,
+                status: 1
+              },
+              select: {
+                professional_email: true,
+                emp_id: true
+              }
+            })
+          })
+          managerEmail = manager?.professional_email || `${managerId}@vis.com.pk`
+        }
+
+        const hrEmail = process.env.HR_EMAIL || 'hr@vis.com.pk'
+
+        // Format dates for email
+        const formatDate = (date: Date) => {
+          return new Date(date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        }
+
+        // Generate tokens for manager and HR
+        const managerToken = generateApprovalToken({
+          id: newApplication.id,
+          type: 'remote',
+          role: 'manager'
+        })
+
+        const hrToken = generateApprovalToken({
+          id: newApplication.id,
+          type: 'remote',
+          role: 'hr'
+        })
+
+        // Send email to manager
+        if (managerEmail) {
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM,
+            to: managerEmail,
+            subject: `Remote Work Application - ${employeeName} (${empId})`,
+            html: generateRemoteWorkApplicationEmail({
+              id: newApplication.id,
+              employeeName,
+              employeeId: empId,
+              fromDate: formatDate(newApplication.from_date),
+              toDate: formatDate(newApplication.to_date),
+              numberOfDays,
+              reason: reason || '',
+              applicationDate: new Date().toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+              }),
+              approvalToken: managerToken
+            }, 'manager', baseUrl)
+          })
+          console.log('✅ Manager email sent to:', managerEmail)
+        }
+
+        // Send email to HR
+        await transporter.sendMail({
+          from: process.env.SMTP_FROM,
+          to: hrEmail,
+          subject: `Remote Work Application - ${employeeName} (${empId})`,
+          html: generateRemoteWorkApplicationEmail({
+            id: newApplication.id,
+            employeeName,
+            employeeId: empId,
+            fromDate: formatDate(newApplication.from_date),
+            toDate: formatDate(newApplication.to_date),
+            numberOfDays,
+            reason: reason || '',
+            applicationDate: new Date().toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            }),
+            approvalToken: hrToken
+          }, 'hr', baseUrl)
+        })
+        console.log('✅ HR email sent to:', hrEmail)
+
+      } catch (emailError) {
+        console.error('⚠️  Failed to send notification emails:', emailError)
+        // Don't fail the request if email sending fails
+      }
+
       return NextResponse.json({
         success: true,
         application: newApplication,
-        message: 'Remote work application submitted successfully'
+        message: 'Remote work application submitted successfully. Manager and HR have been notified via email.'
       })
     } catch (prismaError: any) {
       if (prismaError.message?.includes('Unknown argument') ||

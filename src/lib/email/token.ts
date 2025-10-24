@@ -3,15 +3,22 @@ import crypto from 'crypto'
 const SECRET_KEY = process.env.NEXTAUTH_SECRET || 'default-secret-key'
 
 export function generateApprovalToken(data: {
-  leaveApplicationId: number
+  leaveApplicationId?: number
+  id?: number
+  type?: 'leave' | 'remote'
   role: 'manager' | 'hr'
   expiresIn?: number // in hours, default 72 hours
 }): string {
   const expiresIn = data.expiresIn || 72
   const expiresAt = Date.now() + expiresIn * 60 * 60 * 1000
 
+  // Support both old leaveApplicationId and new id/type format
+  const applicationId = data.id || data.leaveApplicationId
+  const applicationType = data.type || 'leave'
+
   const payload = {
-    id: data.leaveApplicationId,
+    id: applicationId,
+    type: applicationType,
     role: data.role,
     exp: expiresAt,
   }
@@ -31,6 +38,7 @@ export function verifyApprovalToken(token: string): {
   valid: boolean
   data?: {
     id: number
+    type?: 'leave' | 'remote'
     role: 'manager' | 'hr'
     exp: number
   }
@@ -65,6 +73,7 @@ export function verifyApprovalToken(token: string): {
       valid: true,
       data: {
         id: payload.id,
+        type: payload.type,
         role: payload.role,
         exp: payload.exp,
       },
