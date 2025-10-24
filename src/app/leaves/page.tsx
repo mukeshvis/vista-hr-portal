@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Calendar, Plus, CheckCircle, XCircle, Clock, AlertCircle, Search, RefreshCw, User, Users, ClipboardList, FileText, Tag, CalendarDays, Hash, Timer, MessageSquare, CalendarClock, Activity, Eye, UserCheck, Pencil, Trash2 } from "lucide-react"
+import { Calendar, Plus, CheckCircle, XCircle, Clock, AlertCircle, Search, RefreshCw, User, Users, ClipboardList, FileText, Tag, CalendarDays, Hash, Timer, MessageSquare, CalendarClock, Activity, Eye, UserCheck, Pencil, Trash2, ArrowLeft } from "lucide-react"
 import { SuccessPopup } from "@/components/ui/success-popup"
 import { ErrorPopup } from "@/components/ui/error-popup"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
@@ -1829,6 +1829,18 @@ function LeavesPageContent() {
         {/* Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-3">
+            {!isAdmin && (
+              <Button
+                onClick={() => window.location.href = '/dashboard'}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1.5 text-xs md:text-sm"
+              >
+                <ArrowLeft className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">Back to Dashboard</span>
+                <span className="sm:hidden">Back</span>
+              </Button>
+            )}
             <div className="p-2 sm:p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg">
               <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
             </div>
@@ -2009,7 +2021,8 @@ function LeavesPageContent() {
                   </p>
                 )}
 
-                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0">
                   <div className="inline-block min-w-full align-middle px-4 sm:px-0">
                     <Table className="min-w-full">
                   <TableHeader>
@@ -2089,6 +2102,76 @@ function LeavesPageContent() {
                   </TableBody>
                 </Table>
                   </div>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-3">
+                  {loading || loadingMy ? (
+                    <div className="text-center py-12">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                        <p className="text-muted-foreground text-sm">Loading applications...</p>
+                      </div>
+                    </div>
+                  ) : filteredMyApplications.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-8">
+                      {searchTerm ? 'No matching applications found' : 'No leave applications found'}
+                    </div>
+                  ) : (
+                    filteredMyApplications.map((app) => (
+                      <Card key={app.id} className="border-0 shadow-md bg-gradient-to-br from-white to-gray-50">
+                        <CardContent className="p-3 space-y-2">
+                          {/* Header: Leave Type & Status */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              {getLeaveTypeBadge(app.leave_type_name)}
+                            </div>
+                            <div className="flex-shrink-0">
+                              {getStatusBadge(app.approval_status, app.approved, app.approval_status_lm)}
+                            </div>
+                          </div>
+
+                          {/* Date Range */}
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-2 border border-blue-200">
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <div className="flex items-center gap-1 mb-1">
+                                  <CalendarDays className="h-3 w-3 text-blue-600" />
+                                  <span className="font-medium text-blue-700">From</span>
+                                </div>
+                                <p className="font-bold text-blue-900">{app.from_date}</p>
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-1 mb-1">
+                                  <CalendarDays className="h-3 w-3 text-blue-600" />
+                                  <span className="font-medium text-blue-700">To</span>
+                                </div>
+                                <p className="font-bold text-blue-900">{app.to_date}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Footer: Days, Type, Applied On */}
+                          <div className="bg-gray-50 rounded-lg p-2 space-y-1.5 border border-gray-200">
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-gray-600 font-medium">Days:</span>
+                              <span className="font-bold text-purple-600">{app.no_of_days}</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-gray-600 font-medium">Type:</span>
+                              <div>{getLeaveDayTypeBadge(app.leave_day_type)}</div>
+                            </div>
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-gray-600 font-medium">Applied:</span>
+                              <span className="font-semibold text-gray-800">
+                                {app.application_date ? new Date(app.application_date).toLocaleDateString('en-GB') : 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -2748,7 +2831,8 @@ function LeavesPageContent() {
                         className="w-full sm:max-w-md"
                       />
                     </div>
-                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0">
                       <div className="inline-block min-w-full align-middle px-4 sm:px-0">
                         <Table className="min-w-full">
                       <TableHeader>
@@ -2822,6 +2906,95 @@ function LeavesPageContent() {
                       </TableBody>
                     </Table>
                       </div>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-3">
+                      {loadingRemote ? (
+                        <div className="text-center py-12">
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                            <p className="text-muted-foreground text-sm">Loading remote applications...</p>
+                          </div>
+                        </div>
+                      ) : filteredMyRemoteApplications.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-8">
+                          {searchMyRemote ? 'No matching applications found' : 'No remote work applications found'}
+                        </div>
+                      ) : (
+                        filteredMyRemoteApplications.map((app) => (
+                          <Card key={app.id} className="border-0 shadow-md bg-gradient-to-br from-white to-gray-50">
+                            <CardContent className="p-3 space-y-2">
+                              {/* Header: Status & Days */}
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex-1">
+                                  {app.approved === 0 && (
+                                    <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100 text-[10px] px-2 py-0.5">
+                                      Pending
+                                    </Badge>
+                                  )}
+                                  {app.approved === 1 && (
+                                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100 text-[10px] px-2 py-0.5">
+                                      Approved
+                                    </Badge>
+                                  )}
+                                  {app.approved === 2 && (
+                                    <Badge className="bg-red-100 text-red-700 hover:bg-red-100 text-[10px] px-2 py-0.5">
+                                      Rejected
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex-shrink-0">
+                                  <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 text-[10px] px-2 py-0.5">
+                                    {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
+                                  </Badge>
+                                </div>
+                              </div>
+
+                              {/* Date Range */}
+                              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-2 border border-purple-200">
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <CalendarDays className="h-3 w-3 text-purple-600" />
+                                      <span className="font-medium text-purple-700">From</span>
+                                    </div>
+                                    <p className="font-bold text-purple-900">{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</p>
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center gap-1 mb-1">
+                                      <CalendarDays className="h-3 w-3 text-purple-600" />
+                                      <span className="font-medium text-purple-700">To</span>
+                                    </div>
+                                    <p className="font-bold text-purple-900">{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Footer: Manager & Applied Date */}
+                              <div className="bg-gray-50 rounded-lg p-2 space-y-1.5 border border-gray-200">
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className="text-gray-600 font-medium">Manager:</span>
+                                  <span className="font-semibold text-gray-800">{app.manager_name || 'N/A'}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-[10px]">
+                                  <span className="text-gray-600 font-medium">Applied:</span>
+                                  <span className="font-semibold text-gray-800">{new Date(app.application_date).toLocaleDateString('en-GB')}</span>
+                                </div>
+                                <div className="pt-1.5 border-t border-gray-300">
+                                  <button
+                                    onClick={() => setIsRemoteUsageDialogOpen(true)}
+                                    className="w-full inline-flex items-center justify-center px-2 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100 transition-colors"
+                                  >
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    View Usage
+                                  </button>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))
+                      )}
                     </div>
                   </TabsContent>
 

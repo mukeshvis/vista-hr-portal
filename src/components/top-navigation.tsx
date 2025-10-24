@@ -190,7 +190,7 @@ export function TopNavigation({ session }: TopNavigationProps) {
                   <p className="text-xs text-gray-500">{session?.user?.email || ""}</p>
                 </div>
               </div>
-              <SignOutButton />
+              <SignOutButton mobile={true} />
             </div>
           </div>
         )}

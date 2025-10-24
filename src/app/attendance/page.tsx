@@ -16,7 +16,8 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Settings
+  Settings,
+  ArrowLeft
 } from "lucide-react"
 
 interface Employee {
@@ -488,6 +489,20 @@ function AttendancePageContent() {
     }
   }
 
+  // Get mobile-specific attendance status badge (smaller)
+  const getMobileAttendanceStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Present':
+        return <Badge className="bg-green-100 text-green-700 hover:bg-green-100 text-[10px] px-1.5 py-0.5"><CheckCircle className="w-2.5 h-2.5 mr-0.5" />Present</Badge>
+      case 'Late':
+        return <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-100 text-[10px] px-1.5 py-0.5"><AlertCircle className="w-2.5 h-2.5 mr-0.5" />Late</Badge>
+      case 'Absent':
+        return <Badge className="bg-red-100 text-red-700 hover:bg-red-100 text-[10px] px-1.5 py-0.5"><XCircle className="w-2.5 h-2.5 mr-0.5" />Absent</Badge>
+      default:
+        return <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-[10px] px-1.5 py-0.5"><AlertCircle className="w-2.5 h-2.5 mr-0.5" />Unknown</Badge>
+    }
+  }
+
   // Get combined verify mode display (Check-In Mode - Check-Out Mode)
   const getCombinedVerifyMode = (checkInMode: string, checkOutMode: string) => {
     // Handle cases where data is not available
@@ -519,6 +534,42 @@ function AttendancePageContent() {
 
     return (
       <Badge className={`${badgeClass} hover:${badgeClass} text-sm font-medium`}>
+        {inMode}-{outMode}
+      </Badge>
+    )
+  }
+
+  // Get mobile-specific verify mode display (smaller)
+  const getMobileCombinedVerifyMode = (checkInMode: string, checkOutMode: string) => {
+    // Handle cases where data is not available
+    if (checkInMode === '--' && checkOutMode === '--') {
+      return <span className="text-gray-400 text-[10px]">--</span>
+    }
+
+    // Convert FACE to Machine and FORM to Manual
+    const formatMode = (mode: string) => {
+      if (mode === '--') return '--'
+      if (mode === 'FACE') return 'Machine'
+      if (mode === 'FORM') return 'Manual'
+      return mode
+    }
+
+    const inMode = formatMode(checkInMode)
+    const outMode = formatMode(checkOutMode)
+
+    // Determine badge color based on modes
+    let badgeClass = 'bg-gray-100 text-gray-700'
+
+    if (inMode === 'Machine' && outMode === 'Machine') {
+      badgeClass = 'bg-blue-100 text-blue-700'
+    } else if (inMode === 'Manual' && outMode === 'Manual') {
+      badgeClass = 'bg-orange-100 text-orange-700'
+    } else if (inMode !== '--' && outMode !== '--') {
+      badgeClass = 'bg-purple-100 text-purple-700'
+    }
+
+    return (
+      <Badge className={`${badgeClass} hover:${badgeClass} text-[10px] px-1.5 py-0.5 font-medium`}>
         {inMode}-{outMode}
       </Badge>
     )
@@ -575,7 +626,19 @@ function AttendancePageContent() {
 
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
+          <div className="flex items-center gap-3">
+            {!isAdmin && (
+              <Button
+                onClick={() => window.location.href = '/dashboard'}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1.5 text-xs md:text-sm"
+              >
+                <ArrowLeft className="h-3 w-3 md:h-4 md:w-4" />
+                <span className="hidden sm:inline">Back to Dashboard</span>
+                <span className="sm:hidden">Back</span>
+              </Button>
+            )}
             <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">
               {isAdmin ? 'Attendance Management' : 'My Attendance'}
             </h1>
@@ -772,74 +835,93 @@ function AttendancePageContent() {
                 </div>
 
                 {/* Mobile Card View */}
-                <div className="md:hidden space-y-3">
+                <div className="md:hidden space-y-4">
                   {filteredRecords.length > 0 ? (
                     filteredRecords.map((record, index) => (
-                      <Card key={index} className="border border-gray-200 shadow-sm">
-                        <CardContent className="p-3 space-y-2">
-                          {/* Employee Name */}
-                          <div className="flex items-center justify-between pb-2 border-b">
+                      <Card key={index} className="border-0 shadow-md hover:shadow-lg transition-shadow bg-gradient-to-br from-white to-gray-50">
+                        <CardContent className="p-3 space-y-3">
+                          {/* Header: Employee Name & Status */}
+                          <div className="flex items-center justify-between gap-2">
                             <button
                               onClick={() => handleEmployeeClick(record.pinAuto, record.employeeName)}
-                              className="font-semibold text-sm text-black hover:text-blue-600 cursor-pointer flex items-center gap-2"
+                              className="flex items-center gap-2 flex-1 min-w-0"
                             >
-                              <Users className="h-4 w-4 text-blue-600" />
-                              {record.employeeName}
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+                                <Users className="h-4 w-4 text-white" />
+                              </div>
+                              <div className="text-left flex-1 min-w-0">
+                                <p className="font-semibold text-gray-900 text-xs truncate hover:text-blue-600 transition-colors">
+                                  {record.employeeName}
+                                </p>
+                                <p className="text-[10px] text-gray-500">Tap to view</p>
+                              </div>
                             </button>
-                            {getAttendanceStatusBadge(record.attendanceStatus)}
-                          </div>
-
-                          {/* Time Details */}
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>
-                              <p className="text-gray-500 mb-1 flex items-center gap-1">
-                                <Clock className="h-3 w-3 text-emerald-600" />
-                                Time In
-                              </p>
-                              <span className="bg-purple-100 px-2 py-1 rounded text-black inline-block">
-                                {record.timeIn}
-                              </span>
-                            </div>
-                            <div>
-                              <p className="text-gray-500 mb-1 flex items-center gap-1">
-                                <Clock className="h-3 w-3 text-red-600" />
-                                Time Out
-                              </p>
-                              <span className="bg-orange-100 px-2 py-1 rounded text-black inline-block">
-                                {record.timeOut}
-                              </span>
+                            <div className="flex-shrink-0">
+                              {getMobileAttendanceStatusBadge(record.attendanceStatus)}
                             </div>
                           </div>
 
-                          {/* Check Mode & Total Time */}
-                          <div className="grid grid-cols-1 gap-2 text-xs pt-2 border-t">
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-500 flex items-center gap-1">
-                                <Settings className="h-3 w-3 text-purple-600" />
-                                Mode:
-                              </span>
-                              {getCombinedVerifyMode(record.checkInVerifyMode, record.checkOutVerifyMode)}
+                          {/* Time Cards Grid */}
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* Time In Card */}
+                            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg p-3 border border-emerald-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
+                                  <Clock className="h-3 w-3 text-white" />
+                                </div>
+                                <span className="text-xs font-medium text-emerald-700">Time In</span>
+                              </div>
+                              <p className="text-base font-bold text-emerald-900">{record.timeIn}</p>
                             </div>
+
+                            {/* Time Out Card */}
+                            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-3 border border-orange-200">
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
+                                  <Clock className="h-3 w-3 text-white" />
+                                </div>
+                                <span className="text-xs font-medium text-orange-700">Time Out</span>
+                              </div>
+                              <p className="text-base font-bold text-orange-900">{record.timeOut}</p>
+                            </div>
+                          </div>
+
+                          {/* Footer: Total Time & Mode */}
+                          <div className="bg-gray-50 rounded-lg p-2 space-y-1.5 border border-gray-200">
+                            {/* Total Time */}
                             <div className="flex items-center justify-between">
-                              <span className="text-gray-500 flex items-center gap-1">
-                                <Calendar className="h-3 w-3 text-amber-600" />
-                                Total:
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <div className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
+                                  <Calendar className="h-2.5 w-2.5 text-white" />
+                                </div>
+                                <span className="text-[10px] font-medium text-gray-600">Total Time</span>
+                              </div>
                               {(() => {
                                 const styles = getTotalTimeStyles(record.totalTime, record.attendanceStatus, record.pinAuto)
                                 return (
-                                  <div className="flex items-center gap-2">
-                                    <span className={`${styles.bgColor} ${styles.textColor} px-2 py-1 rounded whitespace-nowrap`}>
+                                  <div className="flex flex-col items-end gap-0.5">
+                                    <span className={`${styles.bgColor} ${styles.textColor} px-2 py-0.5 rounded text-[10px] font-bold`}>
                                       {record.totalTime}
                                     </span>
                                     {styles.showAlert && (
-                                      <span className="text-red-600 text-xs font-semibold">
+                                      <span className="text-red-600 text-[9px] font-semibold">
                                         {styles.alertMessage}
                                       </span>
                                     )}
                                   </div>
                                 )
                               })()}
+                            </div>
+
+                            {/* Check Mode */}
+                            <div className="flex items-center justify-between pt-1.5 border-t border-gray-300">
+                              <div className="flex items-center gap-1.5">
+                                <Settings className="h-3 w-3 text-gray-500" />
+                                <span className="text-[10px] font-medium text-gray-600">Check Mode</span>
+                              </div>
+                              <div className="text-[10px]">
+                                {getMobileCombinedVerifyMode(record.checkInVerifyMode, record.checkOutVerifyMode)}
+                              </div>
                             </div>
                           </div>
                         </CardContent>

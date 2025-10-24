@@ -362,7 +362,7 @@ model leave_application {
   id                   Int       @id @default(autoincrement())
   emp_id               String    @db.VarChar(50)
   leave_type           Int
-  leave_day_type       String?   @db.VarChar(20)
+  leave_day_type       Int?
   reason               String?   @db.Text
   leave_address        String?   @db.Text
   approval_status      Int?      @default(0)
@@ -371,7 +371,7 @@ model leave_application {
   status               Int?      @default(1)
   username             String?   @db.VarChar(100)
   date                 DateTime  @db.Date
-  time                 String?   @db.VarChar(50)
+  time                 DateTime? @db.Time(0)
   company_id           Int?
 
   @@index([emp_id])

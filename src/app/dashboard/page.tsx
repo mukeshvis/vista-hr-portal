@@ -343,45 +343,49 @@ function TodaysOverview({ dashboardData }: { dashboardData: any }) {
   )
 }
 
-// Recent Activities Component with Enhanced Design
+// Recent Activities Component with Real-Time Data
 function RecentActivities() {
-  const activities = [
-    {
-      action: "New employee onboarded",
-      user: "Sarah Johnson",
-      time: "2 hours ago",
-      type: "success",
-      icon: Users
-    },
-    {
-      action: "Leave request submitted",
-      user: "Mike Chen",
-      time: "4 hours ago",
-      type: "pending",
-      icon: Calendar
-    },
-    {
-      action: "Payroll processed",
-      user: "System",
-      time: "6 hours ago",
-      type: "success",
-      icon: DollarSign
-    },
-    {
-      action: "Training session completed",
-      user: "Alex Kumar",
-      time: "1 day ago",
-      type: "info",
-      icon: CheckCircle
-    },
-    {
-      action: "Policy updated",
-      user: "HR Team",
-      time: "2 days ago",
-      type: "info",
-      icon: AlertCircle
+  const [activities, setActivities] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchRecentActivities()
+  }, [])
+
+  const fetchRecentActivities = async () => {
+    setLoading(true)
+    try {
+      console.log('🔄 Fetching recent activities from API...')
+      const response = await fetch('/api/dashboard/recent-activities')
+      console.log('📡 API Response status:', response.status)
+
+      if (response.ok) {
+        const data = await response.json()
+        console.log('✅ Activities received:', data.length, 'items')
+        console.log('📊 Activities data:', data)
+        setActivities(data)
+      } else {
+        const error = await response.json()
+        console.error('❌ API Error:', error)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching recent activities:', error)
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
+
+  const getIconComponent = (iconName: string) => {
+    const iconMap: Record<string, any> = {
+      'Users': Users,
+      'Calendar': Calendar,
+      'Clock': Clock,
+      'DollarSign': DollarSign,
+      'CheckCircle': CheckCircle,
+      'AlertCircle': AlertCircle
+    }
+    return iconMap[iconName] || AlertCircle
+  }
 
   const getStatusStyles = (type: string) => {
     switch (type) {
@@ -417,26 +421,63 @@ function RecentActivities() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {activities.map((activity, index) => {
-            const styles = getStatusStyles(activity.type)
-            return (
-              <div key={index} className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 hover:bg-slate-100 transition-colors">
-                <div className={`w-8 h-8 ${styles.bgColor} rounded-lg flex items-center justify-center`}>
-                  <activity.icon className={`h-4 w-4 ${styles.iconColor}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-700">{activity.action}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs text-slate-500">{activity.user}</span>
-                    <div className={`w-1 h-1 rounded-full ${styles.dotColor}`}></div>
-                    <span className="text-xs text-slate-500">{activity.time}</span>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mb-2"></div>
+            <p className="text-sm text-muted-foreground">Loading activities...</p>
+          </div>
+        ) : activities.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <AlertCircle className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+            <p className="text-sm">No recent activities found</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Type</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Activity</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">User</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Time</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-slate-700">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activities.map((activity, index) => {
+                  const styles = getStatusStyles(activity.type)
+                  const IconComponent = getIconComponent(activity.icon)
+                  return (
+                    <tr key={index} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                      <td className="py-3 px-4">
+                        <div className={`w-8 h-8 ${styles.bgColor} rounded-lg flex items-center justify-center`}>
+                          <IconComponent className={`h-4 w-4 ${styles.iconColor}`} />
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <p className="text-sm font-medium text-slate-700">{activity.action}</p>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-sm text-slate-600">{activity.user}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="text-sm text-slate-500">{activity.time}</span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full ${styles.bgColor}`}>
+                          <div className={`w-1.5 h-1.5 rounded-full ${styles.dotColor}`}></div>
+                          <span className={`text-xs font-medium ${styles.iconColor}`}>
+                            {activity.type === 'success' ? 'Completed' : activity.type === 'pending' ? 'Pending' : 'Info'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -1460,6 +1501,129 @@ function DashboardPageContent() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Security Notice Footer */}
+          <div className="mt-6 md:mt-8">
+            <Card className="border-2 border-red-200 bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 shadow-lg">
+              <CardContent className="p-3 md:p-6">
+                <div className="flex flex-col items-center text-center pt-2 md:pt-3">
+                  <div className="space-y-2 w-full">
+                    <h3 className="text-base md:text-xl font-bold text-red-900 flex items-center justify-center gap-2">
+                      <AlertCircle className="h-4 w-4 md:h-5 md:w-5 text-red-600" />
+                      Important Security Notice
+                    </h3>
+                    <div className="space-y-1 md:space-y-1.5 text-xs md:text-base text-gray-800">
+                      <p className="flex items-start gap-1.5 md:gap-2">
+                        <span className="text-red-600 font-bold flex-shrink-0 text-sm md:text-base">•</span>
+                        <span className="text-left"><strong>Never share your password</strong> or login credentials with anyone.</span>
+                      </p>
+                      <p className="flex items-start gap-1.5 md:gap-2">
+                        <span className="text-red-600 font-bold flex-shrink-0 text-sm md:text-base">•</span>
+                        <span className="text-left"><strong>Keep your information confidential.</strong> Do not share employee ID or salary details.</span>
+                      </p>
+                      <p className="flex items-start gap-1.5 md:gap-2">
+                        <span className="text-red-600 font-bold flex-shrink-0 text-sm md:text-base">•</span>
+                        <span className="text-left"><strong>Report suspicious activity immediately</strong> to your manager or HR.</span>
+                      </p>
+                      <p className="flex items-start gap-1.5 md:gap-2">
+                        <span className="text-red-600 font-bold flex-shrink-0 text-sm md:text-base">•</span>
+                        <span className="text-left">Sharing confidential information is <strong>against company policy</strong> and may result in disciplinary action.</span>
+                      </p>
+                    </div>
+                    <div className="mt-2 md:mt-3 pt-2 md:pt-3 border-t border-red-200">
+                      <p className="text-[10px] md:text-sm text-gray-700 font-medium">
+                        🔒 Your account security is your responsibility. Always logout after use and change your password regularly.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Company Footer - Employee Dashboard */}
+          <div className="mt-8 md:mt-12 mb-6 md:mb-8">
+            <Card className="border-0 shadow-lg bg-gray-900 text-white overflow-hidden relative">
+              {/* Decorative background elements */}
+              {/* <div className="absolute top-0 right-0 w-32 h-32 md:w-48 md:h-48 bg-blue-200/30 rounded-full blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 w-32 h-32 md:w-48 md:h-48 bg-purple-200/30 rounded-full blur-3xl"></div> */}
+
+              <CardContent className="py-6 px-4 md:py-10 md:px-8 relative z-10 mt-4 md:mt-8">
+                {/* Main Content - Centered */}
+                <div className="max-w-5xl mx-auto">
+                  {/* Company Logo & Title - Compact */}
+                  <div className="text-center mb-4 md:mb-6">
+                    <h3 className="text-base md:text-lg font-bold text-slate-200 mb-1 md:mb-2">VIS HR Portal</h3>
+                    <p className="text-[10px] md:text-xs text-slate-400 max-w-xl mx-auto px-2">
+                      Employee Management System - Streamlining workforce operations
+                    </p>
+                  </div>
+
+                  <Separator className="my-3 md:my-5 bg-slate-700" />
+
+                  {/* Two Columns - Compact & Responsive */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-3 md:mb-5 max-w-3xl mx-auto">
+                    {/* HR Department */}
+                    <div className="text-center space-y-2 md:space-y-3">
+                      <h4 className="text-xs md:text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center justify-center gap-1.5 md:gap-2">
+                        <Users className="h-3 w-3 md:h-4 md:w-4 text-emerald-600" />
+                        HR Department
+                      </h4>
+                      <div className="space-y-1.5 md:space-y-2">
+                        <div className="flex items-center justify-center gap-1.5 md:gap-2 flex-wrap">
+                          <p className="text-xs md:text-sm text-slate-400 font-medium">Syed Amir Ausaf</p>
+                          <span className="text-slate-400 text-[10px] md:text-xs">-</span>
+                          <p className="text-[10px] md:text-xs text-slate-400 italic">Head Of HR & Admin</p>
+                        </div>
+                        <p className="text-xs md:text-sm text-slate-400">Sajid Hameed <span className="text-[10px] md:text-xs text-slate-500 italic">(HR)</span></p>
+                      </div>
+                    </div>
+
+                    {/* Quick Links */}
+                    <div className="text-center space-y-2 md:space-y-3">
+                      <h4 className="text-xs md:text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center justify-center gap-1.5 md:gap-2">
+                        <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-blue-600" />
+                        Quick Links
+                      </h4>
+                      <div className="flex justify-center gap-2 md:gap-4 flex-wrap">
+                        <a href="/employees" className="text-[10px] md:text-xs text-slate-400 hover:text-slate-200 transition-colors hover:underline">
+                          Employees
+                        </a>
+                        <span className="text-slate-600">•</span>
+                        <a href="/attendance" className="text-[10px] md:text-xs text-slate-400 hover:text-slate-200 transition-colors hover:underline">
+                          Attendance
+                        </a>
+                        <span className="text-slate-600">•</span>
+                        <a href="/leaves" className="text-[10px] md:text-xs text-slate-400 hover:text-slate-200 transition-colors hover:underline">
+                          Leaves
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator className="my-3 md:my-5 bg-slate-700" />
+
+                  {/* Footer Bottom - Compact & Responsive */}
+                  <div className="text-center space-y-1.5 md:space-y-2">
+                    {/* Developer Credit */}
+                    <p className="text-[10px] md:text-xs text-slate-400">
+                      Developed by <span className="text-slate-200 font-semibold">Mukesh Utmani</span> <span className="text-slate-500">(VIS Software Manager)</span>
+                    </p>
+
+                    {/* Copyright & Status */}
+                    <div className="flex flex-col md:flex-row justify-center items-center gap-2 md:gap-3 text-[10px] md:text-xs text-slate-500">
+                      <p>© {new Date().getFullYear()} HR Portal. All rights reserved.</p>
+                      <span className="hidden md:inline text-slate-600">•</span>
+                      <div className="flex items-center gap-1 md:gap-1.5">
+                        <div className="w-1 h-1 md:w-1.5 md:h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                        <span>System Online</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </main>
 
         {/* Birthday Card - Employee Dashboard */}
@@ -1527,6 +1691,12 @@ function DashboardPageContent() {
 
       {/* Dashboard Content */}
       <main className="container mx-auto px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
+          {/* Dashboard Heading */}
+          <div className="mb-6">
+            <h1 className="text-3xl md:text-4xl font-bold text-slate-800">HR Portal Dashboard</h1>
+            <p className="text-sm text-slate-600 mt-2">Welcome back! Here's an overview of your HR Portal</p>
+          </div>
+
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
@@ -1657,19 +1827,121 @@ function DashboardPageContent() {
             </Card>
           </div>
 
-          {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column - Activities */}
-            <div className="lg:col-span-2 space-y-6">
-              <RecentActivities />
-            </div>
+          {/* Animated Black Shining Divider Line */}
+          <div className="relative my-8 h-[2px] rounded-full overflow-hidden bg-gradient-to-r from-transparent via-slate-800 to-transparent">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-600 to-transparent animate-pulse"></div>
+            <div
+              className="absolute inset-0 h-full w-1/4 bg-gradient-to-r from-transparent via-slate-400 to-transparent opacity-80"
+              style={{
+                animation: 'shimmer 2.5s infinite ease-in-out',
+              }}
+            ></div>
+          </div>
+          <style jsx>{`
+            @keyframes shimmer {
+              0% {
+                transform: translateX(-100%);
+              }
+              100% {
+                transform: translateX(400%);
+              }
+            }
+          `}</style>
 
-            {/* Right Column - Quick Info */}
-            <div className="space-y-6">
-              <QuickActions onAddEmployee={handleAddEmployee} />
-              <TodaysOverview dashboardData={dashboardData} />
-              <PendingItems />
-            </div>
+          {/* Quick Info Row - Horizontal Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <QuickActions onAddEmployee={handleAddEmployee} />
+            <TodaysOverview dashboardData={dashboardData} />
+            <PendingItems />
+          </div>
+
+          {/* Recent Activities - Full Width */}
+          <div className="w-full">
+            <RecentActivities />
+          </div>
+
+          {/* Company Footer */}
+          <div className="mt-12 mb-8">
+            <Card className="border-0 shadow-lg bg-gray-900 text-white  overflow-hidden relative ">
+              {/* Decorative background elements */}
+              {/* <div className="absolute top-0 right-0 w-48 h-48 bg-blue-200/30 rounded-full blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-200/30 rounded-full blur-3xl"></div> */}
+
+              <CardContent className="py-10 px-8 relative z-10 mt-8">
+                {/* Main Content - Centered */}
+                <div className="max-w-5xl mx-auto">
+                  {/* Company Logo & Title - Compact */}
+                  <div className="text-center mb-6">
+                    <h3 className="text-lg font-bold text-slate-200 mb-2">VIS HR Portal</h3>
+                    <p className="text-xs text-slate-400 max-w-xl mx-auto">
+                      Employee Management System - Streamlining workforce operations
+                    </p>
+                  </div>
+
+                  <Separator className="my-5 bg-slate-300" />
+
+                  {/* Two Columns - Compact */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-5 max-w-3xl mx-auto">
+                    {/* HR Department */}
+                    <div className="text-center space-y-3">
+                      <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center justify-center gap-2">
+                        <Users className="h-4 w-4 text-emerald-600" />
+                        HR Department
+                      </h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                          <p className="text-sm text-slate-400 font-medium">Syed Amir Ausaf</p>
+                          <span className="text-slate-400 text-xs">-</span>
+                          <p className="text-xs text-slate-400 italic">Head Of HR & Admin</p>
+                        </div>
+                        <p className="text-sm text-slate-400">Sajid Hameed <span className="text-xs text-slate-400 italic">- HR </span></p>
+                      </div>
+                    </div>
+
+                    {/* Quick Links */}
+                    <div className="text-center space-y-3">
+                      <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide flex items-center justify-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-blue-600" />
+                        Quick Links
+                      </h4>
+                      <div className="flex justify-center gap-4">
+                        <a href="/employees" className="text-xs text-slate-400 hover:text-slate-300 transition-colors hover:underline">
+                          Employees
+                        </a>
+                        <span className="text-slate-400">•</span>
+                        <a href="/attendance" className="text-xs text-slate-400 hover:text-slate-300 transition-colors hover:underline">
+                          Attendance
+                        </a>
+                        <span className="text-slate-400">•</span>
+                        <a href="/leaves" className="text-xs text-slate-400 hover:text-slate-300 transition-colors hover:underline">
+                          Leaves
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator className="my-5 bg-slate-300" />
+
+                  {/* Footer Bottom - Compact */}
+                  <div className="text-center space-y-2">
+                    {/* Developer Credit */}
+                    <p className="text-xs text-slate-400">
+                      Developed by <span className="text-slate-400 font-semibold">Mukesh Utmani</span> <span className="text-slate-400">( VIS Software Manager )</span>
+                    </p>
+
+                    {/* Copyright & Status */}
+                    <div className="flex flex-col md:flex-row justify-center items-center gap-3 text-xs text-slate-400">
+                      <p>© {new Date().getFullYear()} VIS HR Portal. All rights reserved.</p>
+                      <span className="hidden md:inline text-slate-400">•</span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                        <span>System Online</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
       </main>
 
