@@ -5,12 +5,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { authenticate } from "@/lib/actions/auth"
-import { useActionState, useState } from "react"
+import { useActionState, useState, useEffect } from "react"
 import { useFormStatus } from "react-dom"
+import { useRouter } from "next/navigation"
 import { Eye, EyeOff } from "lucide-react"
 
 function SubmitButton() {
   const { pending } = useFormStatus()
+
+  if (pending) {
+    console.log('🔄 [LOGIN] Form submitting...')
+  }
 
   return (
     <Button
@@ -26,6 +31,19 @@ function SubmitButton() {
 export default function LoginPage() {
   const [errorMessage, dispatch] = useActionState(authenticate, undefined)
   const [showPassword, setShowPassword] = useState(false)
+  const router = useRouter()
+
+  // Handle successful login
+  useEffect(() => {
+    if (errorMessage === 'SUCCESS') {
+      console.log('✅ [LOGIN] Login successful! Redirecting to dashboard...')
+      // Give session time to be set, then redirect
+      setTimeout(() => {
+        router.push('/dashboard')
+        router.refresh() // Force refresh to load session
+      }, 100)
+    }
+  }, [errorMessage, router])
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white p-4">
@@ -77,9 +95,16 @@ export default function LoginPage() {
               </div>
 
               {/* Error Message */}
-              {errorMessage && (
+              {errorMessage && errorMessage !== 'SUCCESS' && (
                 <div className="text-red-600 text-sm">
                   {errorMessage}
+                </div>
+              )}
+
+              {/* Success Message */}
+              {errorMessage === 'SUCCESS' && (
+                <div className="text-green-600 text-sm font-medium">
+                  Login successful! Redirecting to dashboard...
                 </div>
               )}
 

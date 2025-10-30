@@ -17,21 +17,24 @@ export async function authenticate(
       return 'Invalid input fields'
     }
 
-    await signIn('credentials', {
-      username: result.data.username,
-      password: result.data.password,
-      redirect: true,
-      redirectTo: '/dashboard',
-    })
+    console.log('🔑 [AUTH] Starting sign in for user:', result.data.username)
 
-    return undefined
-  } catch (error) {
-    // NEXT_REDIRECT is expected when signIn succeeds and redirects
-    if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
-      throw error // Re-throw to allow the redirect to happen
+    try {
+      // Sign in WITHOUT redirect - let the client handle it
+      await signIn('credentials', {
+        username: result.data.username,
+        password: result.data.password,
+        redirect: false, // Don't server-side redirect
+      })
+
+      console.log('✅ [AUTH] Sign in successful! Returning success to client...')
+      return 'SUCCESS' // Return success flag for client to handle redirect
+    } catch (signInError) {
+      console.error('❌ [AUTH] Sign in error:', signInError)
+      throw signInError
     }
-
-    console.error('Authentication error:', error)
+  } catch (error) {
+    console.error('❌ [AUTH] Authentication error:', error)
 
     if (error instanceof Error && error.message.includes('CredentialsSignin')) {
       return 'Invalid credentials'

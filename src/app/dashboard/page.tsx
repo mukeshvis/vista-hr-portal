@@ -572,6 +572,22 @@ function DashboardPageContent() {
   const { data: session, status, update } = useSession()
   const searchParams = useSearchParams()
 
+  console.log('📊 [DASHBOARD] Component rendering. Status:', status, '| Session:', session ? {
+    user: session.user?.username,
+    user_level: session.user?.user_level,
+    hasSession: true
+  } : 'NO SESSION')
+
+  // Add effect to track when session becomes available
+  useEffect(() => {
+    if (session) {
+      console.log('✅ [DASHBOARD] Session loaded!', {
+        user: session.user?.username,
+        status: status
+      })
+    }
+  }, [session, status])
+
   // Check if user wants personal view
   const viewPersonal = searchParams.get('view') === 'personal'
 
@@ -637,7 +653,6 @@ function DashboardPageContent() {
     leaveBalance: 0,
     totalAllocatedLeaves: 0,
     todayStatus: 'Absent',
-    pendingLeaves: 0,
     workingDays: 0,
     onTime: 0,
     lateArrivals: 0,
@@ -681,13 +696,6 @@ function DashboardPageContent() {
         const totalAllocated = leaveData.balance?.reduce((sum: number, item: any) => sum + item.allocated, 0) || 0
         console.log('📊 Leave Balance - Remaining:', totalRemaining, 'Allocated:', totalAllocated)
         setEmployeeData(prev => ({ ...prev, leaveBalance: totalRemaining, totalAllocatedLeaves: totalAllocated }))
-      }
-
-      // Fetch pending leave applications
-      const pendingLeavesRes = await fetch(`/api/leaves/applications?empId=${empId}&status=0&year=${currentYear}`)
-      if (pendingLeavesRes.ok) {
-        const pendingData = await pendingLeavesRes.json()
-        setEmployeeData(prev => ({ ...prev, pendingLeaves: pendingData.length }))
       }
 
       // Fetch recent leave applications (last 5)
@@ -940,10 +948,40 @@ function DashboardPageContent() {
         console.error('❌ Attendance API failed with status:', attendanceRes.status)
         const errorText = await attendanceRes.text()
         console.error('❌ Error response:', errorText)
+
+        // Set default values when API fails
+        console.log('⚠️ Using default attendance values due to API failure')
+        setEmployeeData(prev => ({
+          ...prev,
+          attendance: '0',
+          attendancePercentage: 0,
+          late: 0,
+          leaves: '0',
+          present: 0,
+          absent: 0,
+          halfDay: 0,
+          workFromHome: 0,
+          attendanceDates: []
+        }))
       }
 
     } catch (error) {
       console.error('❌ Error fetching employee data:', error)
+
+      // Set default values when API fails
+      console.log('⚠️ Using default attendance values due to error')
+      setEmployeeData(prev => ({
+        ...prev,
+        attendance: '0',
+        attendancePercentage: 0,
+        late: 0,
+        leaves: '0',
+        present: 0,
+        absent: 0,
+        halfDay: 0,
+        workFromHome: 0,
+        attendanceDates: []
+      }))
     } finally {
       setIsLoadingEmployeeData(false)
     }
@@ -1094,8 +1132,9 @@ function DashboardPageContent() {
 
   console.log('📊 Dashboard - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin, '| View Personal:', viewPersonal, '| Show Employee Dashboard:', showEmployeeDashboard)
 
-  // Show loading state while session is loading
+  // Show loading state while session is loading OR if no session yet (after login redirect)
   if (status === 'loading' || !session) {
+    console.log('⏳ [DASHBOARD] Loading state - Status:', status, '| Has session:', !!session)
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
         <div className="text-center">
@@ -1108,7 +1147,7 @@ function DashboardPageContent() {
             </div>
           </div>
           <p className="text-xl font-semibold text-gray-700 mb-2">Loading Dashboard</p>
-          <p className="text-sm text-gray-500">Please wait while we prepare your workspace...</p>
+          <p className="text-sm text-gray-500">Authenticating your session...</p>
         </div>
       </div>
     )
@@ -1148,7 +1187,7 @@ function DashboardPageContent() {
 
           {/* Personal Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="hover:shadow-lg transition-all border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-emerald-100">
+            <Card className="hover:shadow-lg p-4 transition-all border-0 shadow-sm bg-gradient-to-br from-emerald-100 to-emerald-200">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -1163,7 +1202,7 @@ function DashboardPageContent() {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-all border-0 shadow-sm bg-gradient-to-br from-purple-50 to-purple-100">
+            <Card className="hover:shadow-lg p-4 transition-all border-0 shadow-sm bg-gradient-to-br from-purple-100 to-purple-200">
               <CardContent className="p-6">
                 {employeeEmploymentStatus && employeeEmploymentStatus.toLowerCase() !== 'permanent' ? (
                   <div className="flex items-start gap-3">
@@ -1192,31 +1231,32 @@ function DashboardPageContent() {
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-all border-0 shadow-sm bg-gradient-to-br from-blue-50 to-blue-100">
+            <Card className="hover:shadow-lg p-4 transition-all border-0 shadow-sm bg-gradient-to-br from-green-100 to-green-200">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600 mb-2">Pending Leaves</p>
-                    <p className="text-2xl font-bold text-slate-800">{employeeData.pendingLeaves}</p>
-                    <p className="text-xs text-slate-500 mt-1">Applications</p>
+                    <p className="text-sm font-medium text-slate-600 mb-2">Total Leaves</p>
+                    <p className="text-2xl font-bold text-slate-800">{employeeData.totalAllocatedLeaves}</p>
+                    <p className="text-xs text-slate-500 mt-1">Allocated This Year</p>
                   </div>
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Clock className="h-5 w-5 text-blue-600" />
+                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                    <Calendar className="h-5 w-5 text-green-600" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="hover:shadow-lg transition-all border-0 shadow-sm bg-gradient-to-br from-amber-50 to-amber-100">
+            <Card className="hover:shadow-lg p-4 transition-all border-0 shadow-sm bg-gradient-to-br from-rose-100 to-rose-200">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600 mb-2">This Month</p>
-                    <p className="text-2xl font-bold text-slate-800">{employeeData.workingDays}</p>
-                    <p className="text-xs text-slate-500 mt-1">Working Days</p>
+                    <p className="text-sm font-medium text-slate-600 mb-2">Used Leaves</p>
+                    <p className="text-2xl font-bold text-slate-800">{employeeData.totalAllocatedLeaves - employeeData.leaveBalance}</p>
+                    <p className="text-xs text-slate-500 mt-1">Days Taken</p>
                   </div>
-                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                    <CalendarDays className="h-5 w-5 text-amber-600" />
+                  <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="h-5 w-5 text-rose-600" />
+
                   </div>
                 </div>
               </CardContent>

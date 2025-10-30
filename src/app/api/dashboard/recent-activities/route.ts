@@ -204,6 +204,8 @@ export async function GET() {
 // Helper function to convert date to "time ago" format
 function getTimeAgo(date: Date): string {
   const now = new Date()
+
+  // Calculate difference in milliseconds
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMs / 3600000)
@@ -213,7 +215,7 @@ function getTimeAgo(date: Date): string {
   if (diffMins < 60) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`
   if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
   if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
-  return date.toLocaleDateString('en-GB')
+  return date.toLocaleDateString('en-GB', { timeZone: 'Asia/Karachi' })
 }
 
 // Helper function to get numeric value for sorting

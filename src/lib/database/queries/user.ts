@@ -84,13 +84,13 @@ export async function validateUserCredentials(
       return null
     }
 
-    console.log('✅ User found:', user.username, 'with status:', user.status)
+    console.log('✅ User found:', user.username, 'with status:', user.status, '| user_level:', user.user_level)
 
     // Check if password matches using bcrypt
     const isPasswordValid = await bcrypt.compare(password, user.password)
 
     if (isPasswordValid) {
-      console.log('✅ Password is valid')
+      console.log('✅ Password is valid for user:', user.username, '| Returning user with user_level:', user.user_level)
       return user
     }
 

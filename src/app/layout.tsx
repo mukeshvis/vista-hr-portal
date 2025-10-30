@@ -29,6 +29,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  console.log('🏗️ [LAYOUT] Root layout rendering (client-side session mode)');
+
   return (
     <html lang="en">
       <body

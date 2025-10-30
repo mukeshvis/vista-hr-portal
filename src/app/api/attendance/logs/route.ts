@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
     // ALWAYS fetch directly from external API (as per user requirement)
     // Do NOT store in database for now - will implement later
     try {
+      console.log('🔄 Attempting to connect to external attendance API...')
       const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
         method: 'POST',
         headers: {
@@ -29,8 +30,9 @@ export async function POST(request: NextRequest) {
           'User-Agent': 'HR-Portal/1.0',
         },
         body: JSON.stringify({ start_date, end_date }),
-        signal: AbortSignal.timeout(10000) // 10 second timeout
+        signal: AbortSignal.timeout(15000) // 15 second timeout (increased from 10s)
       })
+      console.log('✅ External API responded with status:', response.status)
 
       if (response.ok) {
         const responseText = await response.text()
@@ -105,10 +107,32 @@ export async function POST(request: NextRequest) {
       }
     } catch (apiError: any) {
       console.error('❌ External API failed:', apiError.message)
+      console.warn('⚠️ Returning empty data set - External attendance API is unavailable')
+
+      // Return empty data instead of error to allow dashboard to continue
       return NextResponse.json({
-        error: 'Failed to fetch from external API',
-        details: apiError.message
-      }, { status: 500 })
+        data: [],
+        source: 'external_api_unavailable',
+        count: 0,
+        error: 'External attendance API is currently unavailable',
+        details: apiError.message,
+        stats: {
+          check_in: 0,
+          check_out: 0,
+          verify_mode: {
+            face: 0,
+            form: 0,
+            other: 0
+          }
+        }
+      }, {
+        status: 200, // Return 200 with empty data instead of 500
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'X-Data-Source': 'unavailable',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }
+      })
     }
 
   } catch (error: any) {
@@ -279,10 +303,18 @@ export async function GET(request: NextRequest) {
       }
     } catch (apiError: any) {
       console.error('❌ External API failed:', apiError.message)
+      console.warn('⚠️ Returning empty logs - External attendance API is unavailable')
+
+      // Return empty logs instead of error to allow dashboard to continue
       return NextResponse.json({
-        error: 'Failed to fetch from external API',
-        logs: []
-      }, { status: 500 })
+        logs: [],
+        count: 0,
+        empId,
+        month,
+        year,
+        error: 'External attendance API is currently unavailable',
+        details: apiError.message
+      }, { status: 200 }) // Return 200 with empty data instead of 500
     }
 
   } catch (error: any) {

@@ -35,6 +35,7 @@ interface EmployeeProfile {
   reportingManager: string
   reportingManagerId: number
   joiningDate: string
+  dateOfConfirmation?: string
   salary: number
   status: string
   gender: string
@@ -347,6 +348,16 @@ export default function EmployeeProfilePage() {
                   <p className="font-medium">{formatDate(employee.joiningDate)}</p>
                 </div>
               </div>
+
+              {employee.dateOfConfirmation && (
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-4 w-4 text-green-500" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Date of Confirmation</p>
+                    <p className="font-medium">{formatDate(employee.dateOfConfirmation)}</p>
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-3">
                 <Building className="h-4 w-4 text-indigo-500" />

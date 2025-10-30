@@ -1979,16 +1979,14 @@ function LeavesPageContent() {
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <div className="overflow-x-auto">
             <TabsList className="inline-flex gap-3 bg-gray-50 p-1.5 rounded-lg">
-              {/* Show Employees Leave Balance for Admin only */}
-              {isAdmin && (
-                <TabsTrigger
-                  value="employees-leave-balance"
-                  className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
-                >
-                  <UserCheck className="h-4 w-4 text-purple-600" />
-                  <span>Employees Leave Balance</span>
-                </TabsTrigger>
-              )}
+              {/* Employees Leave Balance - Available to all (filtered by user level in API) */}
+              <TabsTrigger
+                value="employees-leave-balance"
+                className="cursor-pointer bg-gray-100 hover:bg-gray-200 data-[state=active]:bg-white data-[state=active]:shadow-sm transition-all flex items-center gap-2"
+              >
+                <UserCheck className="h-4 w-4 text-purple-600" />
+                <span>{isAdmin ? 'Employees Leave Balance' : 'My Leave Balance'}</span>
+              </TabsTrigger>
 
               {/* My Applications - Available to all */}
               <TabsTrigger

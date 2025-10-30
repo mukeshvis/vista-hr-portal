@@ -49,6 +49,7 @@ interface EmployeeProfile {
   reportingManager: string
   reportingManagerId: number | null
   joiningDate: string
+  dateOfConfirmation?: string
   salary: number
   status: string
   gender: string
@@ -1007,6 +1008,15 @@ export function EmployeeTable({ employees }: EmployeeTableProps) {
                         type="date"
                         value={editData.joiningDate ? (editData.joiningDate.includes('T') ? editData.joiningDate.split('T')[0] : editData.joiningDate) : ''}
                         onChange={(e) => handleInputChange('joiningDate', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="dateOfConfirmation">Date of Confirmation</Label>
+                      <Input
+                        id="dateOfConfirmation"
+                        type="date"
+                        value={editData.dateOfConfirmation ? (editData.dateOfConfirmation.includes('T') ? editData.dateOfConfirmation.split('T')[0] : editData.dateOfConfirmation) : ''}
+                        onChange={(e) => handleInputChange('dateOfConfirmation', e.target.value)}
                       />
                     </div>
                     <div>
