@@ -109,9 +109,14 @@ function calculateProratedLeaves(dateOfConfirmation: string | null, leaveYear: n
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('🚀 Starting employees-balance API call...')
+
     // Get current user session
     const session = await auth()
+    console.log('🔐 Session check:', session ? 'Found' : 'Not found')
+
     if (!session?.user) {
+      console.log('❌ No session or user found')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -136,6 +141,7 @@ export async function GET(request: NextRequest) {
     if (!isAdmin && currentUserEmpId) {
       // For regular employees (level 0), show only their own balance
       console.log(`🔒 Filtering for employee: ${currentUserEmpId}`)
+      console.log('📝 Running employee query for non-admin...')
       employees = await prisma.$queryRaw`
         SELECT
           e.emp_id,
@@ -144,7 +150,11 @@ export async function GET(request: NextRequest) {
           COALESCE(des.designation_name, 'N/A') as designation_name,
           e.leaves_policy_id,
           e.reporting_manager,
-          e.date_of_confirmation
+          CASE
+            WHEN CAST(e.date_of_confirmation AS CHAR) = '0000-00-00' THEN NULL
+            WHEN e.date_of_confirmation IS NULL THEN NULL
+            ELSE CAST(e.date_of_confirmation AS CHAR)
+          END as date_of_confirmation
         FROM employee e
         LEFT JOIN department d ON e.emp_department_id = d.id
         LEFT JOIN designation des ON e.designation_id = des.id
@@ -159,6 +169,7 @@ export async function GET(request: NextRequest) {
     } else {
       // For admins (level 1), show all employees
       console.log(`🔓 Fetching all employees (admin view)`)
+      console.log('📝 Running employee query for admin...')
       employees = await prisma.$queryRaw`
         SELECT
           e.emp_id,
@@ -167,7 +178,11 @@ export async function GET(request: NextRequest) {
           COALESCE(des.designation_name, 'N/A') as designation_name,
           e.leaves_policy_id,
           e.reporting_manager,
-          e.date_of_confirmation
+          CASE
+            WHEN CAST(e.date_of_confirmation AS CHAR) = '0000-00-00' THEN NULL
+            WHEN e.date_of_confirmation IS NULL THEN NULL
+            ELSE CAST(e.date_of_confirmation AS CHAR)
+          END as date_of_confirmation
         FROM employee e
         LEFT JOIN department d ON e.emp_department_id = d.id
         LEFT JOIN designation des ON e.designation_id = des.id
@@ -188,11 +203,25 @@ export async function GET(request: NextRequest) {
     let managerMap = new Map()
 
     if (managerIds.length > 0) {
-      const managerIdsList = managerIds.join(',')
-      const managers = await prisma.$queryRawUnsafe(`
-        SELECT id, emp_name FROM employee WHERE id IN (${managerIdsList})
-      `) as any[]
-      managerMap = new Map(managers.map((m: any) => [Number(m.id), m.emp_name]))
+      try {
+        // Fetch managers one by one or use a safe query
+        const managers = await prisma.employee.findMany({
+          where: {
+            id: {
+              in: managerIds.map((id: any) => Number(id))
+            }
+          },
+          select: {
+            id: true,
+            emp_name: true
+          }
+        })
+        managerMap = new Map(managers.map((m: any) => [Number(m.id), m.emp_name]))
+        console.log(`✅ Fetched ${managers.length} manager names`)
+      } catch (managerError) {
+        console.error('⚠️ Error fetching manager names:', managerError)
+        // Continue without manager names
+      }
     }
 
     // Get leave usage for filtered employees

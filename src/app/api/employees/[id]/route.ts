@@ -57,6 +57,10 @@ export async function GET(
           ELSE e.probation_expire_date
         END as probationExpireDate,
         CASE
+          WHEN e.date_of_confirmation IS NULL OR CAST(e.date_of_confirmation AS CHAR) = '0000-00-00' OR YEAR(e.date_of_confirmation) < 1000 THEN NULL
+          ELSE e.date_of_confirmation
+        END as dateOfConfirmation,
+        CASE
           WHEN e.emp_cnic_expiry_date IS NULL OR YEAR(e.emp_cnic_expiry_date) < 1000 THEN NULL
           ELSE e.emp_cnic_expiry_date
         END as cnicExpiryDate,
@@ -145,6 +149,7 @@ export async function GET(
       dateOfBirth: formatDateForFrontend(employeeData.dateOfBirth),
       dateOfLeaving: formatDateForFrontend(employeeData.dateOfLeaving),
       probationExpireDate: formatDateForFrontend(employeeData.probationExpireDate),
+      dateOfConfirmation: formatDateForFrontend(employeeData.dateOfConfirmation),
       cnicExpiryDate: formatDateForFrontend(employeeData.cnicExpiryDate),
       dayOff: employeeData.dayOff || 'N/A',
       professionalEmail: employeeData.professionalEmail || 'N/A',
@@ -216,6 +221,12 @@ export async function PUT(
       if (updateData.probationExpireDate) {
         const date = new Date(updateData.probationExpireDate)
         formattedProbationExpireDate = date.toISOString().split('T')[0]
+      }
+
+      let formattedDateOfConfirmation = null
+      if (updateData.dateOfConfirmation) {
+        const date = new Date(updateData.dateOfConfirmation)
+        formattedDateOfConfirmation = date.toISOString().split('T')[0]
       }
 
       let formattedDateOfLeaving = null
@@ -355,6 +366,7 @@ export async function PUT(
           emp_father_name = ${updateData.fatherName || 'N/A'},
           emp_date_of_birth = ${formattedDateOfBirth},
           probation_expire_date = ${formattedProbationExpireDate},
+          date_of_confirmation = ${formattedDateOfConfirmation},
           date_of_leaving = ${formattedDateOfLeaving},
           day_off = ${updateData.dayOff || 'Sunday'},
           professional_email = ${updateData.professionalEmail || 'N/A'},
@@ -396,6 +408,7 @@ export async function PUT(
           e.emp_father_name as fatherName,
           e.emp_date_of_birth as dateOfBirth,
           e.probation_expire_date as probationExpireDate,
+          e.date_of_confirmation as dateOfConfirmation,
           e.date_of_leaving as dateOfLeaving,
           e.emp_cnic_expiry_date as cnicExpiryDate,
           e.day_off as dayOff,
@@ -478,6 +491,7 @@ export async function PUT(
       dateOfBirth: formatDateForFrontend(employeeData.dateOfBirth),
       dateOfLeaving: formatDateForFrontend(employeeData.dateOfLeaving),
       probationExpireDate: formatDateForFrontend(employeeData.probationExpireDate),
+      dateOfConfirmation: formatDateForFrontend(employeeData.dateOfConfirmation),
       cnicExpiryDate: formatDateForFrontend(employeeData.cnicExpiryDate),
       dayOff: employeeData.dayOff || 'N/A',
       professionalEmail: employeeData.professionalEmail || 'N/A',
