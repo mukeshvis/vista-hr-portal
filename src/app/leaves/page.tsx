@@ -119,20 +119,6 @@ function LeavesPageContent() {
   const { data: remoteValidation } = useRemoteValidation(currentEmpId)
   const { data: employeeManager } = useEmployeeManager(currentEmpId)
 
-  // Debug: Log employee balances data, especially for employee 109
-  useEffect(() => {
-    if (employeeBalances && employeeBalances.length > 0) {
-      console.log('📊 CLIENT: Received employee balances:', employeeBalances.length, 'records')
-      const emp109 = employeeBalances.find((e: any) => e.emp_id === '109' || e.emp_id === 109)
-      if (emp109) {
-        console.log('🎯 CLIENT: Employee 109 (Husnain Ali) data:', JSON.stringify(emp109, null, 2))
-      } else {
-        console.log('⚠️ CLIENT: Employee 109 NOT FOUND in employeeBalances array')
-        console.log('Available emp_ids:', employeeBalances.map((e: any) => e.emp_id).slice(0, 10))
-      }
-    }
-  }, [employeeBalances])
-
   // UI loading states (not data loading)
   const loading = loadingTypes || loadingMy || loadingAll || loadingBalances
   const loadingRemote = loadingMyRemote || loadingAllRemote || loadingPendingRemote
@@ -1106,8 +1092,8 @@ function LeavesPageContent() {
     return filterApplications(unique, managerSearchTerm)
   }, [managerApplications, managerSearchTerm])
 
-  const filteredEmployeeBalances = useMemo(() => {
-    const filtered = employeeBalances.filter(emp => {
+  const filteredEmployeeBalances = useMemo(() =>
+    employeeBalances.filter(emp => {
       if (!employeeSearchTerm.trim()) return true
       const lowerSearch = employeeSearchTerm.toLowerCase()
       return (
@@ -1115,24 +1101,9 @@ function LeavesPageContent() {
         emp.emp_id?.toLowerCase().includes(lowerSearch) ||
         emp.department_name?.toLowerCase().includes(lowerSearch)
       )
-    })
-
-    // Debug: Check if employee 109 is in filtered results
-    const emp109InFiltered = filtered.find((e: any) => e.emp_id === '109' || e.emp_id === 109)
-    if (emp109InFiltered) {
-      console.log('✅ CLIENT: Employee 109 is in FILTERED results:', {
-        name: emp109InFiltered.employee_name,
-        total_used: emp109InFiltered.total_used,
-        annual_used: emp109InFiltered.annual_used,
-        sick_used: emp109InFiltered.sick_used,
-        emergency_used: emp109InFiltered.emergency_used
-      })
-    } else if (employeeBalances.length > 0) {
-      console.log('⚠️ CLIENT: Employee 109 filtered out (search term:', employeeSearchTerm, ')')
-    }
-
-    return filtered
-  }, [employeeBalances, employeeSearchTerm])
+    }),
+    [employeeBalances, employeeSearchTerm]
+  )
 
   // Refresh all data
   const handleRefresh = async () => {

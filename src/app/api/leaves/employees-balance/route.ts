@@ -265,54 +265,6 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ Found leave usage for ${leaveUsage.length} records`)
 
-    // Debug: Check specific employee (109)
-    const emp109Data = leaveUsage.filter((r: any) => r.emp_id === '109' || r.emp_id === 109)
-    if (emp109Data.length > 0) {
-      console.log('🔍 Employee 109 (Husnain Ali) leave data:', JSON.stringify(emp109Data, null, 2))
-    } else {
-      console.log('⚠️ NO DATA FOUND for employee 109 in leave usage query!')
-
-      // Check if applications exist
-      const check109Apps = await prisma.$queryRaw`
-        SELECT id, emp_id, approved, leave_type
-        FROM leave_application
-        WHERE emp_id IN ('109', 109) AND approved = 1
-      ` as any[]
-      console.log(`📋 Employee 109 applications:`, check109Apps)
-
-      // Check if leave_application_data exists for those applications
-      if (check109Apps.length > 0) {
-        const appIds = check109Apps.map((a: any) => a.id).join(',')
-        const check109Data = await prisma.$queryRaw`
-          SELECT leave_application_id, from_date, to_date, no_of_days
-          FROM leave_application_data
-          WHERE leave_application_id IN (${appIds})
-        ` as any[]
-        console.log(`📊 Employee 109 application_data records:`, check109Data)
-      }
-
-      // Full join query with debugging (matching main query)
-      const check109 = await prisma.$queryRaw`
-        SELECT
-          CAST(la.emp_id AS CHAR) as emp_id,
-          lt.leave_type_name,
-          lad.from_date,
-          lad.to_date,
-          lad.no_of_days,
-          CAST(lad.from_date AS DATE) as lad_date_parsed,
-          CASE
-            WHEN CAST(lad.from_date AS DATE) >= ${fromDate} THEN 'MATCH'
-            ELSE 'NO MATCH'
-          END as date_filter_match
-        FROM leave_application la
-        INNER JOIN leave_application_data lad ON la.id = lad.leave_application_id
-        LEFT JOIN leave_type lt ON la.leave_type = lt.id
-        WHERE CAST(la.emp_id AS CHAR) = '109' AND la.approved = 1
-      ` as any[]
-      console.log(`🔍 Full diagnostic query for employee 109 (date filter: >= ${fromDate}):`)
-      console.log(JSON.stringify(check109, null, 2))
-    }
-
     // Debug: Check if we're getting any data at all
     if (leaveUsage.length === 0) {
       console.log('⚠️ NO LEAVE USAGE DATA FOUND! Checking for approved applications...')
@@ -473,15 +425,6 @@ export async function GET(request: NextRequest) {
         }
       }
     })
-
-    // Debug: Log final result for employee 109
-    const emp109Result = result.find((r: any) => r.emp_id === '109' || r.emp_id === 109)
-    if (emp109Result) {
-      console.log('🎯 FINAL RESULT for Employee 109 (Husnain Ali):')
-      console.log(JSON.stringify(emp109Result, null, 2))
-    } else {
-      console.log('⚠️ Employee 109 NOT FOUND in final result array!')
-    }
 
     console.log(`✅ Returning ${result.length} employee balance records`)
 

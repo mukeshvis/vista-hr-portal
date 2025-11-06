@@ -33,6 +33,7 @@ import {
   Banknote,
   ArrowLeft
 } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
 
 // Interfaces for Add Employee functionality
 interface NewEmployee {
@@ -157,6 +158,84 @@ function useCountUp(end: number, duration: number = 1000, shouldStart: boolean =
   }, [end, duration, shouldStart, hasAnimated])
 
   return count
+}
+
+// Skeleton Loader for Stats Card
+function StatsCardSkeleton() {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardContent className="p-8 pt-10">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 space-y-3">
+            <Skeleton className="h-4 w-24" /> {/* Title */}
+            <Skeleton className="h-9 w-20" /> {/* Value */}
+            <Skeleton className="h-3 w-32" /> {/* Subtitle */}
+            <Skeleton className="h-3 w-28" /> {/* Description */}
+          </div>
+          <Skeleton className="h-12 w-12 rounded-lg" /> {/* Icon */}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Skeleton Loader for Secondary Metric Card
+function SecondaryMetricSkeleton() {
+  return (
+    <Card className="p-4 border-0 shadow-sm">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-10 w-10 rounded-lg" /> {/* Icon */}
+        <div className="space-y-2 flex-1">
+          <Skeleton className="h-3 w-20" /> {/* Label */}
+          <Skeleton className="h-5 w-12" /> {/* Value */}
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// Skeleton Loader for Quick Actions / Today's Overview / Pending Items
+function SectionCardSkeleton() {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-5 w-5 rounded" /> {/* Icon */}
+          <Skeleton className="h-5 w-32" /> {/* Title */}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Skeleton className="h-20 w-full rounded-lg" /> {/* Content 1 */}
+        <Skeleton className="h-20 w-full rounded-lg" /> {/* Content 2 */}
+        <Skeleton className="h-20 w-full rounded-lg" /> {/* Content 3 */}
+      </CardContent>
+    </Card>
+  )
+}
+
+// Skeleton Loader for Recent Activities
+function RecentActivitiesSkeleton() {
+  return (
+    <Card className="border-0 shadow-sm">
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-6 w-6 rounded" /> {/* Icon */}
+          <Skeleton className="h-6 w-40" /> {/* Title */}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="flex items-center gap-3 pb-3">
+            <Skeleton className="h-10 w-10 rounded-full" /> {/* Avatar */}
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" /> {/* Activity text */}
+              <Skeleton className="h-3 w-1/4" /> {/* Timestamp */}
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
 }
 
 // Enhanced Stats Card Component with Colorful Icons
@@ -606,6 +685,9 @@ function DashboardPageContent() {
     payrollAmount: 0
   })
 
+  // Loading state for skeleton loaders
+  const [isLoadingStats, setIsLoadingStats] = useState(true)
+
   // Add Employee modal state
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -990,6 +1072,7 @@ function DashboardPageContent() {
   // Fetch dashboard statistics
   const fetchDashboardStats = async () => {
     try {
+      setIsLoadingStats(true)
       const response = await fetch('/api/dashboard/stats', {
         cache: 'no-store'
       })
@@ -1002,6 +1085,8 @@ function DashboardPageContent() {
       }
     } catch (error) {
       console.error('Error fetching dashboard stats:', error)
+    } finally {
+      setIsLoadingStats(false)
     }
   }
 
@@ -1739,170 +1824,217 @@ function DashboardPageContent() {
 
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-200 to-blue-300">
-              <CardContent className="p-8 pt-10">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm font-medium text-slate-700">Total Employees</p>
+            {isLoadingStats ? (
+              // Skeleton Loaders
+              <>
+                <StatsCardSkeleton />
+                <StatsCardSkeleton />
+                <StatsCardSkeleton />
+              </>
+            ) : (
+              // Real Data
+              <>
+                <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-200 to-blue-300">
+                  <CardContent className="p-8 pt-10">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <p className="text-sm font-medium text-slate-700">Total Employees</p>
+                        </div>
+                        <p className="text-3xl font-bold text-slate-800">{dashboardData.totalEmployees.toLocaleString()}</p>
+                        <div className="flex items-center gap-1 mt-2">
+                          <TrendingUp className="h-3 w-3 text-green-600" />
+                          <span className="text-xs font-medium text-green-600">
+                            {dashboardData.totalEmployees > 0 ? `${dashboardData.activeEmployees} active` : "No data"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Total workforce</p>
+                      </div>
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                        <Users className="h-6 w-6 text-blue-600" />
+                      </div>
                     </div>
-                    <p className="text-3xl font-bold text-slate-800">{dashboardData.totalEmployees.toLocaleString()}</p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <TrendingUp className="h-3 w-3 text-green-600" />
-                      <span className="text-xs font-medium text-green-600">
-                        {dashboardData.totalEmployees > 0 ? `${dashboardData.activeEmployees} active` : "No data"}
-                      </span>
+                  </CardContent>
+                </Card>
+                <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-emerald-200 to-emerald-300">
+                  <CardContent className="p-8 pt-10">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <p className="text-sm font-medium text-slate-700">Present Today</p>
+                        </div>
+                        <p className="text-3xl font-bold text-slate-800">{dashboardData.presentToday.toLocaleString()}</p>
+                        <div className="flex items-center gap-1 mt-2">
+                          <TrendingUp className="h-3 w-3 text-green-600" />
+                          <span className="text-xs font-medium text-green-600">
+                            {dashboardData.attendancePercentage} attendance
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Out of {dashboardData.totalEmployees} employees</p>
+                      </div>
+                      <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                        <UserCheck className="h-6 w-6 text-emerald-600" />
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">Total workforce</p>
-                  </div>
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                    <Users className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-emerald-200 to-emerald-300">
-              <CardContent className="p-8 pt-10">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm font-medium text-slate-700">Present Today</p>
+                  </CardContent>
+                </Card>
+                <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-rose-200 to-rose-300">
+                  <CardContent className="p-8 pt-10">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <p className="text-sm font-medium text-slate-700">Pending Leaves</p>
+                          {dashboardData.pendingLeaves > 5 && <Badge variant="destructive" className="text-xs animate-pulse">Urgent</Badge>}
+                        </div>
+                        <p className="text-3xl font-bold text-slate-800">{dashboardData.pendingLeaves}</p>
+                        <div className="flex items-center gap-1 mt-2">
+                          <TrendingUp className="h-3 w-3 text-green-600" />
+                          <span className="text-xs font-medium text-green-600">
+                            {dashboardData.pendingLeaves > 5 ? `${dashboardData.pendingLeaves - 5} urgent approvals` : "Normal workload"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Requires attention</p>
+                      </div>
+                      <div className="w-12 h-12 bg-rose-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                        <Calendar className="h-6 w-6 text-rose-600" />
+                      </div>
                     </div>
-                    <p className="text-3xl font-bold text-slate-800">{dashboardData.presentToday.toLocaleString()}</p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <TrendingUp className="h-3 w-3 text-green-600" />
-                      <span className="text-xs font-medium text-green-600">
-                        {dashboardData.attendancePercentage} attendance
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">Out of {dashboardData.totalEmployees} employees</p>
-                  </div>
-                  <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                    <UserCheck className="h-6 w-6 text-emerald-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-rose-200 to-rose-300">
-              <CardContent className="p-8 pt-10">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <p className="text-sm font-medium text-slate-700">Pending Leaves</p>
-                      {dashboardData.pendingLeaves > 5 && <Badge variant="destructive" className="text-xs animate-pulse">Urgent</Badge>}
-                    </div>
-                    <p className="text-3xl font-bold text-slate-800">{dashboardData.pendingLeaves}</p>
-                    <div className="flex items-center gap-1 mt-2">
-                      <TrendingUp className="h-3 w-3 text-green-600" />
-                      <span className="text-xs font-medium text-green-600">
-                        {dashboardData.pendingLeaves > 5 ? `${dashboardData.pendingLeaves - 5} urgent approvals` : "Normal workload"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">Requires attention</p>
-                  </div>
-                  <div className="w-12 h-12 bg-rose-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                    <Calendar className="h-6 w-6 text-rose-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
+              </>
+            )}
           </div>
 
           {/* Secondary Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            <Card className="p-4 border-1 border-purple-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-purple-100 to-purple-200 ">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center">
-                  <Building className="h-5 w-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Departments</p>
-                  <p className="text-lg font-bold text-slate-800">{dashboardData.departments}</p>
-                </div>
-              </div>
-            </Card>
-            <Card className="p-4 border-1 border-red-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-red-100 to-red-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-200 rounded-lg flex items-center justify-center">
-                  <UserX className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Absent</p>
-                  <p className="text-lg font-bold text-slate-800">{dashboardData.absent}</p>
-                </div>
-              </div>
-            </Card>
-            <Card className="p-4 border-1 border-amber-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-amber-100 to-amber-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-200 rounded-lg flex items-center justify-center">
-                  <AlertCircle className="h-5 w-5 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-600">Late Today</p>
-                  <p className="text-lg font-bold text-slate-800">{dashboardData.lateToday}</p>
-                </div>
-              </div>
-            </Card>
-            <Card className="p-4 border-1 border-blue-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-blue-100 to-blue-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center">
-                  <CalendarDays className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-600">On Leave</p>
-                  <p className="text-lg font-bold text-slate-800">{dashboardData.onLeave}</p>
-                </div>
-              </div>
-            </Card>
-            <Card className="p-4 border-1 border-emerald-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-emerald-100 to-emerald-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-200 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-slate-600">On Time</p>
-                  <p className="text-lg font-bold text-slate-800">{dashboardData.presentToday}</p>
-                </div>
-              </div>
-            </Card>
+            {isLoadingStats ? (
+              // Skeleton Loaders
+              <>
+                <SecondaryMetricSkeleton />
+                <SecondaryMetricSkeleton />
+                <SecondaryMetricSkeleton />
+                <SecondaryMetricSkeleton />
+                <SecondaryMetricSkeleton />
+              </>
+            ) : (
+              // Real Data
+              <>
+                <Card className="p-4 border-1 border-purple-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-purple-100 to-purple-200 ">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center">
+                      <Building className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">Departments</p>
+                      <p className="text-lg font-bold text-slate-800">{dashboardData.departments}</p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4 border-1 border-red-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-red-100 to-red-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-red-200 rounded-lg flex items-center justify-center">
+                      <UserX className="h-5 w-5 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">Absent</p>
+                      <p className="text-lg font-bold text-slate-800">{dashboardData.absent}</p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4 border-1 border-amber-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-amber-100 to-amber-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-amber-200 rounded-lg flex items-center justify-center">
+                      <AlertCircle className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">Late Today</p>
+                      <p className="text-lg font-bold text-slate-800">{dashboardData.lateToday}</p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4 border-1 border-blue-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-blue-100 to-blue-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center">
+                      <CalendarDays className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">On Leave</p>
+                      <p className="text-lg font-bold text-slate-800">{dashboardData.onLeave}</p>
+                    </div>
+                  </div>
+                </Card>
+                <Card className="p-4 border-1 border-emerald-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-emerald-100 to-emerald-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-emerald-200 rounded-lg flex items-center justify-center">
+                      <CheckCircle className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-600">On Time</p>
+                      <p className="text-lg font-bold text-slate-800">{dashboardData.presentToday}</p>
+                    </div>
+                  </div>
+                </Card>
+              </>
+            )}
           </div>
 
-          {/* Animated Black Shining Divider Line */}
-          <div className="relative my-8 h-[2px] rounded-full overflow-hidden bg-gradient-to-r from-transparent via-slate-800 to-transparent">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-600 to-transparent animate-pulse"></div>
-            <div
-              className="absolute inset-0 h-full w-1/4 bg-gradient-to-r from-transparent via-slate-400 to-transparent opacity-80"
-              style={{
-                animation: 'shimmer 2.5s infinite ease-in-out',
-              }}
-            ></div>
-          </div>
-          <style jsx>{`
-            @keyframes shimmer {
-              0% {
-                transform: translateX(-100%);
-              }
-              100% {
-                transform: translateX(400%);
-              }
-            }
-          `}</style>
+          {/* Animated Black Shining Divider Line - Only show when data is loaded */}
+          {!isLoadingStats && (
+            <>
+              <div className="relative my-8 h-[2px] rounded-full overflow-hidden bg-gradient-to-r from-transparent via-slate-800 to-transparent">
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-600 to-transparent animate-pulse"></div>
+                <div
+                  className="absolute inset-0 h-full w-1/4 bg-gradient-to-r from-transparent via-slate-400 to-transparent opacity-80"
+                  style={{
+                    animation: 'shimmer 2.5s infinite ease-in-out',
+                  }}
+                ></div>
+              </div>
+              <style jsx>{`
+                @keyframes shimmer {
+                  0% {
+                    transform: translateX(-100%);
+                  }
+                  100% {
+                    transform: translateX(400%);
+                  }
+                }
+              `}</style>
+            </>
+          )}
 
           {/* Quick Info Row - Horizontal Cards */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <QuickActions onAddEmployee={handleAddEmployee} />
-            <TodaysOverview dashboardData={dashboardData} />
-            <PendingItems />
+            {isLoadingStats ? (
+              // Skeleton Loaders
+              <>
+                <SectionCardSkeleton />
+                <SectionCardSkeleton />
+                <SectionCardSkeleton />
+              </>
+            ) : (
+              // Real Data
+              <>
+                <QuickActions onAddEmployee={handleAddEmployee} />
+                <TodaysOverview dashboardData={dashboardData} />
+                <PendingItems />
+              </>
+            )}
           </div>
 
           {/* Recent Activities - Full Width */}
           <div className="w-full">
-            <RecentActivities />
+            {isLoadingStats ? (
+              <RecentActivitiesSkeleton />
+            ) : (
+              <RecentActivities />
+            )}
           </div>
 
-          {/* Company Footer */}
-          <div className="mt-12 mb-8">
-            <Card className="border-0 shadow-lg bg-gray-900 text-white  overflow-hidden relative ">
+          {/* Company Footer - Only show when data is loaded */}
+          {!isLoadingStats && (
+            <div className="mt-12 mb-8">
+              <Card className="border-0 shadow-lg bg-gray-900 text-white  overflow-hidden relative ">
               {/* Decorative background elements */}
               {/* <div className="absolute top-0 right-0 w-48 h-48 bg-blue-200/30 rounded-full blur-3xl"></div>
               <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-200/30 rounded-full blur-3xl"></div> */}
@@ -1983,6 +2115,7 @@ function DashboardPageContent() {
               </CardContent>
             </Card>
           </div>
+          )}
       </main>
 
       {/* Add Employee Dialog */}
