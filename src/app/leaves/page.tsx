@@ -3,6 +3,21 @@
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import {
+  useLeaveTypes,
+  useApplications,
+  useAllApplications,
+  usePendingApplications,
+  useManagerApplications,
+  useEmployeeBalances,
+  useEmployeeRemoteBalances,
+  useRemoteApplications,
+  useManagerRemoteApplications,
+  useRemoteValidation,
+  useEmployeeManager,
+  leavesKeys,
+} from '@/hooks/use-leaves-data'
+import { useQueryClient } from '@tanstack/react-query'
 import { TopNavigation } from "@/components/top-navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -78,34 +93,63 @@ function LeavesPageContent() {
   const isAdmin = isActualAdmin && !viewPersonal
 
   console.log('👤 Leaves Page - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin, '| View Personal:', viewPersonal)
-  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([])
-  const [applications, setApplications] = useState<LeaveApplication[]>([])
-  const [allApplications, setAllApplications] = useState<LeaveApplication[]>([])
-  const [pendingApplications, setPendingApplications] = useState<LeaveApplication[]>([])
-  const [managerApplications, setManagerApplications] = useState<LeaveApplication[]>([])
-  const [employeeBalances, setEmployeeBalances] = useState<EmployeeLeaveBalance[]>([])
-  const [remoteApplications, setRemoteApplications] = useState<any[]>([])
-  const [myRemoteApplications, setMyRemoteApplications] = useState<any[]>([])
-  const [pendingRemoteApplications, setPendingRemoteApplications] = useState<any[]>([])
-  const [managerRemoteApplications, setManagerRemoteApplications] = useState<any[]>([])
-  const [employeeRemoteBalances, setEmployeeRemoteBalances] = useState<any[]>([])
-  const [loadingRemoteBalances, setLoadingRemoteBalances] = useState(false)
-  const [loadingManagerRemote, setLoadingManagerRemote] = useState(false)
+
+  // Current employee ID
+  const [currentEmpId, setCurrentEmpId] = useState(session?.user?.emp_id || '')
+
+  // Filter states for year and month
+  const [myAppFilterYear, setMyAppFilterYear] = useState<number>(new Date().getFullYear())
+  const [allAppFilterYear, setAllAppFilterYear] = useState<number>(new Date().getFullYear())
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+
+  // React Query hooks for data fetching with automatic caching
+  const queryClient = useQueryClient()
+  const { data: leaveTypes = [], isLoading: loadingTypes } = useLeaveTypes()
+  const { data: applications = [], isLoading: loadingMy } = useApplications(currentEmpId, myAppFilterYear)
+  const { data: allApplications = [], isLoading: loadingAll } = useAllApplications(allAppFilterYear)
+  const { data: pendingApplications = [], isLoading: loadingPending } = usePendingApplications()
+  const { data: managerApplications = [], isLoading: loadingManager } = useManagerApplications()
+  const { data: employeeBalances = [], isLoading: loadingBalances } = useEmployeeBalances(selectedYear)
+  const { data: employeeRemoteBalances = [], isLoading: loadingRemoteBalances } = useEmployeeRemoteBalances(selectedMonth)
+  const { data: myRemoteApplications = [], isLoading: loadingMyRemote } = useRemoteApplications('my', currentEmpId)
+  const { data: remoteApplications = [], isLoading: loadingAllRemote } = useRemoteApplications('all')
+  const { data: pendingRemoteApplications = [], isLoading: loadingPendingRemote } = useRemoteApplications('pending')
+  const { data: managerRemoteApplications = [], isLoading: loadingManagerRemote } = useManagerRemoteApplications()
+  const { data: remoteValidation } = useRemoteValidation(currentEmpId)
+  const { data: employeeManager } = useEmployeeManager(currentEmpId)
+
+  // Debug: Log employee balances data, especially for employee 109
+  useEffect(() => {
+    if (employeeBalances && employeeBalances.length > 0) {
+      console.log('📊 CLIENT: Received employee balances:', employeeBalances.length, 'records')
+      const emp109 = employeeBalances.find((e: any) => e.emp_id === '109' || e.emp_id === 109)
+      if (emp109) {
+        console.log('🎯 CLIENT: Employee 109 (Husnain Ali) data:', JSON.stringify(emp109, null, 2))
+      } else {
+        console.log('⚠️ CLIENT: Employee 109 NOT FOUND in employeeBalances array')
+        console.log('Available emp_ids:', employeeBalances.map((e: any) => e.emp_id).slice(0, 10))
+      }
+    }
+  }, [employeeBalances])
+
+  // UI loading states (not data loading)
+  const loading = loadingTypes || loadingMy || loadingAll || loadingBalances
+  const loadingRemote = loadingMyRemote || loadingAllRemote || loadingPendingRemote
+
+  // Helper function to refresh all leave data (replaces old fetch functions)
+  const refreshLeaveData = () => {
+    // Invalidate all leave-related queries to trigger refetch
+    queryClient.invalidateQueries({ queryKey: leavesKeys.all })
+  }
   const [searchRemoteBalance, setSearchRemoteBalance] = useState('')
   const [searchMyRemote, setSearchMyRemote] = useState('')
   const [searchAllRemote, setSearchAllRemote] = useState('')
   const [searchPendingRemote, setSearchPendingRemote] = useState('')
   const [searchManagerRemote, setSearchManagerRemote] = useState('')
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM format
   const [isEmployeeDetailsDialogOpen, setIsEmployeeDetailsDialogOpen] = useState(false)
   const [selectedEmployeeDetails, setSelectedEmployeeDetails] = useState<any>(null)
   const [isApplyDialogOpen, setIsApplyDialogOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [loadingMy, setLoadingMy] = useState(false)
-  const [loadingAll, setLoadingAll] = useState(false)
-  const [loadingPending, setLoadingPending] = useState(false)
-  const [loadingBalances, setLoadingBalances] = useState(false)
-  const [loadingRemote, setLoadingRemote] = useState(false)
   // Set default tab based on user_level: employees start at "my-applications", admins at "employees-leave-balance"
   const [activeTab, setActiveTab] = useState(isAdmin ? 'employees-leave-balance' : 'my-applications')
   const [isApplyRemoteDialogOpen, setIsApplyRemoteDialogOpen] = useState(false)
@@ -139,23 +183,17 @@ function LeavesPageContent() {
     reason: ''
   })
   const [selectedEmployeeForRemote, setSelectedEmployeeForRemote] = useState<string | null>(null)
-  const [remoteValidation, setRemoteValidation] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
   const [showSuccessPopup, setShowSuccessPopup] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
   const [showErrorPopup, setShowErrorPopup] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [showRemoteLimitReachedDialog, setShowRemoteLimitReachedDialog] = useState(false)
-  const [currentEmpId, setCurrentEmpId] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [allSearchTerm, setAllSearchTerm] = useState('')
   const [pendingSearchTerm, setPendingSearchTerm] = useState('')
   const [managerSearchTerm, setManagerSearchTerm] = useState('')
   const [employeeSearchTerm, setEmployeeSearchTerm] = useState('')
-  const [loadingManager, setLoadingManager] = useState(false)
-  // Filter states for year (default: current year, starting from July)
-  const [myAppFilterYear, setMyAppFilterYear] = useState<number>(new Date().getFullYear())
-  const [allAppFilterYear, setAllAppFilterYear] = useState<number>(new Date().getFullYear())
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null)
   const [selectedEmployeeName, setSelectedEmployeeName] = useState<string>('')
@@ -164,7 +202,6 @@ function LeavesPageContent() {
   const [employeeLeaveBalance, setEmployeeLeaveBalance] = useState<any[]>([])
   const [isEmployeeDialogOpen, setIsEmployeeDialogOpen] = useState(false)
   const [currentEmployeeManager, setCurrentEmployeeManager] = useState<string>('N/A')
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingApplication, setEditingApplication] = useState<LeaveApplication | null>(null)
   const [editLeave, setEditLeave] = useState({
@@ -268,310 +305,25 @@ function LeavesPageContent() {
     fetchEmploymentStatus()
   }, [isAdmin, session?.user?.emp_id])
 
+  // Set current emp ID from session
   useEffect(() => {
     if (session?.user?.emp_id) {
-      fetchInitialData()
+      setCurrentEmpId(session.user.emp_id)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.emp_id])
 
-  // Re-fetch all applications when year filter changes
+  // Update employee manager when data is fetched
   useEffect(() => {
-    if (currentEmpId) {
-      fetchAllApplications(allAppFilterYear)
+    if (employeeManager?.manager_name) {
+      setCurrentEmployeeManager(employeeManager.manager_name)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allAppFilterYear])
+  }, [employeeManager])
 
-  // Re-fetch my applications when year filter changes
-  useEffect(() => {
-    if (currentEmpId) {
-      fetchApplications(currentEmpId, myAppFilterYear)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myAppFilterYear])
-
-  // Re-fetch employee balances when year filter changes
-  useEffect(() => {
-    if (currentEmpId) {
-      fetchEmployeeBalances(selectedYear)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedYear])
-
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true)
-
-      // Get current user's empId from session
-      const empId = session?.user?.emp_id || '103' // Default to 103 for testing
-      setCurrentEmpId(empId)
-
-      // Fetch leave types
-      const typesRes = await fetch('/api/leaves/types')
-      if (typesRes.ok) {
-        const types = await typesRes.json()
-        setLeaveTypes(types)
-      }
-
-      // Fetch my applications
-      await fetchApplications(empId)
-
-      // Fetch all applications
-      await fetchAllApplications()
-
-      // Fetch pending applications
-      await fetchPendingApplications()
-
-      // Fetch employee balances
-      await fetchEmployeeBalances()
-
-      // Fetch remote work applications
-      await fetchRemoteApplications('all')
-      await fetchRemoteApplications('my')
-      await fetchRemoteApplications('pending')
-
-      // Fetch manager remote applications (fetches all for admins/managers)
-      await fetchManagerRemoteApplications()
-
-      // Fetch employee remote balances
-      await fetchEmployeeRemoteBalances()
-
-      // Fetch remote work validation
-      await fetchRemoteValidation()
-
-      // Fetch current employee's manager
-      await fetchCurrentEmployeeManager(empId)
-    } catch (error) {
-      console.error('Error fetching initial data:', error)
-      setErrorMessage('Failed to load leave data')
-      setShowErrorPopup(true)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchCurrentEmployeeManager = async (empId: string) => {
-    try {
-      const res = await fetch(`/api/leaves/employee-info?empId=${empId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setCurrentEmployeeManager(data.manager_name || 'N/A')
-      }
-    } catch (error) {
-      console.error('Error fetching employee manager:', error)
-    }
-  }
-
-  const fetchApplications = async (empId?: string, year?: number) => {
-    try {
-      setLoadingMy(true)
-      const yearParam = year || myAppFilterYear
-      let url = empId ? `/api/leaves/applications?empId=${empId}&year=${yearParam}` : `/api/leaves/applications?year=${yearParam}`
-      console.log(`🔄 Fetching my applications for year: ${yearParam}`)
-      const res = await fetch(url)
-      if (res.ok) {
-        const data = await res.json()
-        setApplications(data)
-      }
-    } catch (error) {
-      console.error('Error fetching applications:', error)
-    } finally {
-      setLoadingMy(false)
-    }
-  }
-
-  const fetchAllApplications = async (year?: number) => {
-    try {
-      setLoadingAll(true)
-      const yearParam = year || allAppFilterYear
-      console.log(`🔄 Fetching all applications for year: ${yearParam}`)
-      const res = await fetch(`/api/leaves/applications?year=${yearParam}`)
-      if (res.ok) {
-        const data = await res.json()
-        setAllApplications(data)
-      }
-    } catch (error) {
-      console.error('Error fetching all applications:', error)
-    } finally {
-      setLoadingAll(false)
-    }
-  }
-
-  const fetchPendingApplications = async () => {
-    try {
-      setLoadingPending(true)
-      const res = await fetch('/api/leaves/applications?status=0')
-      if (res.ok) {
-        const data = await res.json()
-        setPendingApplications(data)
-      }
-    } catch (error) {
-      console.error('Error fetching pending applications:', error)
-    } finally {
-      setLoadingPending(false)
-    }
-  }
-
-  const fetchManagerApplications = async (managerId?: string) => {
-    try {
-      setLoadingManager(true)
-      // If managerId not provided, fetch all manager approvals (for HR view)
-      const url = managerId
-        ? `/api/leaves/manager-approvals?managerId=${managerId}`
-        : `/api/leaves/manager-approvals`
-
-      console.log(`🔍 Fetching manager applications${managerId ? ` for manager ${managerId}` : ' (all managers)'}`)
-
-      const res = await fetch(url)
-      if (res.ok) {
-        const data = await res.json()
-        setManagerApplications(data)
-        console.log(`✅ Loaded ${data.length} manager approval applications`)
-      }
-    } catch (error) {
-      console.error('Error fetching manager applications:', error)
-    } finally {
-      setLoadingManager(false)
-    }
-  }
-
-  const fetchEmployeeBalances = async (year?: number) => {
-    try {
-      setLoadingBalances(true)
-      const yearParam = year || selectedYear
-      console.log(`🔄 Fetching employee balances for year: ${yearParam}...`)
-      const res = await fetch(`/api/leaves/employees-balance?year=${yearParam}`)
-      console.log('📡 Employee balance response status:', res.status)
-      if (res.ok) {
-        const data = await res.json()
-        console.log('✅ Employee balances fetched:', data.length, 'employees')
-        setEmployeeBalances(data)
-      } else {
-        const errorData = await res.json().catch(() => ({}))
-        console.error('❌ Failed to fetch employee balances:', res.status, res.statusText)
-        console.error('❌ Error details:', errorData)
-        console.error('❌ Error message:', errorData.details)
-        console.error('❌ Error code:', errorData.code)
-      }
-    } catch (error) {
-      console.error('❌ Error fetching employee balances:', error)
-    } finally {
-      setLoadingBalances(false)
-    }
-  }
-
-  const fetchEmployeeRemoteBalances = async (month?: string) => {
-    try {
-      setLoadingRemoteBalances(true)
-      const monthParam = month || selectedMonth
-      console.log('🔄 Fetching employee remote balances for month:', monthParam)
-      const res = await fetch(`/api/remote-work/employee-balances?month=${monthParam}`)
-      if (res.ok) {
-        const data = await res.json()
-        console.log('✅ Employee remote balances fetched:', data.length, 'employees')
-        setEmployeeRemoteBalances(data)
-      } else {
-        console.error('❌ Failed to fetch employee remote balances:', res.status)
-      }
-    } catch (error) {
-      console.error('❌ Error fetching employee remote balances:', error)
-    } finally {
-      setLoadingRemoteBalances(false)
-    }
-  }
-
-  const fetchRemoteApplications = async (type: 'my' | 'all' | 'pending' = 'all') => {
-    try {
-      setLoadingRemote(true)
-      let url = '/api/remote-work/applications?type=' + type
-      if (type === 'my') {
-        url += `&empId=${currentEmpId}`
-      }
-
-      const res = await fetch(url)
-      if (res.ok) {
-        const data = await res.json()
-
-        if (type === 'my') {
-          setMyRemoteApplications(data)
-        } else if (type === 'pending') {
-          setPendingRemoteApplications(data)
-        } else {
-          setRemoteApplications(data)
-        }
-
-        console.log(`✅ Fetched ${data.length} ${type} remote applications`)
-      }
-    } catch (error) {
-      console.error('❌ Error fetching remote applications:', error)
-    } finally {
-      setLoadingRemote(false)
-    }
-  }
-
-  const fetchManagerRemoteApplications = async (managerId?: string) => {
-    try {
-      setLoadingManagerRemote(true)
-      // If managerId not provided, fetch all manager approvals (for HR view)
-      const url = managerId
-        ? `/api/remote-work/manager-approvals?managerId=${managerId}`
-        : `/api/remote-work/manager-approvals`
-
-      console.log(`🔍 Fetching manager remote applications${managerId ? ` for manager ${managerId}` : ' (all managers)'}`)
-
-      const res = await fetch(url)
-      if (res.ok) {
-        const data = await res.json()
-        setManagerRemoteApplications(data)
-        console.log(`✅ Loaded ${data.length} manager remote work applications`)
-      }
-    } catch (error) {
-      console.error('❌ Error fetching manager remote applications:', error)
-    } finally {
-      setLoadingManagerRemote(false)
-    }
-  }
-
-  const fetchRemoteValidation = async () => {
-    try {
-      if (!currentEmpId) return
-
-      const res = await fetch(`/api/remote-work/validate?empId=${currentEmpId}`)
-      if (res.ok) {
-        const data = await res.json()
-        setRemoteValidation(data)
-      }
-    } catch (error) {
-      console.error('❌ Error fetching remote validation:', error)
-    }
-  }
-
-  // Handle tab changes
-  const handleTabChange = async (value: string) => {
+  // Handle tab changes (NO DATA FETCHING - React Query handles caching automatically!)
+  const handleTabChange = (value: string) => {
     setActiveTab(value)
-
-    // Fetch data when switching tabs
-    if (value === 'my-applications') {
-      await fetchApplications(currentEmpId)
-    } else if (value === 'all-applications') {
-      await fetchAllApplications()
-    } else if (value === 'pending-approvals') {
-      await fetchPendingApplications()
-    } else if (value === 'manager-approvals') {
-      // Fetch ALL manager approvals (not filtered by specific manager)
-      await fetchManagerApplications()
-    } else if (value === 'employees-leave-balance') {
-      await fetchEmployeeBalances()
-    } else if (value === 'remote-work') {
-      await fetchRemoteApplications('all')
-      await fetchRemoteApplications('my')
-      await fetchRemoteApplications('pending')
-      await fetchRemoteValidation()
-    } else if (value === 'manager-remote') {
-      // Fetch ALL manager remote approvals
-      await fetchManagerRemoteApplications()
-    }
+    // React Query automatically fetches and caches data for each tab
+    // No need to manually fetch data here!
   }
 
   const handleViewEmployeeLeaves = async (empId: string, employeeName: string) => {
@@ -646,7 +398,7 @@ function LeavesPageContent() {
         setShowSuccessPopup(true)
 
         // Refresh employee balances
-        await fetchEmployeeBalances(selectedYear)
+        refreshLeaveData()
       } else {
         const errorData = await response.json()
         setErrorMessage(errorData.error || 'Failed to update leave balance')
@@ -692,8 +444,7 @@ function LeavesPageContent() {
         setSuccessMessage(`Leave application ${confirmAction.approve ? 'approved' : 'rejected'} successfully`)
         setShowSuccessPopup(true)
         // Refresh all manager applications (not filtered by specific manager)
-        fetchManagerApplications()
-        fetchPendingApplications()
+        refreshLeaveData()
       } else {
         const errorData = await response.json()
         setErrorMessage(errorData.error || `Failed to ${confirmAction.approve ? 'approve' : 'reject'} leave application`)
@@ -740,9 +491,7 @@ function LeavesPageContent() {
         setSuccessMessage(`Leave application ${confirmAction.approve ? 'approved' : 'rejected'} successfully`)
         setShowSuccessPopup(true)
         // Refresh all data
-        fetchApplications(currentEmpId)
-        fetchAllApplications()
-        fetchPendingApplications()
+        refreshLeaveData()
       } else {
         const errorData = await response.json()
         setErrorMessage(errorData.error || `Failed to ${confirmAction.approve ? 'approve' : 'reject'} leave application`)
@@ -777,9 +526,7 @@ function LeavesPageContent() {
         setSuccessMessage(`Leave application ${approve ? 'approved' : 'rejected'} successfully`)
         setShowSuccessPopup(true)
         // Refresh all data
-        fetchApplications(currentEmpId)
-        fetchAllApplications()
-        fetchPendingApplications()
+        refreshLeaveData()
       } else {
         setErrorMessage(`Failed to ${approve ? 'approve' : 'reject'} leave application`)
         setShowErrorPopup(true)
@@ -815,17 +562,7 @@ function LeavesPageContent() {
     if (!deletingApplicationId) return
 
     setIsDeleting(true)
-
-    // Optimistic UI update - immediately remove from list
     const deletedId = deletingApplicationId
-    const previousAllApplications = [...allApplications]
-    const previousApplications = [...applications]
-    const previousPendingApplications = [...pendingApplications]
-
-    // Remove from UI immediately
-    setAllApplications(prev => prev.filter(app => app.id !== deletedId))
-    setApplications(prev => prev.filter(app => app.id !== deletedId))
-    setPendingApplications(prev => prev.filter(app => app.id !== deletedId))
 
     // Close dialog immediately
     setIsDeleteDialogOpen(false)
@@ -836,27 +573,19 @@ function LeavesPageContent() {
       })
 
       if (response.ok) {
-        // Success - show message and refresh to sync
+        // Success - show message and refresh data using React Query
         setSuccessMessage('Leave application deleted successfully')
         setShowSuccessPopup(true)
         setDeletingApplicationId(null)
         setDeletingApplicationName('')
 
-        // Refresh in background to sync
-        fetchEmployeeBalances()
+        // Refresh all leave data using React Query
+        refreshLeaveData()
       } else {
-        // Rollback on error
-        setAllApplications(previousAllApplications)
-        setApplications(previousApplications)
-        setPendingApplications(previousPendingApplications)
         setErrorMessage('Failed to delete leave application')
         setShowErrorPopup(true)
       }
     } catch (error) {
-      // Rollback on error
-      setAllApplications(previousAllApplications)
-      setApplications(previousApplications)
-      setPendingApplications(previousPendingApplications)
       console.error('Error deleting application:', error)
       setErrorMessage('Failed to delete leave application')
       setShowErrorPopup(true)
@@ -916,9 +645,7 @@ function LeavesPageContent() {
         setEditingApplication(null)
 
         // Refresh all data
-        await fetchApplications(currentEmpId)
-        await fetchAllApplications()
-        await fetchPendingApplications()
+        refreshLeaveData()
       } else {
         const error = await response.json()
         setErrorMessage(error.details || error.error || 'Failed to update leave application')
@@ -1106,10 +833,7 @@ function LeavesPageContent() {
         setSelectedEmployeeForAdd(null)
 
         // Refresh all data
-        await fetchApplications(currentEmpId)
-        await fetchAllApplications()
-        await fetchPendingApplications()
-        await fetchEmployeeBalances()
+        refreshLeaveData()
       } else {
         const error = await response.json()
         setErrorMessage(error.details || error.error || 'Failed to add leave')
@@ -1232,9 +956,7 @@ function LeavesPageContent() {
         })
 
         // Refresh all data
-        await fetchApplications(currentEmpId)
-        await fetchAllApplications()
-        await fetchPendingApplications()
+        refreshLeaveData()
       } else {
         const error = await response.json()
         console.error('❌ Error response:', error)
@@ -1384,8 +1106,8 @@ function LeavesPageContent() {
     return filterApplications(unique, managerSearchTerm)
   }, [managerApplications, managerSearchTerm])
 
-  const filteredEmployeeBalances = useMemo(() =>
-    employeeBalances.filter(emp => {
+  const filteredEmployeeBalances = useMemo(() => {
+    const filtered = employeeBalances.filter(emp => {
       if (!employeeSearchTerm.trim()) return true
       const lowerSearch = employeeSearchTerm.toLowerCase()
       return (
@@ -1393,15 +1115,30 @@ function LeavesPageContent() {
         emp.emp_id?.toLowerCase().includes(lowerSearch) ||
         emp.department_name?.toLowerCase().includes(lowerSearch)
       )
-    }),
-    [employeeBalances, employeeSearchTerm]
-  )
+    })
+
+    // Debug: Check if employee 109 is in filtered results
+    const emp109InFiltered = filtered.find((e: any) => e.emp_id === '109' || e.emp_id === 109)
+    if (emp109InFiltered) {
+      console.log('✅ CLIENT: Employee 109 is in FILTERED results:', {
+        name: emp109InFiltered.employee_name,
+        total_used: emp109InFiltered.total_used,
+        annual_used: emp109InFiltered.annual_used,
+        sick_used: emp109InFiltered.sick_used,
+        emergency_used: emp109InFiltered.emergency_used
+      })
+    } else if (employeeBalances.length > 0) {
+      console.log('⚠️ CLIENT: Employee 109 filtered out (search term:', employeeSearchTerm, ')')
+    }
+
+    return filtered
+  }, [employeeBalances, employeeSearchTerm])
 
   // Refresh all data
   const handleRefresh = async () => {
     try {
       setIsRefreshing(true)
-      await fetchInitialData()
+      refreshLeaveData()
       setSuccessMessage('Data refreshed successfully')
       setShowSuccessPopup(true)
     } catch (error) {
@@ -1571,10 +1308,7 @@ function LeavesPageContent() {
         setRemoteWorkData({ fromDate: '', toDate: '', numberOfDays: 1, reason: '', managerName: '', managerId: '' })
 
         // Refresh remote applications
-        await fetchRemoteApplications('all')
-        await fetchRemoteApplications('my')
-        await fetchRemoteApplications('pending')
-        await fetchRemoteValidation()
+        refreshLeaveData()
       } else {
         setErrorMessage(data.error || 'Failed to submit remote work application')
         setShowErrorPopup(true)
@@ -1606,9 +1340,7 @@ function LeavesPageContent() {
         setShowSuccessPopup(true)
 
         // Refresh remote applications
-        await fetchRemoteApplications('all')
-        await fetchRemoteApplications('my')
-        await fetchRemoteApplications('pending')
+        refreshLeaveData()
       } else {
         const data = await response.json()
         setErrorMessage(data.error || `Failed to ${action} remote work application`)
@@ -1701,9 +1433,7 @@ function LeavesPageContent() {
         setSelectedEmployeeForRemote(null)
 
         // Refresh remote applications
-        await fetchRemoteApplications('all')
-        await fetchRemoteApplications('my')
-        await fetchRemoteApplications('pending')
+        refreshLeaveData()
       } else {
         setErrorMessage(data.error || 'Failed to add remote work')
         setShowErrorPopup(true)
@@ -1778,9 +1508,7 @@ function LeavesPageContent() {
         setEditingRemoteApplication(null)
 
         // Refresh all remote applications
-        await fetchRemoteApplications('all')
-        await fetchRemoteApplications('my')
-        await fetchRemoteApplications('pending')
+        refreshLeaveData()
       } else {
         const data = await response.json()
         setErrorMessage(data.error || 'Failed to update remote application')
@@ -1817,9 +1545,7 @@ function LeavesPageContent() {
         setDeletingRemoteId(null)
 
         // Refresh all remote applications
-        await fetchRemoteApplications('all')
-        await fetchRemoteApplications('my')
-        await fetchRemoteApplications('pending')
+        refreshLeaveData()
       } else {
         const data = await response.json()
         setErrorMessage(data.error || 'Failed to delete remote application')
@@ -1867,12 +1593,9 @@ function LeavesPageContent() {
             setErrorMessage(message)
             setShowErrorPopup(true)
           }}
-          onRefresh={() => fetchInitialData()}
+          onRefresh={refreshLeaveData}
           currentEmpId={currentEmpId}
-          fetchApplications={fetchApplications}
-          fetchAllApplications={fetchAllApplications}
-          fetchPendingApplications={fetchPendingApplications}
-          fetchManagerApplications={fetchManagerApplications}
+          refreshData={refreshLeaveData}
         />
       </Suspense>
 
@@ -2747,105 +2470,167 @@ function LeavesPageContent() {
                   </div>
                 </div>
 
-                <div className="overflow-x-auto -mx-4 sm:mx-0">
-                  <div className="inline-block min-w-full align-middle px-4 sm:px-0">
-                    <Table className="min-w-full">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>
-                        <div className="flex items-center gap-2">
-                          <User className="h-4 w-4 text-gray-600" />
-                          <span className="text-gray-700 font-semibold">Employee</span>
-                        </div>
-                      </TableHead>
-                      <TableHead>
-                        <span className="text-gray-700 font-semibold">Emp ID</span>
-                      </TableHead>
-                      <TableHead>
-                        <span className="text-gray-700 font-semibold">Manager</span>
-                      </TableHead>
-                      <TableHead>
-                        <span className="text-gray-700 font-semibold">Total Leaves</span>
-                      </TableHead>
-                      <TableHead>
-                        <span className="text-gray-700 font-semibold">Annual</span>
-                      </TableHead>
-                      <TableHead>
-                        <span className="text-gray-700 font-semibold">Sick</span>
-                      </TableHead>
-                      <TableHead>
-                        <span className="text-gray-700 font-semibold">Emergency</span>
-                      </TableHead>
-                      <TableHead>
-                        <span className="text-gray-700 font-semibold">Remaining</span>
-                      </TableHead>
-                      <TableHead>
-                        <span className="text-gray-700 font-semibold">Action</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading || loadingBalances ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center py-12">
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-                            <p className="text-muted-foreground text-sm">Loading employee data...</p>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ) : filteredEmployeeBalances.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                          {employeeSearchTerm ? 'No matching employees found' : 'No employee data found'}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredEmployeeBalances.map((emp) => (
-                        <TableRow key={emp.emp_id}>
-                          <TableCell className="font-medium">{emp.employee_name}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{emp.emp_id}</TableCell>
-                          <TableCell className="text-sm">{emp.manager_name}</TableCell>
-                          <TableCell>
-                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-0">
-                              {emp.total_allocated}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-0">
-                              {emp.annual_used}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-0">
-                              {emp.sick_used}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-0">
-                              {emp.emergency_used}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-0">
-                              {emp.total_remaining}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
+                {/* Mobile Card View - Hidden on Desktop */}
+                <div className="block md:hidden space-y-3">
+                  {loading || loadingBalances ? (
+                    <div className="flex flex-col items-center gap-2 py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                      <p className="text-muted-foreground text-sm">Loading employee data...</p>
+                    </div>
+                  ) : filteredEmployeeBalances.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-8">
+                      {employeeSearchTerm ? 'No matching employees found' : 'No employee data found'}
+                    </div>
+                  ) : (
+                    filteredEmployeeBalances.map((emp) => (
+                      <Card key={emp.emp_id} className="border border-gray-200 shadow-sm">
+                        <CardContent className="p-4">
+                          {/* Employee Header */}
+                          <div className="flex items-start justify-between mb-3 pb-3 border-b">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <User className="h-4 w-4 text-gray-600" />
+                                <h3 className="font-semibold text-gray-900">{emp.employee_name}</h3>
+                              </div>
+                              <p className="text-sm text-muted-foreground">ID: {emp.emp_id}</p>
+                              <p className="text-sm text-gray-600 mt-1">Manager: {emp.manager_name}</p>
+                            </div>
                             <button
-                              className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors cursor-pointer"
+                              className="inline-flex items-center justify-center rounded-md h-8 px-3 text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors"
                               onClick={() => handleViewEmployeeLeaves(emp.emp_id, emp.employee_name)}
                             >
                               <Eye className="h-3 w-3 mr-1" />
                               View
                             </button>
+                          </div>
+
+                          {/* Leave Stats Grid */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-blue-50 rounded-lg p-3">
+                              <p className="text-xs text-blue-600 font-medium mb-1">Total Allocated</p>
+                              <p className="text-lg font-bold text-blue-700">{emp.total_allocated}</p>
+                            </div>
+                            <div className="bg-green-50 rounded-lg p-3">
+                              <p className="text-xs text-green-600 font-medium mb-1">Remaining</p>
+                              <p className="text-lg font-bold text-green-700">{emp.total_remaining}</p>
+                            </div>
+                            <div className="bg-purple-50 rounded-lg p-3">
+                              <p className="text-xs text-purple-600 font-medium mb-1">Annual Used</p>
+                              <p className="text-lg font-bold text-purple-700">{emp.annual_used}</p>
+                            </div>
+                            <div className="bg-yellow-50 rounded-lg p-3">
+                              <p className="text-xs text-yellow-600 font-medium mb-1">Sick Used</p>
+                              <p className="text-lg font-bold text-yellow-700">{emp.sick_used}</p>
+                            </div>
+                            <div className="bg-red-50 rounded-lg p-3 col-span-2">
+                              <p className="text-xs text-red-600 font-medium mb-1">Emergency Used</p>
+                              <p className="text-lg font-bold text-red-700">{emp.emergency_used}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+
+                {/* Desktop Table View - Hidden on Mobile */}
+                <div className="hidden md:block overflow-x-auto">
+                  <Table className="min-w-full">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          <div className="flex items-center gap-2">
+                            <User className="h-4 w-4 text-gray-600" />
+                            <span className="text-gray-700 font-semibold">Employee</span>
+                          </div>
+                        </TableHead>
+                        <TableHead>
+                          <span className="text-gray-700 font-semibold">Emp ID</span>
+                        </TableHead>
+                        <TableHead>
+                          <span className="text-gray-700 font-semibold">Manager</span>
+                        </TableHead>
+                        <TableHead>
+                          <span className="text-gray-700 font-semibold">Total Leaves</span>
+                        </TableHead>
+                        <TableHead>
+                          <span className="text-gray-700 font-semibold">Annual</span>
+                        </TableHead>
+                        <TableHead>
+                          <span className="text-gray-700 font-semibold">Sick</span>
+                        </TableHead>
+                        <TableHead>
+                          <span className="text-gray-700 font-semibold">Emergency</span>
+                        </TableHead>
+                        <TableHead>
+                          <span className="text-gray-700 font-semibold">Remaining</span>
+                        </TableHead>
+                        <TableHead>
+                          <span className="text-gray-700 font-semibold">Action</span>
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {loading || loadingBalances ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center py-12">
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                              <p className="text-muted-foreground text-sm">Loading employee data...</p>
+                            </div>
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-                  </div>
+                      ) : filteredEmployeeBalances.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
+                            {employeeSearchTerm ? 'No matching employees found' : 'No employee data found'}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredEmployeeBalances.map((emp) => (
+                          <TableRow key={emp.emp_id}>
+                            <TableCell className="font-medium">{emp.employee_name}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{emp.emp_id}</TableCell>
+                            <TableCell className="text-sm">{emp.manager_name}</TableCell>
+                            <TableCell>
+                              <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-0">
+                                {emp.total_allocated}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-0">
+                                {emp.annual_used}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-0">
+                                {emp.sick_used}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="bg-red-100 text-red-700 hover:bg-red-200 border-0">
+                                {emp.emergency_used}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge className="bg-green-100 text-green-700 hover:bg-green-200 border-0">
+                                {emp.total_remaining}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <button
+                                className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition-colors cursor-pointer"
+                                onClick={() => handleViewEmployeeLeaves(emp.emp_id, emp.employee_name)}
+                              >
+                                <Eye className="h-3 w-3 mr-1" />
+                                View
+                              </button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
               </CardContent>
             </Card>

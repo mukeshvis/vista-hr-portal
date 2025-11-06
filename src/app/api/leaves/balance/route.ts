@@ -12,8 +12,8 @@ function calculateProratedLeaves(dateOfConfirmation: string | null, leaveYear: n
 } {
   // Standard full-year leaves
   const FULL_ANNUAL = 22
-  const FULL_SICK = 10
-  const FULL_EMERGENCY = 8
+  const FULL_SICK = 8
+  const FULL_EMERGENCY = 10
   const FULL_TOTAL = 40
 
   if (!dateOfConfirmation) {

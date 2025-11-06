@@ -13,8 +13,8 @@ function calculateProratedLeaves(dateOfConfirmation: string | null, leaveYear: n
 } {
   // Standard full-year leaves
   const FULL_ANNUAL = 22
-  const FULL_SICK = 10
-  const FULL_EMERGENCY = 8
+  const FULL_SICK = 8
+  const FULL_EMERGENCY = 10
   const FULL_TOTAL = 40
 
   if (!dateOfConfirmation) {
@@ -226,47 +226,136 @@ export async function GET(request: NextRequest) {
 
     // Get leave usage for filtered employees
     console.log('📊 Fetching leave usage data...')
+    console.log(`📅 Date filter: >= ${fromDate}`)
     let leaveUsage
     if (!isAdmin && currentUserEmpId) {
       // For regular employees, only get their own leave usage
+      console.log(`🔍 Querying leave usage for employee: ${currentUserEmpId}`)
       leaveUsage = await prisma.$queryRaw`
         SELECT
-          la.emp_id,
+          CAST(la.emp_id AS CHAR) as emp_id,
           lt.leave_type_name,
-          SUM(lad.no_of_days) as days_used
+          SUM(lad.no_of_days) as days_used,
+          COUNT(DISTINCT la.id) as application_count
         FROM leave_application la
-        LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
+        INNER JOIN leave_application_data lad ON la.id = lad.leave_application_id
         LEFT JOIN leave_type lt ON la.leave_type = lt.id
         WHERE la.approved = 1
-        AND la.emp_id = ${currentUserEmpId}
-        AND STR_TO_DATE(lad.from_date, '%Y-%m-%d') >= ${fromDate}
-        GROUP BY la.emp_id, lt.leave_type_name
+        AND CAST(la.emp_id AS CHAR) = ${String(currentUserEmpId)}
+        AND CAST(lad.from_date AS DATE) >= ${fromDate}
+        GROUP BY CAST(la.emp_id AS CHAR), lt.leave_type_name
       ` as any[]
     } else {
       // For admins, get all employees' leave usage
+      console.log('🔍 Querying leave usage for ALL employees')
       leaveUsage = await prisma.$queryRaw`
         SELECT
-          la.emp_id,
+          CAST(la.emp_id AS CHAR) as emp_id,
           lt.leave_type_name,
-          SUM(lad.no_of_days) as days_used
+          SUM(lad.no_of_days) as days_used,
+          COUNT(DISTINCT la.id) as application_count
         FROM leave_application la
-        LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
+        INNER JOIN leave_application_data lad ON la.id = lad.leave_application_id
         LEFT JOIN leave_type lt ON la.leave_type = lt.id
         WHERE la.approved = 1
-        AND STR_TO_DATE(lad.from_date, '%Y-%m-%d') >= ${fromDate}
-        GROUP BY la.emp_id, lt.leave_type_name
+        AND CAST(lad.from_date AS DATE) >= ${fromDate}
+        GROUP BY CAST(la.emp_id AS CHAR), lt.leave_type_name
       ` as any[]
     }
 
     console.log(`✅ Found leave usage for ${leaveUsage.length} records`)
 
+    // Debug: Check specific employee (109)
+    const emp109Data = leaveUsage.filter((r: any) => r.emp_id === '109' || r.emp_id === 109)
+    if (emp109Data.length > 0) {
+      console.log('🔍 Employee 109 (Husnain Ali) leave data:', JSON.stringify(emp109Data, null, 2))
+    } else {
+      console.log('⚠️ NO DATA FOUND for employee 109 in leave usage query!')
+
+      // Check if applications exist
+      const check109Apps = await prisma.$queryRaw`
+        SELECT id, emp_id, approved, leave_type
+        FROM leave_application
+        WHERE emp_id IN ('109', 109) AND approved = 1
+      ` as any[]
+      console.log(`📋 Employee 109 applications:`, check109Apps)
+
+      // Check if leave_application_data exists for those applications
+      if (check109Apps.length > 0) {
+        const appIds = check109Apps.map((a: any) => a.id).join(',')
+        const check109Data = await prisma.$queryRaw`
+          SELECT leave_application_id, from_date, to_date, no_of_days
+          FROM leave_application_data
+          WHERE leave_application_id IN (${appIds})
+        ` as any[]
+        console.log(`📊 Employee 109 application_data records:`, check109Data)
+      }
+
+      // Full join query with debugging (matching main query)
+      const check109 = await prisma.$queryRaw`
+        SELECT
+          CAST(la.emp_id AS CHAR) as emp_id,
+          lt.leave_type_name,
+          lad.from_date,
+          lad.to_date,
+          lad.no_of_days,
+          CAST(lad.from_date AS DATE) as lad_date_parsed,
+          CASE
+            WHEN CAST(lad.from_date AS DATE) >= ${fromDate} THEN 'MATCH'
+            ELSE 'NO MATCH'
+          END as date_filter_match
+        FROM leave_application la
+        INNER JOIN leave_application_data lad ON la.id = lad.leave_application_id
+        LEFT JOIN leave_type lt ON la.leave_type = lt.id
+        WHERE CAST(la.emp_id AS CHAR) = '109' AND la.approved = 1
+      ` as any[]
+      console.log(`🔍 Full diagnostic query for employee 109 (date filter: >= ${fromDate}):`)
+      console.log(JSON.stringify(check109, null, 2))
+    }
+
+    // Debug: Check if we're getting any data at all
+    if (leaveUsage.length === 0) {
+      console.log('⚠️ NO LEAVE USAGE DATA FOUND! Checking for approved applications...')
+      const checkApproved = await prisma.$queryRaw`
+        SELECT COUNT(*) as total FROM leave_application WHERE approved = 1
+      ` as any[]
+      console.log(`   Total approved applications in DB: ${checkApproved[0]?.total || 0}`)
+
+      const checkData = await prisma.$queryRaw`
+        SELECT COUNT(*) as total FROM leave_application_data
+      ` as any[]
+      console.log(`   Total records in leave_application_data: ${checkData[0]?.total || 0}`)
+
+      // Check actual data format
+      const sampleData = await prisma.$queryRaw`
+        SELECT
+          la.id, la.emp_id, la.approved,
+          lad.from_date, lad.to_date, lad.no_of_days,
+          lt.leave_type_name
+        FROM leave_application la
+        LEFT JOIN leave_application_data lad ON la.id = lad.leave_application_id
+        LEFT JOIN leave_type lt ON la.leave_type = lt.id
+        WHERE la.approved = 1
+        LIMIT 3
+      ` as any[]
+      console.log('📝 Sample approved applications:', JSON.stringify(sampleData, null, 2))
+    }
+
+    // Debug: Log first few records
+    if (leaveUsage.length > 0) {
+      console.log('📝 Sample leave usage records:', leaveUsage.slice(0, 5))
+    }
+
     // Create a map of employee leave usage
     const leaveUsageMap = new Map<string, { annual: number; sick: number; emergency: number; total: number }>()
 
     leaveUsage.forEach((record: any) => {
-      const empId = record.emp_id
+      // emp_id is already CAST as CHAR in query, so just use it as string
+      const empId = String(record.emp_id)
       const leaveType = record.leave_type_name?.toLowerCase() || ''
       const daysUsed = Number(record.days_used) || 0
+
+      console.log(`📊 Processing: EmpID=${empId}, LeaveType="${record.leave_type_name}", Days=${daysUsed}`)
 
       if (!leaveUsageMap.has(empId)) {
         leaveUsageMap.set(empId, { annual: 0, sick: 0, emergency: 0, total: 0 })
@@ -276,10 +365,15 @@ export async function GET(request: NextRequest) {
 
       if (leaveType.includes('annual')) {
         usage.annual += daysUsed
+        console.log(`  ✅ Counted as ANNUAL for ${empId}`)
       } else if (leaveType.includes('sick')) {
         usage.sick += daysUsed
+        console.log(`  ✅ Counted as SICK for ${empId}`)
       } else if (leaveType.includes('emergency')) {
         usage.emergency += daysUsed
+        console.log(`  ✅ Counted as EMERGENCY for ${empId}`)
+      } else {
+        console.log(`  ⚠️ UNMATCHED leave type for ${empId}: "${record.leave_type_name}"`)
       }
 
       usage.total += daysUsed
@@ -304,7 +398,11 @@ export async function GET(request: NextRequest) {
     // Build result with prorated leave allocation
     const result = employees.map((emp: any) => {
       try {
-        const usage = leaveUsageMap.get(emp.emp_id) || { annual: 0, sick: 0, emergency: 0, total: 0 }
+        // emp_id lookup as string (matches query CAST)
+        const empIdStr = String(emp.emp_id)
+        const usage = leaveUsageMap.get(empIdStr) || { annual: 0, sick: 0, emergency: 0, total: 0 }
+
+        console.log(`🔍 Looking up usage for ${emp.emp_id}:`, usage)
 
         // Calculate prorated leaves based on date_of_confirmation
         let proratedLeaves
@@ -315,8 +413,8 @@ export async function GET(request: NextRequest) {
           // Fallback to full leaves on error
           proratedLeaves = {
             annual: 22,
-            sick: 10,
-            emergency: 8,
+            sick: 8,
+            emergency: 10,
             total: 40,
             isProrated: false,
             remainingMonths: 12
@@ -370,11 +468,22 @@ export async function GET(request: NextRequest) {
           date_of_confirmation: null,
           is_prorated: false,
           annual_allocated: 22,
-          sick_allocated: 10,
-          emergency_allocated: 8
+          sick_allocated: 8,
+          emergency_allocated: 10
         }
       }
     })
+
+    // Debug: Log final result for employee 109
+    const emp109Result = result.find((r: any) => r.emp_id === '109' || r.emp_id === 109)
+    if (emp109Result) {
+      console.log('🎯 FINAL RESULT for Employee 109 (Husnain Ali):')
+      console.log(JSON.stringify(emp109Result, null, 2))
+    } else {
+      console.log('⚠️ Employee 109 NOT FOUND in final result array!')
+    }
+
+    console.log(`✅ Returning ${result.length} employee balance records`)
 
     return NextResponse.json(result)
   } catch (error: any) {

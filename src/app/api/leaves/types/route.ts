@@ -1,14 +1,23 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/database/prisma'
+import { prisma, executeWithRetry } from '@/lib/database/prisma'
 
 export async function GET() {
   try {
-    const leaveTypes = await prisma.$queryRaw`
-      SELECT id, leave_type_name, status
-      FROM leave_type
-      WHERE status = 1
-      ORDER BY leave_type_name ASC
-    ` as any[]
+    const leaveTypes = await executeWithRetry(async () => {
+      return await prisma.leave_type.findMany({
+        where: {
+          status: 1
+        },
+        select: {
+          id: true,
+          leave_type_name: true,
+          status: true
+        },
+        orderBy: {
+          leave_type_name: 'asc'
+        }
+      })
+    })
 
     return NextResponse.json(leaveTypes)
   } catch (error) {

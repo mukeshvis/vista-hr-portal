@@ -8,10 +8,7 @@ interface NotificationHandlerProps {
   onError: (message: string) => void
   onRefresh: () => void
   currentEmpId: string | null
-  fetchApplications: (empId: string) => void
-  fetchAllApplications: () => void
-  fetchPendingApplications: () => void
-  fetchManagerApplications: (empId?: string) => void
+  refreshData: () => void
 }
 
 export function NotificationHandler({
@@ -19,10 +16,7 @@ export function NotificationHandler({
   onError,
   onRefresh,
   currentEmpId,
-  fetchApplications,
-  fetchAllApplications,
-  fetchPendingApplications,
-  fetchManagerApplications,
+  refreshData,
 }: NotificationHandlerProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -53,16 +47,8 @@ export function NotificationHandler({
       console.log('📝 Setting popup message:', popupMessage)
       onSuccess(popupMessage)
 
-      // Refresh data
-      if (currentEmpId) {
-        fetchApplications(currentEmpId)
-        fetchAllApplications()
-        fetchPendingApplications()
-        if (role === 'manager') {
-          // Refresh all manager approvals (not just for specific manager)
-          fetchManagerApplications()
-        }
-      }
+      // Refresh data using React Query
+      refreshData()
 
       // Clear URL parameters after a delay to ensure popup shows
       setTimeout(() => {
@@ -78,7 +64,7 @@ export function NotificationHandler({
         router.replace('/leaves', { scroll: false })
       }, 100)
     }
-  }, [searchParams, currentEmpId, router, onSuccess, onError, fetchApplications, fetchAllApplications, fetchPendingApplications, fetchManagerApplications])
+  }, [searchParams, currentEmpId, router, onSuccess, onError, refreshData])
 
   return null // This component doesn't render anything
 }
