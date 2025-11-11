@@ -6,7 +6,7 @@ export function getBaseUrl(): string {
   const appEnv = process.env.APP_ENV || 'local'
 
   if (appEnv === 'production') {
-    return process.env.PRODUCTION_URL || 'http://192.168.1.214:5001'
+    return process.env.PRODUCTION_URL || 'https://hr.vis.com.pk'
   }
 
   // Default to localhost for local development
