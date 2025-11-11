@@ -1689,20 +1689,7 @@ function DashboardPageContent() {
                   {/* Two Columns - Compact & Responsive */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-3 md:mb-5 max-w-3xl mx-auto">
                     {/* HR Department */}
-                    <div className="text-center space-y-2 md:space-y-3">
-                      <h4 className="text-xs md:text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center justify-center gap-1.5 md:gap-2">
-                        <Users className="h-3 w-3 md:h-4 md:w-4 text-emerald-600" />
-                        HR Department
-                      </h4>
-                      <div className="space-y-1.5 md:space-y-2">
-                        <div className="flex items-center justify-center gap-1.5 md:gap-2 flex-wrap">
-                          <p className="text-xs md:text-sm text-slate-400 font-medium">Syed Amir Ausaf</p>
-                          <span className="text-slate-400 text-[10px] md:text-xs">-</span>
-                          <p className="text-[10px] md:text-xs text-slate-400 italic">Head Of HR & Admin</p>
-                        </div>
-                        <p className="text-xs md:text-sm text-slate-400">Sajid Hameed <span className="text-[10px] md:text-xs text-slate-500 italic">(HR)</span></p>
-                      </div>
-                    </div>
+                   
 
                     {/* Quick Links */}
                     <div className="text-center space-y-2 md:space-y-3">
@@ -2053,21 +2040,7 @@ function DashboardPageContent() {
                   {/* Two Columns - Compact */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-5 max-w-3xl mx-auto">
                     {/* HR Department */}
-                    <div className="text-center space-y-3">
-                      <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center justify-center gap-2">
-                        <Users className="h-4 w-4 text-emerald-600" />
-                        HR Department
-                      </h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-center gap-2 flex-wrap">
-                          <p className="text-sm text-slate-400 font-medium">Syed Amir Ausaf</p>
-                          <span className="text-slate-400 text-xs">-</span>
-                          <p className="text-xs text-slate-400 italic">Head Of HR & Admin</p>
-                        </div>
-                        <p className="text-sm text-slate-400">Sajid Hameed <span className="text-xs text-slate-400 italic">- HR </span></p>
-                      </div>
-                    </div>
-
+                  
                     {/* Quick Links */}
                     <div className="text-center space-y-3">
                       <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide flex items-center justify-center gap-2">
