@@ -6,7 +6,7 @@ process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
 export async function GET(request: NextRequest) {
   try {
     // Fetch data from external API
-    const response = await fetch('https://att.pakujala.com/APIUsers?ID=1', {
+    const response = await fetch('https://att.vis.com.pk/APIUsers?ID=1', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

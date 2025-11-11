@@ -1731,9 +1731,7 @@ function DashboardPageContent() {
                   {/* Footer Bottom - Compact & Responsive */}
                   <div className="text-center space-y-1.5 md:space-y-2">
                     {/* Developer Credit */}
-                    <p className="text-[10px] md:text-xs text-slate-400">
-                      Developed by <span className="text-slate-200 font-semibold">Mukesh Utmani</span> <span className="text-slate-500">(VIS Software Manager)</span>
-                    </p>
+                   
 
                     {/* Copyright & Status */}
                     <div className="flex flex-col md:flex-row justify-center items-center gap-2 md:gap-3 text-[10px] md:text-xs text-slate-500">
@@ -2097,9 +2095,7 @@ function DashboardPageContent() {
                   {/* Footer Bottom - Compact */}
                   <div className="text-center space-y-2">
                     {/* Developer Credit */}
-                    <p className="text-xs text-slate-400">
-                      Developed by <span className="text-slate-400 font-semibold">Mukesh Utmani</span> <span className="text-slate-400">( VIS Software Manager )</span>
-                    </p>
+                    
 
                     {/* Copyright & Status */}
                     <div className="flex flex-col md:flex-row justify-center items-center gap-3 text-xs text-slate-400">

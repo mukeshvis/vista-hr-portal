@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     console.log('Date range:', { start_date, end_date })
 
     // Fetch from external API
-    const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
+    const response = await fetch('https://att.vis.com.pk/APILogs?ID=1', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -122,7 +122,7 @@ export async function GET(request: NextRequest) {
   try {
     console.log('🔄 Syncing employees from external API...')
 
-    const response = await fetch('https://att.pakujala.com/APIUsers?ID=1', {
+    const response = await fetch('https://att.vis.com.pk/APIUsers?ID=1', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
