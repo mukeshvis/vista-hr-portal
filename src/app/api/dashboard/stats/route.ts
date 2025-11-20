@@ -37,7 +37,7 @@ export async function GET() {
 
       console.log('📊 Dashboard: Fetching real-time attendance for:', formattedDate)
 
-      const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
+      const response = await fetch('https://att.vis.com.pk/APILogs?ID=1', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

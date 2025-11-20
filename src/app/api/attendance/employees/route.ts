@@ -6,9 +6,20 @@ process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
 
 export async function GET(request: NextRequest) {
   try {
+<<<<<<< HEAD
     // Try fetching from external API with timeout and retry
     let data = null
     let apiError = null
+=======
+    // Fetch data from external API
+    const response = await fetch('https://att.vis.com.pk/APIUsers?ID=1', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'HR-Portal/1.0',
+      },
+    })
+>>>>>>> origin/main
 
     try {
       console.log('🔄 Attempting to fetch employees from external API...')

@@ -1697,8 +1697,17 @@ function DashboardPageContent() {
 
                   <Separator className="my-3 md:my-5 bg-slate-700" />
 
+<<<<<<< HEAD
                   {/* Quick Links - Centered */}
                   <div className="mb-3 md:mb-5 max-w-3xl mx-auto">
+=======
+                  {/* Two Columns - Compact & Responsive */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-3 md:mb-5 max-w-3xl mx-auto">
+                    {/* HR Department */}
+                   
+
+                    {/* Quick Links */}
+>>>>>>> origin/main
                     <div className="text-center space-y-2 md:space-y-3">
                       <h4 className="text-xs md:text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center justify-center gap-1.5 md:gap-2">
                         <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-blue-600" />
@@ -1724,6 +1733,12 @@ function DashboardPageContent() {
 
                   {/* Footer Bottom - Compact & Responsive */}
                   <div className="text-center space-y-1.5 md:space-y-2">
+<<<<<<< HEAD
+=======
+                    {/* Developer Credit */}
+                   
+
+>>>>>>> origin/main
                     {/* Copyright & Status */}
                     <div className="flex flex-col md:flex-row justify-center items-center gap-2 md:gap-3 text-[10px] md:text-xs text-slate-500">
                       <p>© {new Date().getFullYear()} HR Portal. All rights reserved.</p>
@@ -2041,8 +2056,16 @@ function DashboardPageContent() {
 
                   <Separator className="my-5 bg-slate-300" />
 
+<<<<<<< HEAD
                   {/* Quick Links - Centered */}
                   <div className="mb-5 max-w-3xl mx-auto">
+=======
+                  {/* Two Columns - Compact */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-5 max-w-3xl mx-auto">
+                    {/* HR Department */}
+                  
+                    {/* Quick Links */}
+>>>>>>> origin/main
                     <div className="text-center space-y-3">
                       <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide flex items-center justify-center gap-2">
                         <CheckCircle className="h-4 w-4 text-blue-600" />
@@ -2068,6 +2091,12 @@ function DashboardPageContent() {
 
                   {/* Footer Bottom - Compact */}
                   <div className="text-center space-y-2">
+<<<<<<< HEAD
+=======
+                    {/* Developer Credit */}
+                    
+
+>>>>>>> origin/main
                     {/* Copyright & Status */}
                     <div className="flex flex-col md:flex-row justify-center items-center gap-3 text-xs text-slate-400">
                       <p>© {new Date().getFullYear()} VIS HR Portal. All rights reserved.</p>

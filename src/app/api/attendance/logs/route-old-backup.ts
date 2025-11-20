@@ -95,7 +95,7 @@ export async function POST(request: NextRequest) {
       console.log('Trying external API first...')
       // Try external API first
       try {
-        const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
+        const response = await fetch('https://att.vis.com.pk/APILogs?ID=1', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -11,7 +11,7 @@ async function fullSync() {
     // ===== STEP 1: Sync Employees =====
     console.log('📋 STEP 1: Syncing Employees...')
 
-    const employeesResponse = await fetch('https://att.pakujala.com/APIUsers?ID=1', {
+    const employeesResponse = await fetch('https://att.vis.com.pk/APIUsers?ID=1', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -87,7 +87,7 @@ async function fullSync() {
       console.log(`\n📅 Syncing: ${dateStr}`)
 
       try {
-        const attendanceResponse = await fetch('https://att.pakujala.com/APILogs?ID=1', {
+        const attendanceResponse = await fetch('https://att.vis.com.pk/APILogs?ID=1', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

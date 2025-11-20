@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     // Do NOT store in database for now - will implement later
     try {
       console.log('🔄 Attempting to connect to external attendance API...')
-      const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
+      const response = await fetch('https://att.vis.com.pk/APILogs?ID=1', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -236,7 +236,7 @@ export async function GET(request: NextRequest) {
 
     // Fetch from external API
     try {
-      const response = await fetch('https://att.pakujala.com/APILogs?ID=1', {
+      const response = await fetch('https://att.vis.com.pk/APILogs?ID=1', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
