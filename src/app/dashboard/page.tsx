@@ -750,7 +750,11 @@ function DashboardPageContent() {
 
   // Fetch employee dashboard data
   const fetchEmployeeData = async () => {
-    if (!session?.user?.emp_id) return
+    if (!session?.user?.emp_id) {
+      console.log('⚠️ No emp_id found, setting loading to false')
+      setIsLoadingEmployeeData(false)
+      return
+    }
 
     console.log('📊 Fetching employee dashboard data for:', session.user.emp_id)
     setIsLoadingEmployeeData(true)
@@ -1116,12 +1120,13 @@ function DashboardPageContent() {
     }
   }
 
-  // Force session update on mount if needed
+  // Force session update on mount if needed (should rarely be needed with server-side session)
   useEffect(() => {
-    if (status === 'authenticated' && !session?.user?.username) {
+    if (session && !session?.user?.username) {
+      console.log('⚠️ Session exists but missing username, updating...')
       update()
     }
-  }, [status, session?.user?.username, update])
+  }, [session, session?.user?.username, update])
 
   // Load data on component mount
   useEffect(() => {
@@ -1133,7 +1138,7 @@ function DashboardPageContent() {
   // Check birthdays for ALL employees (global birthday check)
   useEffect(() => {
     const checkBirthdaysToday = async () => {
-      if (status === 'authenticated') {
+      if (session) {
         console.log('🎂 Checking for birthdays today (global)...')
         try {
           const response = await fetch('/api/employees/birthdays-today')
@@ -1171,18 +1176,24 @@ function DashboardPageContent() {
     }
 
     checkBirthdaysToday()
-  }, [status])
+  }, [session])
 
   // Fetch employee dashboard data for non-admin users OR admin viewing personal
   useEffect(() => {
     const isAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
     const shouldShowEmployeeView = !isAdmin || viewPersonal
-    console.log('🔄 useEffect triggered - Status:', status, 'IsAdmin:', isAdmin, 'ViewPersonal:', viewPersonal, 'EmpId:', session?.user?.emp_id)
-    if (status === 'authenticated' && shouldShowEmployeeView && session?.user?.emp_id) {
+    console.log('🔄 useEffect triggered - IsAdmin:', isAdmin, 'ViewPersonal:', viewPersonal, 'EmpId:', session?.user?.emp_id, 'HasSession:', !!session)
+
+    // Fetch data if session exists AND we should show employee view
+    if (session?.user?.emp_id && shouldShowEmployeeView) {
       console.log('✅ Calling fetchEmployeeData...')
       fetchEmployeeData()
+    } else if (!shouldShowEmployeeView) {
+      // If admin viewing admin dashboard, set loading to false immediately
+      console.log('👨‍💼 Admin view - skipping employee data fetch')
+      setIsLoadingEmployeeData(false)
     }
-  }, [status, session?.user?.user_level, session?.user?.emp_id, viewPersonal])
+  }, [session?.user?.user_level, session?.user?.emp_id, viewPersonal])
 
   // Handle input changes for new employee form
   const handleInputChange = (field: keyof NewEmployee, value: string | number) => {
@@ -1217,9 +1228,9 @@ function DashboardPageContent() {
 
   console.log('📊 Dashboard - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin, '| View Personal:', viewPersonal, '| Show Employee Dashboard:', showEmployeeDashboard)
 
-  // Show loading state while session is loading OR if no session yet (after login redirect)
-  if (status === 'loading' || !session) {
-    console.log('⏳ [DASHBOARD] Loading state - Status:', status, '| Has session:', !!session)
+  // Show loading state ONLY if no session (server-side session should always be available)
+  if (!session) {
+    console.log('⏳ [DASHBOARD] Loading state - No session available')
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
         <div className="text-center">
@@ -1686,25 +1697,8 @@ function DashboardPageContent() {
 
                   <Separator className="my-3 md:my-5 bg-slate-700" />
 
-                  {/* Two Columns - Compact & Responsive */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-3 md:mb-5 max-w-3xl mx-auto">
-                    {/* HR Department */}
-                    <div className="text-center space-y-2 md:space-y-3">
-                      <h4 className="text-xs md:text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center justify-center gap-1.5 md:gap-2">
-                        <Users className="h-3 w-3 md:h-4 md:w-4 text-emerald-600" />
-                        HR Department
-                      </h4>
-                      <div className="space-y-1.5 md:space-y-2">
-                        <div className="flex items-center justify-center gap-1.5 md:gap-2 flex-wrap">
-                          <p className="text-xs md:text-sm text-slate-400 font-medium">Syed Amir Ausaf</p>
-                          <span className="text-slate-400 text-[10px] md:text-xs">-</span>
-                          <p className="text-[10px] md:text-xs text-slate-400 italic">Head Of HR & Admin</p>
-                        </div>
-                        <p className="text-xs md:text-sm text-slate-400">Sajid Hameed <span className="text-[10px] md:text-xs text-slate-500 italic">(HR)</span></p>
-                      </div>
-                    </div>
-
-                    {/* Quick Links */}
+                  {/* Quick Links - Centered */}
+                  <div className="mb-3 md:mb-5 max-w-3xl mx-auto">
                     <div className="text-center space-y-2 md:space-y-3">
                       <h4 className="text-xs md:text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center justify-center gap-1.5 md:gap-2">
                         <CheckCircle className="h-3 w-3 md:h-4 md:w-4 text-blue-600" />
@@ -1730,11 +1724,6 @@ function DashboardPageContent() {
 
                   {/* Footer Bottom - Compact & Responsive */}
                   <div className="text-center space-y-1.5 md:space-y-2">
-                    {/* Developer Credit */}
-                    <p className="text-[10px] md:text-xs text-slate-400">
-                      Developed by <span className="text-slate-200 font-semibold">Mukesh Utmani</span> <span className="text-slate-500">(VIS Software Manager)</span>
-                    </p>
-
                     {/* Copyright & Status */}
                     <div className="flex flex-col md:flex-row justify-center items-center gap-2 md:gap-3 text-[10px] md:text-xs text-slate-500">
                       <p>© {new Date().getFullYear()} HR Portal. All rights reserved.</p>
@@ -2052,25 +2041,8 @@ function DashboardPageContent() {
 
                   <Separator className="my-5 bg-slate-300" />
 
-                  {/* Two Columns - Compact */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-5 max-w-3xl mx-auto">
-                    {/* HR Department */}
-                    <div className="text-center space-y-3">
-                      <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wide flex items-center justify-center gap-2">
-                        <Users className="h-4 w-4 text-emerald-600" />
-                        HR Department
-                      </h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-center gap-2 flex-wrap">
-                          <p className="text-sm text-slate-400 font-medium">Syed Amir Ausaf</p>
-                          <span className="text-slate-400 text-xs">-</span>
-                          <p className="text-xs text-slate-400 italic">Head Of HR & Admin</p>
-                        </div>
-                        <p className="text-sm text-slate-400">Sajid Hameed <span className="text-xs text-slate-400 italic">- HR </span></p>
-                      </div>
-                    </div>
-
-                    {/* Quick Links */}
+                  {/* Quick Links - Centered */}
+                  <div className="mb-5 max-w-3xl mx-auto">
                     <div className="text-center space-y-3">
                       <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wide flex items-center justify-center gap-2">
                         <CheckCircle className="h-4 w-4 text-blue-600" />
@@ -2096,11 +2068,6 @@ function DashboardPageContent() {
 
                   {/* Footer Bottom - Compact */}
                   <div className="text-center space-y-2">
-                    {/* Developer Credit */}
-                    <p className="text-xs text-slate-400">
-                      Developed by <span className="text-slate-400 font-semibold">Mukesh Utmani</span> <span className="text-slate-400">( VIS Software Manager )</span>
-                    </p>
-
                     {/* Copyright & Status */}
                     <div className="flex flex-col md:flex-row justify-center items-center gap-3 text-xs text-slate-400">
                       <p>© {new Date().getFullYear()} VIS HR Portal. All rights reserved.</p>

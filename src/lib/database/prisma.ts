@@ -148,9 +148,11 @@ export async function executeWithRetry<T>(
       error.code === 'P1003' || // Database does not exist
       error.code === 'P1008' || // Operations timed out
       error.code === 'P1017' || // Server has closed the connection
+      error.code === 'P2010' || // Raw query failed - underlying connector error
       error.name === 'PrismaClientUnknownRequestError' || // Engine not connected
       error.message?.includes('Engine is not yet connected') ||
       error.message?.includes('Connection') ||
+      error.message?.includes('Error in the underlying connector') ||
       error.message?.includes('ECONNREFUSED')
 
     if (isConnectionError && retries > 0) {

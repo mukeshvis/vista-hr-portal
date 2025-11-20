@@ -15,9 +15,11 @@ export async function GET(request: NextRequest) {
         m.emp_id as manager_emp_id
       FROM employee e
       LEFT JOIN employee m ON e.reporting_manager = m.id
-      WHERE e.active = 1
+      LEFT JOIN emp_empstatus es ON e.emp_employementstatus_id = es.id
+      WHERE e.status = 1
         AND e.emp_id IS NOT NULL
         AND e.emp_id != ''
+        AND LOWER(es.job_type_name) = 'permanent'
       ORDER BY e.emp_name ASC
     `
 
@@ -25,7 +27,7 @@ export async function GET(request: NextRequest) {
       return await prisma.$queryRawUnsafe(query) as any[]
     })
 
-    console.log(`✅ Fetched ${employees.length} employees`)
+    console.log(`✅ Fetched ${employees.length} permanent employees (probation employees excluded)`)
 
     // Log first few employees to verify manager data
     if (employees.length > 0) {

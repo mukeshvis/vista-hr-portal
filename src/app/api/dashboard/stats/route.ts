@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/database/prisma'
+import { prisma, executeWithRetry } from '@/lib/database/prisma'
 
 interface CountResult {
   count: bigint | number
@@ -16,14 +16,18 @@ process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = "0"
 export async function GET() {
   try {
     // Get total employee count from external_employees (attendance system)
-    const totalEmployees = await prisma.$queryRaw`
-      SELECT COUNT(*) as count FROM external_employees
-    ` as CountResult[]
+    const totalEmployees = await executeWithRetry(async () =>
+      await prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM external_employees
+      ` as CountResult[]
+    )
 
     // Get total employees from external_employees (attendance system)
-    const activeEmployees = await prisma.$queryRaw`
-      SELECT COUNT(*) as count FROM external_employees
-    ` as CountResult[]
+    const activeEmployees = await executeWithRetry(async () =>
+      await prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM external_employees
+      ` as CountResult[]
+    )
 
     // Fetch real-time attendance from external API for today
     let presentCount = 0
@@ -66,24 +70,30 @@ export async function GET() {
     } catch (apiError) {
       console.error('⚠️ Dashboard: External API failed, falling back to database:', apiError)
       // Fallback to database if API fails
-      const presentToday = await prisma.$queryRaw`
-        SELECT COUNT(DISTINCT user_id) as count
-        FROM user_attendance
-        WHERE state = 'Check In'
-        AND DATE(punch_time) = CURDATE()
-      ` as CountResult[]
+      const presentToday = await executeWithRetry(async () =>
+        await prisma.$queryRaw`
+          SELECT COUNT(DISTINCT user_id) as count
+          FROM user_attendance
+          WHERE state = 'Check In'
+          AND DATE(punch_time) = CURDATE()
+        ` as CountResult[]
+      )
       presentCount = Number(presentToday[0]?.count || 0)
     }
 
     // Get departments count and list from department table (all departments)
-    const departmentsCount = await prisma.$queryRaw`
-      SELECT COUNT(*) as count FROM department
-    ` as CountResult[]
+    const departmentsCount = await executeWithRetry(async () =>
+      await prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM department
+      ` as CountResult[]
+    )
 
     // Get all department names (including inactive)
-    const departmentsList = await prisma.$queryRaw`
-      SELECT id, department_name FROM department ORDER BY department_name ASC
-    ` as DepartmentResult[]
+    const departmentsList = await executeWithRetry(async () =>
+      await prisma.$queryRaw`
+        SELECT id, department_name FROM department ORDER BY department_name ASC
+      ` as DepartmentResult[]
+    )
 
     // Calculate some basic stats
     const totalCount = Number(totalEmployees[0]?.count || 0)

@@ -107,32 +107,94 @@ export async function POST(request: NextRequest) {
       }
     } catch (apiError: any) {
       console.error('❌ External API failed:', apiError.message)
-      console.warn('⚠️ Returning empty data set - External attendance API is unavailable')
+      console.log('🔄 Falling back to local database...')
 
-      // Return empty data instead of error to allow dashboard to continue
-      return NextResponse.json({
-        data: [],
-        source: 'external_api_unavailable',
-        count: 0,
-        error: 'External attendance API is currently unavailable',
-        details: apiError.message,
-        stats: {
-          check_in: 0,
-          check_out: 0,
-          verify_mode: {
-            face: 0,
-            form: 0,
-            other: 0
+      // Fallback to local database
+      try {
+        // Parse the dates
+        const startDateObj = parseDate(start_date)
+        const endDateObj = parseDate(end_date)
+
+        const attendanceRecords = await prisma.attendance.findMany({
+          where: {
+            attendance_date: {
+              gte: startDateObj,
+              lte: endDateObj,
+            },
+          },
+          orderBy: {
+            attendance_date: 'asc',
+          },
+        })
+
+        // Transform database records to match external API format
+        const transformedLogs = attendanceRecords.map((record, index) => ({
+          id: record.id,
+          user_id: record.emp_id,
+          punch_time: record.attendance_date?.toISOString(),
+          state: record.clock_in && record.clock_out ? 'Check Out' : 'Check In',
+          verify_mode: record.work_remotely === 1 ? 'FORM' : 'FACE',
+          status: record.absent === 'yes' ? 'Absent' : 'Present',
+          late_arrival: record.late === 'yes' ? 'Late' : null,
+        }))
+
+        const checkInCount = transformedLogs.filter(log => log.state === 'Check In').length
+        const checkOutCount = transformedLogs.filter(log => log.state === 'Check Out').length
+        const faceModeCount = transformedLogs.filter(log => log.verify_mode === 'FACE').length
+        const formModeCount = transformedLogs.filter(log => log.verify_mode === 'FORM').length
+
+        console.log(`✅ Database fallback success - fetched ${transformedLogs.length} records`)
+
+        return NextResponse.json({
+          data: transformedLogs,
+          source: 'local_database',
+          count: transformedLogs.length,
+          stats: {
+            check_in: checkInCount,
+            check_out: checkOutCount,
+            verify_mode: {
+              face: faceModeCount,
+              form: formModeCount,
+              other: transformedLogs.length - faceModeCount - formModeCount
+            }
           }
-        }
-      }, {
-        status: 200, // Return 200 with empty data instead of 500
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'X-Data-Source': 'unavailable',
-          'Cache-Control': 'no-cache, no-store, must-revalidate'
-        }
-      })
+        }, {
+          status: 200,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'X-Data-Source': 'local-database',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          }
+        })
+      } catch (dbError: any) {
+        console.error('❌ Database fallback also failed:', dbError)
+        console.warn('⚠️ Returning empty data set - Both external API and database unavailable')
+
+        // Return empty data if both fail
+        return NextResponse.json({
+          data: [],
+          source: 'unavailable',
+          count: 0,
+          error: 'Both external API and database are currently unavailable',
+          details: `API: ${apiError.message}, DB: ${dbError.message}`,
+          stats: {
+            check_in: 0,
+            check_out: 0,
+            verify_mode: {
+              face: 0,
+              form: 0,
+              other: 0
+            }
+          }
+        }, {
+          status: 200,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'X-Data-Source': 'unavailable',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          }
+        })
+      }
     }
 
   } catch (error: any) {
@@ -303,18 +365,66 @@ export async function GET(request: NextRequest) {
       }
     } catch (apiError: any) {
       console.error('❌ External API failed:', apiError.message)
-      console.warn('⚠️ Returning empty logs - External attendance API is unavailable')
+      console.log('🔄 Falling back to local database for employee attendance...')
 
-      // Return empty logs instead of error to allow dashboard to continue
-      return NextResponse.json({
-        logs: [],
-        count: 0,
-        empId,
-        month,
-        year,
-        error: 'External attendance API is currently unavailable',
-        details: apiError.message
-      }, { status: 200 }) // Return 200 with empty data instead of 500
+      // Fallback to local database
+      try {
+        const monthNum = parseInt(month)
+        const yearNum = parseInt(year)
+        const startDate = new Date(yearNum, monthNum - 1, 1)
+        const endDate = new Date(yearNum, monthNum, 0)
+
+        const attendanceRecords = await prisma.attendance.findMany({
+          where: {
+            emp_id: empId,
+            attendance_date: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
+          orderBy: {
+            attendance_date: 'asc',
+          },
+        })
+
+        // Transform database records to match expected format
+        const transformedLogs = attendanceRecords.map((record, index) => ({
+          id: record.id,
+          emp_id: record.emp_id,
+          date: record.attendance_date?.toISOString().split('T')[0],
+          check_in: record.clock_in,
+          check_out: record.clock_out,
+          status: record.absent === 'yes' ? 'Absent' : 'Present',
+          late_arrival: record.late === 'yes' ? 'Late' : null,
+          work_from_home: record.work_remotely === 1 ? 'Yes' : 'No',
+        }))
+
+        console.log(`✅ Database fallback success - fetched ${transformedLogs.length} employee records`)
+
+        return NextResponse.json({
+          logs: transformedLogs,
+          count: transformedLogs.length,
+          empId,
+          month,
+          year,
+          source: 'local_database'
+        }, { status: 200 })
+
+      } catch (dbError: any) {
+        console.error('❌ Database fallback also failed:', dbError)
+        console.warn('⚠️ Returning empty logs - Both external API and database unavailable')
+
+        // Return empty logs if both fail
+        return NextResponse.json({
+          logs: [],
+          count: 0,
+          empId,
+          month,
+          year,
+          error: 'Both external API and database are currently unavailable',
+          details: `API: ${apiError.message}, DB: ${dbError.message}`
+        }, { status: 200 })
+      }
     }
 
   } catch (error: any) {

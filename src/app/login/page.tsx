@@ -33,15 +33,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const router = useRouter()
 
-  // Handle successful login
+  // Handle successful login - redirect immediately
   useEffect(() => {
     if (errorMessage === 'SUCCESS') {
       console.log('✅ [LOGIN] Login successful! Redirecting to dashboard...')
-      // Give session time to be set, then redirect
-      setTimeout(() => {
-        router.push('/dashboard')
-        router.refresh() // Force refresh to load session
-      }, 100)
+      // Direct navigation - session will be available server-side
+      router.replace('/dashboard')
     }
   }, [errorMessage, router])
 

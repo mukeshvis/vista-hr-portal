@@ -97,6 +97,57 @@ export async function POST(request: NextRequest) {
     const leavePolicyId = employee[0]?.leaves_policy_id || 1
     console.log('📋 Employee leave policy ID:', leavePolicyId)
 
+    // Check for existing leave applications on the same dates
+    console.log('🔍 Checking for existing leave applications on same dates...')
+    console.log('📅 Request dates:', { fromDate: data.fromDate, toDate: data.toDate, empId: data.empId })
+
+    try {
+      const existingApplications = await prisma.$queryRaw`
+        SELECT la.id, la.emp_id, lad.from_date, lad.to_date, la.approved
+        FROM leave_application la
+        INNER JOIN leave_application_data lad ON la.id = lad.leave_application_id
+        WHERE la.emp_id = ${data.empId}
+          AND la.status = 1
+          AND la.approved IN (0, 1)
+          AND (
+            (lad.from_date <= ${data.toDate} AND lad.to_date >= ${data.fromDate})
+          )
+        LIMIT 1
+      ` as any[]
+
+      console.log('📊 Query result:', existingApplications)
+
+      if (existingApplications.length > 0) {
+        const existing = existingApplications[0]
+        console.log('❌ Duplicate leave application found:', existing)
+
+        const statusText = existing.approved === 1 ? 'approved' : 'pending'
+        const errorMessage = `آپ نے ${existing.from_date} سے ${existing.to_date} کی تاریخوں پر پہلے ہی leave apply کی ہوئی ہے (${statusText}). براہ کرم اپنی existing leave applications چیک کریں۔`
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Duplicate leave application',
+            message: `You have already applied for leave from ${existing.from_date} to ${existing.to_date} (${statusText}). Please check your existing leave applications.`,
+            urduMessage: errorMessage,
+            existingLeave: {
+              id: existing.id,
+              fromDate: existing.from_date,
+              toDate: existing.to_date,
+              status: statusText
+            }
+          },
+          { status: 409 }
+        )
+      }
+
+      console.log('✅ No duplicate applications found, proceeding...')
+    } catch (validationError: any) {
+      console.error('⚠️ Error checking for duplicate leaves:', validationError)
+      console.error('Validation error details:', validationError.message)
+      // Continue with insertion - don't block if validation check fails
+    }
+
     // Insert leave application
     console.log('🔄 Inserting leave application...')
     const insertResult = await prisma.$executeRaw`

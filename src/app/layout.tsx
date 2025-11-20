@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { initializeServices } from "@/lib/startup/init-services";
+import { auth } from "@/lib/auth/auth";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,19 +25,22 @@ if (typeof window === 'undefined') {
   initializeServices();
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  console.log('🏗️ [LAYOUT] Root layout rendering (client-side session mode)');
+  // Get session server-side to pass to SessionProvider
+  const session = await auth();
+
+  console.log('🏗️ [LAYOUT] Root layout rendering (server-side session)', session ? `User: ${session.user?.username}` : 'No session');
 
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>
+        <Providers session={session}>
           {children}
         </Providers>
       </body>

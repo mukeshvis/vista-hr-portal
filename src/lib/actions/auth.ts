@@ -20,15 +20,24 @@ export async function authenticate(
     console.log('🔑 [AUTH] Starting sign in for user:', result.data.username)
 
     try {
-      // Sign in WITHOUT redirect - let the client handle it
-      await signIn('credentials', {
+      // Sign in without automatic redirect - return result to client
+      const response = await signIn('credentials', {
         username: result.data.username,
         password: result.data.password,
-        redirect: false, // Don't server-side redirect
+        redirect: false,
       })
 
+      console.log('✅ [AUTH] Sign in response:', response)
+
+      // Check if sign in was successful
+      if (response?.error) {
+        console.error('❌ [AUTH] Sign in failed:', response.error)
+        return 'Invalid credentials'
+      }
+
       console.log('✅ [AUTH] Sign in successful! Returning success to client...')
-      return 'SUCCESS' // Return success flag for client to handle redirect
+      // Return success - let client handle redirect after session updates
+      return 'SUCCESS'
     } catch (signInError) {
       console.error('❌ [AUTH] Sign in error:', signInError)
       throw signInError

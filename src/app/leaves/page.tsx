@@ -35,52 +35,17 @@ import { ErrorPopup } from "@/components/ui/error-popup"
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
 import { SearchableSelect } from "@/components/ui/searchable-select"
 import { NotificationHandler } from "./NotificationHandler"
+import {
+  type LeaveType,
+  type LeaveApplication,
+  type EmployeeLeaveBalance,
+  type EmployeeRemoteBalance,
+  type RemoteApplication,
+  type RemoteValidation
+} from "@/hooks/use-leaves-data"
 
 // Force dynamic rendering to prevent prerender errors with useSearchParams
 export const dynamic = 'force-dynamic'
-
-interface LeaveType {
-  id: number
-  leave_type_name: string
-  status: number
-}
-
-interface LeaveApplication {
-  id: number
-  emp_id: string
-  employee_name: string
-  leave_type_name: string
-  leave_type_id: number
-  leave_day_type: number
-  reason: string
-  from_date: string
-  to_date: string
-  no_of_days: number
-  approval_status: number
-  approval_status_lm: number
-  approved: number
-  application_date: string
-  designation_name: string
-  department_name: string
-  first_second_half: string
-  reporting_manager: number
-  reporting_manager_name: string
-}
-
-interface EmployeeLeaveBalance {
-  emp_id: string
-  employee_name: string
-  department_name: string
-  designation_name: string
-  manager_name: string
-  total_allocated: number
-  total_used: number
-  total_remaining: number
-  total_applications: number
-  annual_used: number
-  sick_used: number
-  emergency_used: number
-}
 
 function LeavesPageContent() {
   const { data: session, status } = useSession()
@@ -93,6 +58,17 @@ function LeavesPageContent() {
   const isAdmin = isActualAdmin && !viewPersonal
 
   console.log('👤 Leaves Page - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin, '| View Personal:', viewPersonal)
+
+  // Helper function to safely format dates
+  const formatRemoteDate = (app: RemoteApplication) => {
+    const dateValue = app.from_date || app.date || ''
+    return dateValue ? new Date(dateValue).toLocaleDateString('en-GB') : 'N/A'
+  }
+
+  const formatRemoteToDate = (app: RemoteApplication) => {
+    const dateValue = app.to_date || app.date || ''
+    return dateValue ? new Date(dateValue).toLocaleDateString('en-GB') : 'N/A'
+  }
 
   // Current employee ID
   const [currentEmpId, setCurrentEmpId] = useState(session?.user?.emp_id || '')
@@ -821,8 +797,35 @@ function LeavesPageContent() {
         // Refresh all data
         refreshLeaveData()
       } else {
-        const error = await response.json()
-        setErrorMessage(error.details || error.error || 'Failed to add leave')
+        // Handle error response
+        let errorMessage = 'Failed to add leave'
+
+        try {
+          const responseClone = response.clone()
+          const responseText = await responseClone.text()
+          console.log('📡 Raw error response (HR add):', responseText)
+
+          let error
+          try {
+            error = JSON.parse(responseText)
+            console.log('📡 Parsed error (HR add):', error)
+          } catch (parseError) {
+            console.error('❌ Failed to parse error as JSON:', parseError)
+            error = { message: responseText || errorMessage }
+          }
+
+          // Handle duplicate leave error specially
+          if (response.status === 409) {
+            errorMessage = error.message || error.urduMessage || 'This employee has already applied for leave on these dates. Please check existing applications.'
+          } else {
+            errorMessage = error.message || error.error || error.details || errorMessage
+          }
+        } catch (parseError) {
+          console.error('❌ Error reading response:', parseError)
+          errorMessage = 'Failed to add leave. Please try again.'
+        }
+
+        setErrorMessage(errorMessage)
         setShowErrorPopup(true)
       }
     } catch (error: any) {
@@ -923,6 +926,7 @@ function LeavesPageContent() {
       })
 
       console.log('📡 Response status:', response.status)
+      console.log('📡 Response ok:', response.ok)
 
       if (response.ok) {
         const result = await response.json()
@@ -944,9 +948,37 @@ function LeavesPageContent() {
         // Refresh all data
         refreshLeaveData()
       } else {
-        const error = await response.json()
-        console.error('❌ Error response:', error)
-        setErrorMessage(error.details || error.error || 'Failed to submit leave application')
+        // Handle error response
+        let errorMessage = 'Failed to submit leave application'
+
+        try {
+          // Clone response to read it multiple times if needed
+          const responseClone = response.clone()
+          const responseText = await responseClone.text()
+          console.log('📡 Raw error response:', responseText)
+
+          // Try to parse as JSON
+          let error
+          try {
+            error = JSON.parse(responseText)
+            console.log('📡 Parsed error:', error)
+          } catch (parseError) {
+            console.error('❌ Failed to parse error as JSON:', parseError)
+            error = { message: responseText || errorMessage }
+          }
+
+          // Handle duplicate leave error specially
+          if (response.status === 409) {
+            errorMessage = error.message || error.urduMessage || 'You have already applied for leave on these dates. Please check your existing applications.'
+          } else {
+            errorMessage = error.message || error.error || error.details || errorMessage
+          }
+        } catch (parseError) {
+          console.error('❌ Error reading response:', parseError)
+          errorMessage = 'Failed to submit leave application. Please try again.'
+        }
+
+        setErrorMessage(errorMessage)
         setShowErrorPopup(true)
       }
     } catch (error: any) {
@@ -1191,46 +1223,54 @@ function LeavesPageContent() {
   const filteredMyRemoteApplications = useMemo(() => {
     if (!searchMyRemote) return myRemoteApplications
     const searchLower = searchMyRemote.toLowerCase()
-    return myRemoteApplications.filter(app =>
-      app.manager_name?.toLowerCase().includes(searchLower) ||
-      new Date(app.from_date || app.date).toLocaleDateString('en-GB').includes(searchLower) ||
-      new Date(app.to_date || app.date).toLocaleDateString('en-GB').includes(searchLower)
-    )
+    return myRemoteApplications.filter(app => {
+      const fromDateStr = (app.from_date || app.date) ? new Date(app.from_date || app.date || '').toLocaleDateString('en-GB') : ''
+      const toDateStr = (app.to_date || app.date) ? new Date(app.to_date || app.date || '').toLocaleDateString('en-GB') : ''
+      return app.manager_name?.toLowerCase().includes(searchLower) ||
+        fromDateStr.includes(searchLower) ||
+        toDateStr.includes(searchLower)
+    })
   }, [myRemoteApplications, searchMyRemote])
 
   const filteredAllRemoteApplications = useMemo(() => {
     if (!searchAllRemote) return remoteApplications
     const searchLower = searchAllRemote.toLowerCase()
-    return remoteApplications.filter(app =>
-      app.employee_name?.toLowerCase().includes(searchLower) ||
-      app.emp_id?.toLowerCase().includes(searchLower) ||
-      new Date(app.from_date || app.date).toLocaleDateString('en-GB').includes(searchLower) ||
-      new Date(app.to_date || app.date).toLocaleDateString('en-GB').includes(searchLower)
-    )
+    return remoteApplications.filter(app => {
+      const fromDateStr = (app.from_date || app.date) ? new Date(app.from_date || app.date || '').toLocaleDateString('en-GB') : ''
+      const toDateStr = (app.to_date || app.date) ? new Date(app.to_date || app.date || '').toLocaleDateString('en-GB') : ''
+      return app.employee_name?.toLowerCase().includes(searchLower) ||
+        app.emp_id?.toLowerCase().includes(searchLower) ||
+        fromDateStr.includes(searchLower) ||
+        toDateStr.includes(searchLower)
+    })
   }, [remoteApplications, searchAllRemote])
 
   const filteredPendingRemoteApplications = useMemo(() => {
     if (!searchPendingRemote) return pendingRemoteApplications
     const searchLower = searchPendingRemote.toLowerCase()
-    return pendingRemoteApplications.filter(app =>
-      app.employee_name?.toLowerCase().includes(searchLower) ||
-      app.emp_id?.toLowerCase().includes(searchLower) ||
-      new Date(app.from_date || app.date).toLocaleDateString('en-GB').includes(searchLower) ||
-      new Date(app.to_date || app.date).toLocaleDateString('en-GB').includes(searchLower)
-    )
+    return pendingRemoteApplications.filter(app => {
+      const fromDateStr = (app.from_date || app.date) ? new Date(app.from_date || app.date || '').toLocaleDateString('en-GB') : ''
+      const toDateStr = (app.to_date || app.date) ? new Date(app.to_date || app.date || '').toLocaleDateString('en-GB') : ''
+      return app.employee_name?.toLowerCase().includes(searchLower) ||
+        app.emp_id?.toLowerCase().includes(searchLower) ||
+        fromDateStr.includes(searchLower) ||
+        toDateStr.includes(searchLower)
+    })
   }, [pendingRemoteApplications, searchPendingRemote])
 
   const filteredManagerRemoteApplications = useMemo(() => {
     if (!searchManagerRemote) return managerRemoteApplications
     const searchLower = searchManagerRemote.toLowerCase()
-    return managerRemoteApplications.filter(app =>
-      app.employee_name?.toLowerCase().includes(searchLower) ||
-      app.emp_id?.toLowerCase().includes(searchLower) ||
-      app.reporting_manager_name?.toLowerCase().includes(searchLower) ||
-      app.reason?.toLowerCase().includes(searchLower) ||
-      new Date(app.from_date || app.date).toLocaleDateString('en-GB').includes(searchLower) ||
-      new Date(app.to_date || app.date).toLocaleDateString('en-GB').includes(searchLower)
-    )
+    return managerRemoteApplications.filter(app => {
+      const fromDateStr = (app.from_date || app.date) ? new Date(app.from_date || app.date || '').toLocaleDateString('en-GB') : ''
+      const toDateStr = (app.to_date || app.date) ? new Date(app.to_date || app.date || '').toLocaleDateString('en-GB') : ''
+      return app.employee_name?.toLowerCase().includes(searchLower) ||
+        app.emp_id?.toLowerCase().includes(searchLower) ||
+        app.manager_name?.toLowerCase().includes(searchLower) ||
+        app.reason?.toLowerCase().includes(searchLower) ||
+        fromDateStr.includes(searchLower) ||
+        toDateStr.includes(searchLower)
+    })
   }, [managerRemoteApplications, searchManagerRemote])
 
   // Handle remote work application submission
@@ -1649,14 +1689,14 @@ function LeavesPageContent() {
                     <Button
                       onClick={() => {
                         // Check if employee has reached the 6-month limit (4 days)
-                        if (remoteValidation?.usage?.sixMonths?.used >= 4) {
+                        if ((remoteValidation?.usage?.sixMonths?.used ?? 0) >= 4) {
                           setShowRemoteLimitReachedDialog(true)
                         } else {
                           setIsApplyRemoteDialogOpen(true)
                         }
                       }}
                       className={`bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white w-full sm:w-auto ${
-                        remoteValidation?.usage?.sixMonths?.used >= 4 ? 'opacity-60 cursor-not-allowed' : ''
+                        (remoteValidation?.usage?.sixMonths?.used ?? 0) >= 4 ? 'opacity-60 cursor-not-allowed' : ''
                       }`}
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -2687,8 +2727,8 @@ function LeavesPageContent() {
                         ) : (
                           filteredMyRemoteApplications.map((app) => (
                             <TableRow key={app.id}>
-                              <TableCell>{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</TableCell>
-                              <TableCell>{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>{formatRemoteDate(app)}</TableCell>
+                              <TableCell>{formatRemoteToDate(app)}</TableCell>
                               <TableCell>
                                 <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300">
                                   {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
@@ -2781,14 +2821,14 @@ function LeavesPageContent() {
                                       <CalendarDays className="h-3 w-3 text-purple-600" />
                                       <span className="font-medium text-purple-700">From</span>
                                     </div>
-                                    <p className="font-bold text-purple-900">{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</p>
+                                    <p className="font-bold text-purple-900">{formatRemoteDate(app)}</p>
                                   </div>
                                   <div>
                                     <div className="flex items-center gap-1 mb-1">
                                       <CalendarDays className="h-3 w-3 text-purple-600" />
                                       <span className="font-medium text-purple-700">To</span>
                                     </div>
-                                    <p className="font-bold text-purple-900">{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</p>
+                                    <p className="font-bold text-purple-900">{formatRemoteToDate(app)}</p>
                                   </div>
                                 </div>
                               </div>
@@ -2867,8 +2907,8 @@ function LeavesPageContent() {
                             <TableRow key={app.id}>
                               <TableCell className="font-medium">{app.employee_name}</TableCell>
                               <TableCell className="text-sm text-muted-foreground">{app.emp_id}</TableCell>
-                              <TableCell>{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</TableCell>
-                              <TableCell>{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>{formatRemoteDate(app)}</TableCell>
+                              <TableCell>{formatRemoteToDate(app)}</TableCell>
                               <TableCell>
                                 <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300">
                                   {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
@@ -2965,8 +3005,8 @@ function LeavesPageContent() {
                             <TableRow key={app.id}>
                               <TableCell className="font-medium">{app.employee_name}</TableCell>
                               <TableCell className="text-sm text-muted-foreground">{app.emp_id}</TableCell>
-                              <TableCell>{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</TableCell>
-                              <TableCell>{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>{formatRemoteDate(app)}</TableCell>
+                              <TableCell>{formatRemoteToDate(app)}</TableCell>
                               <TableCell>
                                 <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300">
                                   {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
@@ -3092,11 +3132,11 @@ function LeavesPageContent() {
                               <TableCell className="text-sm">
                                 <div className="flex items-center gap-1">
                                   <Users className="h-3 w-3 text-purple-600" />
-                                  <span className="font-medium text-purple-700">{app.reporting_manager_name || 'N/A'}</span>
+                                  <span className="font-medium text-purple-700">{app.manager_name || 'N/A'}</span>
                                 </div>
                               </TableCell>
-                              <TableCell>{new Date(app.from_date || app.date).toLocaleDateString('en-GB')}</TableCell>
-                              <TableCell>{new Date(app.to_date || app.date).toLocaleDateString('en-GB')}</TableCell>
+                              <TableCell>{formatRemoteDate(app)}</TableCell>
+                              <TableCell>{formatRemoteToDate(app)}</TableCell>
                               <TableCell>
                                 <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-purple-100 text-purple-700 border border-purple-300">
                                   {app.number_of_days || 1} {(app.number_of_days || 1) === 1 ? 'day' : 'days'}
@@ -3104,17 +3144,17 @@ function LeavesPageContent() {
                               </TableCell>
                               <TableCell className="max-w-xs truncate">{app.reason || 'N/A'}</TableCell>
                               <TableCell>
-                                {app.approval_status === 'Pending' && (
+                                {app.approved === 0 && (
                                   <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-300">
                                     Pending
                                   </span>
                                 )}
-                                {app.approval_status === 'Approved' && (
+                                {app.approved === 1 && (
                                   <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-green-100 text-green-700 border border-green-300">
                                     Approved
                                   </span>
                                 )}
-                                {app.approval_status === 'Rejected' && (
+                                {app.approved === 2 && (
                                   <span className="inline-flex items-center rounded-md h-6 px-2 text-xs font-medium bg-red-100 text-red-700 border border-red-300">
                                     Rejected
                                   </span>
@@ -3122,12 +3162,12 @@ function LeavesPageContent() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-1">
-                                  {app.approval_status === 'Approved' ? (
+                                  {app.approved === 1 ? (
                                     <span className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-green-100 text-green-700 border border-green-300">
                                       <CheckCircle className="h-3 w-3 mr-1" />
                                       Approved
                                     </span>
-                                  ) : app.approval_status === 'Rejected' ? (
+                                  ) : app.approved === 2 ? (
                                     <span className="inline-flex items-center justify-center rounded-md h-6 px-2 text-xs font-medium bg-red-100 text-red-700 border border-red-300">
                                       <XCircle className="h-3 w-3 mr-1" />
                                       Rejected
@@ -3180,7 +3220,7 @@ function LeavesPageContent() {
                           value={selectedMonth}
                           onChange={(e) => {
                             setSelectedMonth(e.target.value)
-                            fetchEmployeeRemoteBalances(e.target.value)
+                            // React Query will automatically refetch when selectedMonth changes
                           }}
                           className="w-full sm:w-40"
                         />
@@ -4770,7 +4810,7 @@ function LeavesPageContent() {
                             <div className="flex items-center gap-2 mb-1">
                               <CalendarDays className="h-4 w-4 text-purple-600" />
                               <span className="font-semibold text-sm text-gray-900">
-                                {new Date(app.from_date || app.date).toLocaleDateString('en-GB')} - {new Date(app.to_date || app.date).toLocaleDateString('en-GB')}
+                                {formatRemoteDate(app)} - {formatRemoteToDate(app)}
                               </span>
                             </div>
                             <div className="flex items-center gap-4 text-xs text-gray-600">
@@ -4817,7 +4857,7 @@ function LeavesPageContent() {
                             <div className="flex items-center gap-2 mb-1">
                               <CalendarDays className="h-4 w-4 text-purple-600" />
                               <span className="font-semibold text-sm text-gray-900">
-                                {new Date(app.from_date || app.date).toLocaleDateString('en-GB')} - {new Date(app.to_date || app.date).toLocaleDateString('en-GB')}
+                                {formatRemoteDate(app)} - {formatRemoteToDate(app)}
                               </span>
                             </div>
                             <div className="flex items-center gap-4 text-xs text-gray-600">

@@ -1,5 +1,119 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 
+// ==================== TYPES ====================
+
+interface EmployeeManagerInfo {
+  emp_id: string
+  emp_name: string
+  reporting_manager: number | null
+  manager_name: string | null
+  manager_emp_id: string | null
+}
+
+export interface LeaveType {
+  id: number
+  leave_type_name: string
+  status: number
+}
+
+export interface LeaveApplication {
+  id: number
+  emp_id: string
+  employee_name: string
+  leave_type_name: string
+  leave_type_id: number
+  leave_day_type: number
+  reason: string
+  from_date: string
+  to_date: string
+  no_of_days: number
+  approval_status: number
+  approval_status_lm: number
+  approved: number
+  application_date: string
+  designation_name: string
+  department_name: string
+  first_second_half: string
+  reporting_manager: number
+  reporting_manager_name: string
+}
+
+export interface EmployeeLeaveBalance {
+  emp_id: string
+  employee_name: string
+  department_name: string
+  designation_name: string
+  manager_name: string
+  total_allocated: number
+  total_used: number
+  total_remaining: number
+  total_applications: number
+  annual_used: number
+  sick_used: number
+  emergency_used: number
+}
+
+export interface EmployeeRemoteBalance {
+  emp_id: string
+  emp_name: string
+  designation_name: string
+  manager_name: string
+  sixMonths: {
+    used: number
+    limit: number
+    remaining: number
+    applications: any[]
+  }
+  oneMonth: {
+    used: number
+    limit: number
+    remaining: number
+    applications: any[]
+  }
+}
+
+export interface RemoteApplication {
+  id: number
+  emp_id: string
+  employee_name: string
+  from_date: string
+  to_date: string
+  number_of_days: number
+  date?: string
+  reason: string
+  application_date: string
+  approval_status: number
+  approved: number
+  approved_by?: string
+  approved_date?: string
+  rejection_reason?: string
+  manager_id?: number
+  manager_name?: string
+  status: number
+}
+
+export interface RemoteValidation {
+  canApply: boolean
+  reason: string
+  isPermanent?: boolean
+  hasExistingApplication?: boolean
+  existingApplication?: any
+  usage?: {
+    sixMonths: {
+      used: number
+      limit: number
+      remaining: number
+      applications: any[]
+    }
+    oneMonth: {
+      used: number
+      limit: number
+      remaining: number
+      applications: any[]
+    }
+  }
+}
+
 // ==================== QUERY KEYS ====================
 // Centralized query keys for easy cache management
 export const leavesKeys = {
@@ -43,9 +157,9 @@ async function fetcher<T>(url: string): Promise<T> {
  * Fetch leave types
  */
 export function useLeaveTypes() {
-  return useQuery({
+  return useQuery<LeaveType[]>({
     queryKey: leavesKeys.types(),
-    queryFn: () => fetcher('/api/leaves/types'),
+    queryFn: () => fetcher<LeaveType[]>('/api/leaves/types'),
   })
 }
 
@@ -53,13 +167,13 @@ export function useLeaveTypes() {
  * Fetch applications for a specific employee and year
  */
 export function useApplications(empId?: string, year?: number) {
-  return useQuery({
+  return useQuery<LeaveApplication[]>({
     queryKey: leavesKeys.applications(empId, year),
     queryFn: () => {
       const url = empId
         ? `/api/leaves/applications?empId=${empId}&year=${year}`
         : `/api/leaves/applications?year=${year}`
-      return fetcher(url)
+      return fetcher<LeaveApplication[]>(url)
     },
     enabled: !!empId || !!year, // Only fetch if we have an empId or year
   })
@@ -69,9 +183,9 @@ export function useApplications(empId?: string, year?: number) {
  * Fetch all applications for a specific year
  */
 export function useAllApplications(year?: number) {
-  return useQuery({
+  return useQuery<LeaveApplication[]>({
     queryKey: leavesKeys.allApplications(year),
-    queryFn: () => fetcher(`/api/leaves/applications?year=${year}`),
+    queryFn: () => fetcher<LeaveApplication[]>(`/api/leaves/applications?year=${year}`),
     enabled: !!year,
   })
 }
@@ -80,9 +194,9 @@ export function useAllApplications(year?: number) {
  * Fetch pending applications (status = 0)
  */
 export function usePendingApplications() {
-  return useQuery({
+  return useQuery<LeaveApplication[]>({
     queryKey: leavesKeys.pendingApplications(),
-    queryFn: () => fetcher('/api/leaves/applications?status=0'),
+    queryFn: () => fetcher<LeaveApplication[]>('/api/leaves/applications?status=0'),
   })
 }
 
@@ -90,13 +204,13 @@ export function usePendingApplications() {
  * Fetch manager approval applications
  */
 export function useManagerApplications(managerId?: string) {
-  return useQuery({
+  return useQuery<LeaveApplication[]>({
     queryKey: leavesKeys.managerApplications(managerId),
     queryFn: () => {
       const url = managerId
         ? `/api/leaves/manager-approvals?managerId=${managerId}`
         : `/api/leaves/manager-approvals`
-      return fetcher(url)
+      return fetcher<LeaveApplication[]>(url)
     },
   })
 }
@@ -105,9 +219,9 @@ export function useManagerApplications(managerId?: string) {
  * Fetch employee leave balances for a specific year
  */
 export function useEmployeeBalances(year?: number) {
-  return useQuery({
+  return useQuery<EmployeeLeaveBalance[]>({
     queryKey: leavesKeys.employeeBalances(year),
-    queryFn: () => fetcher(`/api/leaves/employees-balance?year=${year}`),
+    queryFn: () => fetcher<EmployeeLeaveBalance[]>(`/api/leaves/employees-balance?year=${year}`),
     enabled: !!year,
   })
 }
@@ -116,9 +230,9 @@ export function useEmployeeBalances(year?: number) {
  * Fetch employee remote work balances for a specific month
  */
 export function useEmployeeRemoteBalances(month?: string) {
-  return useQuery({
+  return useQuery<EmployeeRemoteBalance[]>({
     queryKey: leavesKeys.employeeRemoteBalances(month),
-    queryFn: () => fetcher(`/api/remote-work/employee-balances?month=${month}`),
+    queryFn: () => fetcher<EmployeeRemoteBalance[]>(`/api/remote-work/employee-balances?month=${month}`),
     enabled: !!month,
   })
 }
@@ -127,14 +241,14 @@ export function useEmployeeRemoteBalances(month?: string) {
  * Fetch remote work applications by type
  */
 export function useRemoteApplications(type: 'my' | 'all' | 'pending', empId?: string) {
-  return useQuery({
+  return useQuery<RemoteApplication[]>({
     queryKey: leavesKeys.remoteApplications(type, empId),
     queryFn: () => {
       let url = `/api/remote-work/applications?type=${type}`
       if (type === 'my' && empId) {
         url += `&empId=${empId}`
       }
-      return fetcher(url)
+      return fetcher<RemoteApplication[]>(url)
     },
   })
 }
@@ -143,13 +257,13 @@ export function useRemoteApplications(type: 'my' | 'all' | 'pending', empId?: st
  * Fetch manager remote work applications
  */
 export function useManagerRemoteApplications(managerId?: string) {
-  return useQuery({
+  return useQuery<RemoteApplication[]>({
     queryKey: leavesKeys.managerRemoteApplications(managerId),
     queryFn: () => {
       const url = managerId
         ? `/api/remote-work/manager-approvals?managerId=${managerId}`
         : `/api/remote-work/manager-approvals`
-      return fetcher(url)
+      return fetcher<RemoteApplication[]>(url)
     },
   })
 }
@@ -158,13 +272,13 @@ export function useManagerRemoteApplications(managerId?: string) {
  * Fetch remote work validation for an employee
  */
 export function useRemoteValidation(empId?: string) {
-  return useQuery({
+  return useQuery<RemoteValidation>({
     queryKey: leavesKeys.remoteValidation(empId),
     queryFn: () => {
       const url = empId
         ? `/api/remote-work/validate?empId=${empId}`
         : `/api/remote-work/validate`
-      return fetcher(url)
+      return fetcher<RemoteValidation>(url)
     },
     enabled: !!empId,
   })
@@ -174,9 +288,9 @@ export function useRemoteValidation(empId?: string) {
  * Fetch employee manager information
  */
 export function useEmployeeManager(empId?: string) {
-  return useQuery({
+  return useQuery<EmployeeManagerInfo>({
     queryKey: leavesKeys.employeeManager(empId),
-    queryFn: () => fetcher(`/api/leaves/employee-info?empId=${empId}`),
+    queryFn: () => fetcher<EmployeeManagerInfo>(`/api/leaves/employee-info?empId=${empId}`),
     enabled: !!empId,
   })
 }

@@ -1,17 +1,19 @@
 
-
 "use client"
 
 import { SessionProvider } from "next-auth/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useState } from "react"
+import type { Session } from "next-auth"
 
 export function Providers({
-  children
+  children,
+  session
 }: {
   children: React.ReactNode
+  session: Session | null
 }) {
-  console.log('🎁 [PROVIDERS] SessionProvider initializing (client-side fetch mode)')
+  console.log('🎁 [PROVIDERS] SessionProvider initializing with server session:', session ? `User: ${session.user?.username}` : 'No session')
 
   // Create QueryClient instance inside the component to avoid sharing state between requests
   const [queryClient] = useState(() => new QueryClient({
@@ -34,6 +36,7 @@ export function Providers({
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider
+        session={session}
         basePath="/api/auth"
         refetchInterval={5 * 60}
         refetchOnWindowFocus={true}
