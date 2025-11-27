@@ -745,7 +745,7 @@ function DashboardPageContent() {
   const [isLoadingEmployeeData, setIsLoadingEmployeeData] = useState(true)
   const [employeeEmploymentStatus, setEmployeeEmploymentStatus] = useState<string>('')
   const [showBirthdayCard, setShowBirthdayCard] = useState(false)
-  const [birthdayEmployees, setBirthdayEmployees] = useState<Array<{emp_id: string, name: string}>>([])
+  const [birthdayEmployees, setBirthdayEmployees] = useState<Array<{ emp_id: string, name: string }>>([])
   const [isMyBirthday, setIsMyBirthday] = useState(false)
 
   // Fetch employee dashboard data
@@ -969,19 +969,19 @@ function DashboardPageContent() {
               // Check if completed 8 hours WITHIN office hours (9AM-5:30PM)
               if (workingHoursInOfficeWindow >= 8) {
                 onTime++
-                console.log(`✅ On Time: ${dateStr} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]}) - ${workingHoursInOfficeWindow.toFixed(2)} hours in office window`)
+                console.log(`✅ On Time: ${dateStr} (${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayOfWeek]}) - ${workingHoursInOfficeWindow.toFixed(2)} hours in office window`)
               } else {
                 lateArrivals++
-                console.log(`⏰ Late/Short: ${dateStr} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]}) - Only ${workingHoursInOfficeWindow.toFixed(2)} hours in office window (need 8)`)
+                console.log(`⏰ Late/Short: ${dateStr} (${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayOfWeek]}) - Only ${workingHoursInOfficeWindow.toFixed(2)} hours in office window (need 8)`)
               }
             } else {
               // No check-out record - count as late (incomplete day)
               lateArrivals++
-              console.log(`⚠️ No Check-out: ${dateStr} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]}) - Only check-in at ${checkInHour}:${String(checkInMinute).padStart(2, '0')}`)
+              console.log(`⚠️ No Check-out: ${dateStr} (${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayOfWeek]}) - Only check-in at ${checkInHour}:${String(checkInMinute).padStart(2, '0')}`)
             }
           } else {
             // No check-in record = absent (don't count in late)
-            console.log(`❌ Absent: ${dateStr} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]})`)
+            console.log(`❌ Absent: ${dateStr} (${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dayOfWeek]})`)
           }
         })
 
@@ -1376,151 +1376,151 @@ function DashboardPageContent() {
                   </div>
                 </div>
               ) : (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {/* Circular Progress - Present Days */}
-                <div className="flex flex-col items-center justify-center p-4">
-                  <div className="relative w-32 h-32">
-                    <svg className="transform -rotate-90 w-32 h-32">
-                      <circle
-                        cx="64"
-                        cy="64"
-                        r="56"
-                        stroke="#e5e7eb"
-                        strokeWidth="12"
-                        fill="none"
-                      />
-                      <circle
-                        cx="64"
-                        cy="64"
-                        r="56"
-                        stroke="#10b981"
-                        strokeWidth="12"
-                        fill="none"
-                        strokeDasharray={`${2 * Math.PI * 56}`}
-                        strokeDashoffset={`${2 * Math.PI * 56 * (1 - (employeeData.attendanceDays / 22))}`}
-                        className="transition-all duration-1000 ease-out"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-3xl font-bold text-gray-800">{animatedAttendanceDays}</span>
-                      <span className="text-xs text-gray-500">days</span>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  {/* Circular Progress - Present Days */}
+                  <div className="flex flex-col items-center justify-center p-4">
+                    <div className="relative w-32 h-32">
+                      <svg className="transform -rotate-90 w-32 h-32">
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          stroke="#e5e7eb"
+                          strokeWidth="12"
+                          fill="none"
+                        />
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          stroke="#10b981"
+                          strokeWidth="12"
+                          fill="none"
+                          strokeDasharray={`${2 * Math.PI * 56}`}
+                          strokeDashoffset={`${2 * Math.PI * 56 * (1 - (employeeData.attendanceDays / 22))}`}
+                          className="transition-all duration-1000 ease-out"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-3xl font-bold text-gray-800">{animatedAttendanceDays}</span>
+                        <span className="text-xs text-gray-500">days</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-center">
+                      <p className="text-sm font-semibold text-gray-700">Present</p>
+                      <p className="text-xs text-gray-500">Total working days</p>
                     </div>
                   </div>
-                  <div className="mt-3 text-center">
-                    <p className="text-sm font-semibold text-gray-700">Present</p>
-                    <p className="text-xs text-gray-500">Total working days</p>
-                  </div>
-                </div>
 
-                {/* Circular Progress - On Time */}
-                <div className="flex flex-col items-center justify-center p-4">
-                  <div className="relative w-32 h-32">
-                    <svg className="transform -rotate-90 w-32 h-32">
-                      <circle
-                        cx="64"
-                        cy="64"
-                        r="56"
-                        stroke="#e5e7eb"
-                        strokeWidth="12"
-                        fill="none"
-                      />
-                      <circle
-                        cx="64"
-                        cy="64"
-                        r="56"
-                        stroke="#3b82f6"
-                        strokeWidth="12"
-                        fill="none"
-                        strokeDasharray={`${2 * Math.PI * 56}`}
-                        strokeDashoffset={`${2 * Math.PI * 56 * (1 - (employeeData.onTime / (employeeData.attendanceDays || 1)))}`}
-                        className="transition-all duration-1000 ease-out delay-150"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-3xl font-bold text-gray-800">{animatedOnTime}</span>
-                      <span className="text-xs text-gray-500">days</span>
+                  {/* Circular Progress - On Time */}
+                  <div className="flex flex-col items-center justify-center p-4">
+                    <div className="relative w-32 h-32">
+                      <svg className="transform -rotate-90 w-32 h-32">
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          stroke="#e5e7eb"
+                          strokeWidth="12"
+                          fill="none"
+                        />
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          stroke="#3b82f6"
+                          strokeWidth="12"
+                          fill="none"
+                          strokeDasharray={`${2 * Math.PI * 56}`}
+                          strokeDashoffset={`${2 * Math.PI * 56 * (1 - (employeeData.onTime / (employeeData.attendanceDays || 1)))}`}
+                          className="transition-all duration-1000 ease-out delay-150"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-3xl font-bold text-gray-800">{animatedOnTime}</span>
+                        <span className="text-xs text-gray-500">days</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-center">
+                      <p className="text-sm font-semibold text-gray-700">On Time</p>
+                      <p className="text-xs text-gray-500">Punctual arrivals</p>
                     </div>
                   </div>
-                  <div className="mt-3 text-center">
-                    <p className="text-sm font-semibold text-gray-700">On Time</p>
-                    <p className="text-xs text-gray-500">Punctual arrivals</p>
-                  </div>
-                </div>
 
-                {/* Circular Progress - Late Arrivals */}
-                <div className="flex flex-col items-center justify-center p-4">
-                  <div className="relative w-32 h-32">
-                    <svg className="transform -rotate-90 w-32 h-32">
-                      <circle
-                        cx="64"
-                        cy="64"
-                        r="56"
-                        stroke="#e5e7eb"
-                        strokeWidth="12"
-                        fill="none"
-                      />
-                      <circle
-                        cx="64"
-                        cy="64"
-                        r="56"
-                        stroke="#f59e0b"
-                        strokeWidth="12"
-                        fill="none"
-                        strokeDasharray={`${2 * Math.PI * 56}`}
-                        strokeDashoffset={`${2 * Math.PI * 56 * (1 - (employeeData.lateArrivals / (employeeData.attendanceDays || 1)))}`}
-                        className="transition-all duration-1000 ease-out delay-300"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-3xl font-bold text-gray-800">{animatedLateArrivals}</span>
-                      <span className="text-xs text-gray-500">days</span>
+                  {/* Circular Progress - Late Arrivals */}
+                  <div className="flex flex-col items-center justify-center p-4">
+                    <div className="relative w-32 h-32">
+                      <svg className="transform -rotate-90 w-32 h-32">
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          stroke="#e5e7eb"
+                          strokeWidth="12"
+                          fill="none"
+                        />
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          stroke="#f59e0b"
+                          strokeWidth="12"
+                          fill="none"
+                          strokeDasharray={`${2 * Math.PI * 56}`}
+                          strokeDashoffset={`${2 * Math.PI * 56 * (1 - (employeeData.lateArrivals / (employeeData.attendanceDays || 1)))}`}
+                          className="transition-all duration-1000 ease-out delay-300"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-3xl font-bold text-gray-800">{animatedLateArrivals}</span>
+                        <span className="text-xs text-gray-500">days</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-center">
+                      <p className="text-sm font-semibold text-gray-700">Late</p>
+                      <p className="text-xs text-gray-500">After 9:00 AM</p>
                     </div>
                   </div>
-                  <div className="mt-3 text-center">
-                    <p className="text-sm font-semibold text-gray-700">Late</p>
-                    <p className="text-xs text-gray-500">After 9:00 AM</p>
-                  </div>
-                </div>
 
-                {/* Circular Progress - Absent Days */}
-                <div className="flex flex-col items-center justify-center p-4">
-                  <div className="relative w-32 h-32">
-                    <svg className="transform -rotate-90 w-32 h-32">
-                      <circle
-                        cx="64"
-                        cy="64"
-                        r="56"
-                        stroke="#e5e7eb"
-                        strokeWidth="12"
-                        fill="none"
-                      />
-                      <circle
-                        cx="64"
-                        cy="64"
-                        r="56"
-                        stroke="#ef4444"
-                        strokeWidth="12"
-                        fill="none"
-                        strokeDasharray={`${2 * Math.PI * 56}`}
-                        strokeDashoffset={`${employeeData.workingDays > 0 ? 2 * Math.PI * 56 * (1 - (employeeData.absentDays / employeeData.workingDays)) : 2 * Math.PI * 56}`}
-                        className="transition-all duration-1000 ease-out delay-450"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-3xl font-bold text-gray-800">{animatedAbsentDays}</span>
-                      <span className="text-xs text-gray-500">days</span>
+                  {/* Circular Progress - Absent Days */}
+                  <div className="flex flex-col items-center justify-center p-4">
+                    <div className="relative w-32 h-32">
+                      <svg className="transform -rotate-90 w-32 h-32">
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          stroke="#e5e7eb"
+                          strokeWidth="12"
+                          fill="none"
+                        />
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          stroke="#ef4444"
+                          strokeWidth="12"
+                          fill="none"
+                          strokeDasharray={`${2 * Math.PI * 56}`}
+                          strokeDashoffset={`${employeeData.workingDays > 0 ? 2 * Math.PI * 56 * (1 - (employeeData.absentDays / employeeData.workingDays)) : 2 * Math.PI * 56}`}
+                          className="transition-all duration-1000 ease-out delay-450"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-3xl font-bold text-gray-800">{animatedAbsentDays}</span>
+                        <span className="text-xs text-gray-500">days</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 text-center">
+                      <p className="text-sm font-semibold text-gray-700">Absent</p>
+                      <p className="text-xs text-gray-500">Days missed</p>
                     </div>
                   </div>
-                  <div className="mt-3 text-center">
-                    <p className="text-sm font-semibold text-gray-700">Absent</p>
-                    <p className="text-xs text-gray-500">Days missed</p>
-                  </div>
                 </div>
-              </div>
               )}
             </CardContent>
           </Card>
@@ -1563,14 +1563,14 @@ function DashboardPageContent() {
                   <div className="space-y-3">
                     {recentLeaves.map((leave: any) => {
                       const getStatusColor = (approved: number) => {
-                        switch(approved) {
+                        switch (approved) {
                           case 1: return 'bg-green-100 text-green-700'
                           case 2: return 'bg-red-100 text-red-700'
                           default: return 'bg-amber-100 text-amber-700'
                         }
                       }
                       const getStatusText = (approved: number) => {
-                        switch(approved) {
+                        switch (approved) {
                           case 1: return 'Approved'
                           case 2: return 'Rejected'
                           default: return 'Pending'
@@ -1805,181 +1805,181 @@ function DashboardPageContent() {
 
       {/* Dashboard Content */}
       <main className="container mx-auto px-4 md:px-6 py-4 md:py-6 space-y-4 md:space-y-6">
-          {/* Dashboard Heading */}
-          <div className="mb-6">
-            <h1 className="text-3xl md:text-4xl font-bold text-slate-800">HR Portal Dashboard</h1>
-            <p className="text-sm text-slate-600 mt-2">Welcome back! Here's an overview of your HR Portal</p>
-          </div>
+        {/* Dashboard Heading */}
+        <div className="mb-6">
+          <h1 className="text-3xl md:text-4xl font-bold text-slate-800">HR Portal Dashboard</h1>
+          <p className="text-sm text-slate-600 mt-2">Welcome back! Here's an overview of your HR Portal</p>
+        </div>
 
-          {/* Key Metrics Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {isLoadingStats ? (
-              // Skeleton Loaders
-              <>
-                <StatsCardSkeleton />
-                <StatsCardSkeleton />
-                <StatsCardSkeleton />
-              </>
-            ) : (
-              // Real Data
-              <>
-                <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-200 to-blue-300">
-                  <CardContent className="p-8 pt-10">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <p className="text-sm font-medium text-slate-700">Total Employees</p>
-                        </div>
-                        <p className="text-3xl font-bold text-slate-800">{dashboardData.totalEmployees.toLocaleString()}</p>
-                        <div className="flex items-center gap-1 mt-2">
-                          <TrendingUp className="h-3 w-3 text-green-600" />
-                          <span className="text-xs font-medium text-green-600">
-                            {dashboardData.totalEmployees > 0 ? `${dashboardData.activeEmployees} active` : "No data"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">Total workforce</p>
-                      </div>
-                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                        <Users className="h-6 w-6 text-blue-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-emerald-200 to-emerald-300">
-                  <CardContent className="p-8 pt-10">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <p className="text-sm font-medium text-slate-700">Present Today</p>
-                        </div>
-                        <p className="text-3xl font-bold text-slate-800">{dashboardData.presentToday.toLocaleString()}</p>
-                        <div className="flex items-center gap-1 mt-2">
-                          <TrendingUp className="h-3 w-3 text-green-600" />
-                          <span className="text-xs font-medium text-green-600">
-                            {dashboardData.attendancePercentage} attendance
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">Out of {dashboardData.totalEmployees} employees</p>
-                      </div>
-                      <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                        <UserCheck className="h-6 w-6 text-emerald-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-rose-200 to-rose-300">
-                  <CardContent className="p-8 pt-10">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <p className="text-sm font-medium text-slate-700">Pending Leaves</p>
-                          {dashboardData.pendingLeaves > 5 && <Badge variant="destructive" className="text-xs animate-pulse">Urgent</Badge>}
-                        </div>
-                        <p className="text-3xl font-bold text-slate-800">{dashboardData.pendingLeaves}</p>
-                        <div className="flex items-center gap-1 mt-2">
-                          <TrendingUp className="h-3 w-3 text-green-600" />
-                          <span className="text-xs font-medium text-green-600">
-                            {dashboardData.pendingLeaves > 5 ? `${dashboardData.pendingLeaves - 5} urgent approvals` : "Normal workload"}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">Requires attention</p>
-                      </div>
-                      <div className="w-12 h-12 bg-rose-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
-                        <Calendar className="h-6 w-6 text-rose-600" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </>
-            )}
-          </div>
-
-          {/* Secondary Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-            {isLoadingStats ? (
-              // Skeleton Loaders
-              <>
-                <SecondaryMetricSkeleton />
-                <SecondaryMetricSkeleton />
-                <SecondaryMetricSkeleton />
-                <SecondaryMetricSkeleton />
-                <SecondaryMetricSkeleton />
-              </>
-            ) : (
-              // Real Data
-              <>
-                <Card className="p-4 border-1 border-purple-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-purple-100 to-purple-200 ">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center">
-                      <Building className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-600">Departments</p>
-                      <p className="text-lg font-bold text-slate-800">{dashboardData.departments}</p>
-                    </div>
-                  </div>
-                </Card>
-                <Card className="p-4 border-1 border-red-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-red-100 to-red-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-red-200 rounded-lg flex items-center justify-center">
-                      <UserX className="h-5 w-5 text-red-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-600">Absent</p>
-                      <p className="text-lg font-bold text-slate-800">{dashboardData.absent}</p>
-                    </div>
-                  </div>
-                </Card>
-                <Card className="p-4 border-1 border-amber-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-amber-100 to-amber-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-amber-200 rounded-lg flex items-center justify-center">
-                      <AlertCircle className="h-5 w-5 text-amber-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-600">Late Today</p>
-                      <p className="text-lg font-bold text-slate-800">{dashboardData.lateToday}</p>
-                    </div>
-                  </div>
-                </Card>
-                <Card className="p-4 border-1 border-blue-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-blue-100 to-blue-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center">
-                      <CalendarDays className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-600">On Leave</p>
-                      <p className="text-lg font-bold text-slate-800">{dashboardData.onLeave}</p>
-                    </div>
-                  </div>
-                </Card>
-                <Card className="p-4 border-1 border-emerald-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-emerald-100 to-emerald-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-200 rounded-lg flex items-center justify-center">
-                      <CheckCircle className="h-5 w-5 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-slate-600">On Time</p>
-                      <p className="text-lg font-bold text-slate-800">{dashboardData.presentToday}</p>
-                    </div>
-                  </div>
-                </Card>
-              </>
-            )}
-          </div>
-
-          {/* Animated Black Shining Divider Line - Only show when data is loaded */}
-          {!isLoadingStats && (
+        {/* Key Metrics Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {isLoadingStats ? (
+            // Skeleton Loaders
             <>
-              <div className="relative my-8 h-[2px] rounded-full overflow-hidden bg-gradient-to-r from-transparent via-slate-800 to-transparent">
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-600 to-transparent animate-pulse"></div>
-                <div
-                  className="absolute inset-0 h-full w-1/4 bg-gradient-to-r from-transparent via-slate-400 to-transparent opacity-80"
-                  style={{
-                    animation: 'shimmer 2.5s infinite ease-in-out',
-                  }}
-                ></div>
-              </div>
-              <style jsx>{`
+              <StatsCardSkeleton />
+              <StatsCardSkeleton />
+              <StatsCardSkeleton />
+            </>
+          ) : (
+            // Real Data
+            <>
+              <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-blue-200 to-blue-300">
+                <CardContent className="p-8 pt-10">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-sm font-medium text-slate-700">Total Employees</p>
+                      </div>
+                      <p className="text-3xl font-bold text-slate-800">{dashboardData.totalEmployees.toLocaleString()}</p>
+                      <div className="flex items-center gap-1 mt-2">
+                        <TrendingUp className="h-3 w-3 text-green-600" />
+                        <span className="text-xs font-medium text-green-600">
+                          {dashboardData.totalEmployees > 0 ? `${dashboardData.activeEmployees} active` : "No data"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Total workforce</p>
+                    </div>
+                    <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <Users className="h-6 w-6 text-blue-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-emerald-200 to-emerald-300">
+                <CardContent className="p-8 pt-10">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-sm font-medium text-slate-700">Present Today</p>
+                      </div>
+                      <p className="text-3xl font-bold text-slate-800">{dashboardData.presentToday.toLocaleString()}</p>
+                      <div className="flex items-center gap-1 mt-2">
+                        <TrendingUp className="h-3 w-3 text-green-600" />
+                        <span className="text-xs font-medium text-green-600">
+                          {dashboardData.attendancePercentage} attendance
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Out of {dashboardData.totalEmployees} employees</p>
+                    </div>
+                    <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <UserCheck className="h-6 w-6 text-emerald-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="hover:shadow-lg hover:scale-105 transition-all duration-300 border-0 shadow-sm bg-gradient-to-br from-rose-200 to-rose-300">
+                <CardContent className="p-8 pt-10">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <p className="text-sm font-medium text-slate-700">Pending Leaves</p>
+                        {dashboardData.pendingLeaves > 5 && <Badge variant="destructive" className="text-xs animate-pulse">Urgent</Badge>}
+                      </div>
+                      <p className="text-3xl font-bold text-slate-800">{dashboardData.pendingLeaves}</p>
+                      <div className="flex items-center gap-1 mt-2">
+                        <TrendingUp className="h-3 w-3 text-green-600" />
+                        <span className="text-xs font-medium text-green-600">
+                          {dashboardData.pendingLeaves > 5 ? `${dashboardData.pendingLeaves - 5} urgent approvals` : "Normal workload"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">Requires attention</p>
+                    </div>
+                    <div className="w-12 h-12 bg-rose-100 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                      <Calendar className="h-6 w-6 text-rose-600" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+        </div>
+
+        {/* Secondary Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {isLoadingStats ? (
+            // Skeleton Loaders
+            <>
+              <SecondaryMetricSkeleton />
+              <SecondaryMetricSkeleton />
+              <SecondaryMetricSkeleton />
+              <SecondaryMetricSkeleton />
+              <SecondaryMetricSkeleton />
+            </>
+          ) : (
+            // Real Data
+            <>
+              <Card className="p-4 border-1 border-purple-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-purple-100 to-purple-200 ">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-purple-200 rounded-lg flex items-center justify-center">
+                    <Building className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">Departments</p>
+                    <p className="text-lg font-bold text-slate-800">{dashboardData.departments}</p>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 border-1 border-red-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-red-100 to-red-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-200 rounded-lg flex items-center justify-center">
+                    <UserX className="h-5 w-5 text-red-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">Absent</p>
+                    <p className="text-lg font-bold text-slate-800">{dashboardData.absent}</p>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 border-1 border-amber-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-amber-100 to-amber-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-amber-200 rounded-lg flex items-center justify-center">
+                    <AlertCircle className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">Late Today</p>
+                    <p className="text-lg font-bold text-slate-800">{dashboardData.lateToday}</p>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 border-1 border-blue-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-blue-100 to-blue-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-200 rounded-lg flex items-center justify-center">
+                    <CalendarDays className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">On Leave</p>
+                    <p className="text-lg font-bold text-slate-800">{dashboardData.onLeave}</p>
+                  </div>
+                </div>
+              </Card>
+              <Card className="p-4 border-1 border-emerald-200 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-emerald-100 to-emerald-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-200 rounded-lg flex items-center justify-center">
+                    <CheckCircle className="h-5 w-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-slate-600">On Time</p>
+                    <p className="text-lg font-bold text-slate-800">{dashboardData.presentToday}</p>
+                  </div>
+                </div>
+              </Card>
+            </>
+          )}
+        </div>
+
+        {/* Animated Black Shining Divider Line - Only show when data is loaded */}
+        {!isLoadingStats && (
+          <>
+            <div className="relative my-8 h-[2px] rounded-full overflow-hidden bg-gradient-to-r from-transparent via-slate-800 to-transparent">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-slate-600 to-transparent animate-pulse"></div>
+              <div
+                className="absolute inset-0 h-full w-1/4 bg-gradient-to-r from-transparent via-slate-400 to-transparent opacity-80"
+                style={{
+                  animation: 'shimmer 2.5s infinite ease-in-out',
+                }}
+              ></div>
+            </div>
+            <style jsx>{`
                 @keyframes shimmer {
                   0% {
                     transform: translateX(-100%);
@@ -1989,41 +1989,41 @@ function DashboardPageContent() {
                   }
                 }
               `}</style>
+          </>
+        )}
+
+        {/* Quick Info Row - Horizontal Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {isLoadingStats ? (
+            // Skeleton Loaders
+            <>
+              <SectionCardSkeleton />
+              <SectionCardSkeleton />
+              <SectionCardSkeleton />
+            </>
+          ) : (
+            // Real Data
+            <>
+              <QuickActions onAddEmployee={handleAddEmployee} />
+              <TodaysOverview dashboardData={dashboardData} />
+              <PendingItems />
             </>
           )}
+        </div>
 
-          {/* Quick Info Row - Horizontal Cards */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {isLoadingStats ? (
-              // Skeleton Loaders
-              <>
-                <SectionCardSkeleton />
-                <SectionCardSkeleton />
-                <SectionCardSkeleton />
-              </>
-            ) : (
-              // Real Data
-              <>
-                <QuickActions onAddEmployee={handleAddEmployee} />
-                <TodaysOverview dashboardData={dashboardData} />
-                <PendingItems />
-              </>
-            )}
-          </div>
+        {/* Recent Activities - Full Width */}
+        <div className="w-full">
+          {isLoadingStats ? (
+            <RecentActivitiesSkeleton />
+          ) : (
+            <RecentActivities />
+          )}
+        </div>
 
-          {/* Recent Activities - Full Width */}
-          <div className="w-full">
-            {isLoadingStats ? (
-              <RecentActivitiesSkeleton />
-            ) : (
-              <RecentActivities />
-            )}
-          </div>
-
-          {/* Company Footer - Only show when data is loaded */}
-          {!isLoadingStats && (
-            <div className="mt-12 mb-8">
-              <Card className="border-0 shadow-lg bg-gray-900 text-white  overflow-hidden relative ">
+        {/* Company Footer - Only show when data is loaded */}
+        {!isLoadingStats && (
+          <div className="mt-12 mb-8">
+            <Card className="border-0 shadow-lg bg-gray-900 text-white  overflow-hidden relative ">
               {/* Decorative background elements */}
               {/* <div className="absolute top-0 right-0 w-48 h-48 bg-blue-200/30 rounded-full blur-3xl"></div>
               <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-200/30 rounded-full blur-3xl"></div> */}
@@ -2082,7 +2082,7 @@ function DashboardPageContent() {
               </CardContent>
             </Card>
           </div>
-          )}
+        )}
       </main>
 
       {/* Add Employee Dialog */}

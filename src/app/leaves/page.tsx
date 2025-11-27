@@ -57,7 +57,7 @@ function LeavesPageContent() {
   const isActualAdmin = session?.user?.user_level === 1 || session?.user?.user_level === '1'
   const isAdmin = isActualAdmin && !viewPersonal
 
-  console.log('👤 Leaves Page - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin, '| View Personal:', viewPersonal)
+  // console.log('👤 Leaves Page - User Level:', session?.user?.user_level, '| Is Admin:', isAdmin, '| View Personal:', viewPersonal)
 
   // Helper function to safely format dates
   const formatRemoteDate = (app: RemoteApplication) => {
@@ -224,8 +224,41 @@ function LeavesPageContent() {
   const [employmentStatus, setEmploymentStatus] = useState<string>('')
   const [loadingEmploymentStatus, setLoadingEmploymentStatus] = useState(true)
 
-  // Helper function to calculate working days excluding weekends (Saturday & Sunday)
-  const calculateWorkingDays = (fromDate: Date, toDate: Date): number => {
+  // Holidays state for excluding holidays from leave count
+  const [holidays, setHolidays] = useState<Date[]>([])
+
+  // Fetch holidays on component mount
+  useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        const currentYear = new Date().getFullYear()
+        const response = await fetch(`/api/holidays?year=${currentYear}`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.data) {
+            // Convert holiday dates to Date objects for comparison
+            const holidayDates = data.data.map((h: any) => new Date(h.holiday_date))
+            setHolidays(holidayDates)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching holidays:', error)
+      }
+    }
+    fetchHolidays()
+  }, [])
+
+  // Helper function to check if a date is a holiday
+  const isHoliday = useCallback((date: Date): boolean => {
+    return holidays.some(holiday =>
+      holiday.getFullYear() === date.getFullYear() &&
+      holiday.getMonth() === date.getMonth() &&
+      holiday.getDate() === date.getDate()
+    )
+  }, [holidays])
+
+  // Helper function to calculate working days excluding weekends (Saturday & Sunday) AND holidays
+  const calculateWorkingDays = useCallback((fromDate: Date, toDate: Date): number => {
     let count = 0
     const currentDate = new Date(fromDate)
 
@@ -233,14 +266,15 @@ function LeavesPageContent() {
     while (currentDate <= toDate) {
       const dayOfWeek = currentDate.getDay()
       // 0 = Sunday, 6 = Saturday
-      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      // Also check if the day is a holiday
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !isHoliday(currentDate)) {
         count++
       }
       currentDate.setDate(currentDate.getDate() + 1)
     }
 
     return count
-  }
+  }, [isHoliday])
 
   // Fetch employee's employment status
   useEffect(() => {
@@ -628,7 +662,7 @@ function LeavesPageContent() {
     const from = new Date(editLeave.fromDate)
     const to = new Date(editLeave.toDate)
 
-    // Calculate working days excluding weekends (Saturday & Sunday)
+    // Calculate working days excluding weekends (Saturday & Sunday) and holidays
     const workingDays = calculateWorkingDays(from, to)
 
     if (editLeave.leaveDayType === '2') {
@@ -636,7 +670,7 @@ function LeavesPageContent() {
     } else {
       setEditLeave(prev => ({ ...prev, numberOfDays: workingDays }))
     }
-  }, [editLeave.fromDate, editLeave.toDate, editLeave.leaveDayType])
+  }, [editLeave.fromDate, editLeave.toDate, editLeave.leaveDayType, calculateWorkingDays])
 
   useEffect(() => {
     if (isEditDialogOpen) {
@@ -708,7 +742,7 @@ function LeavesPageContent() {
     const from = new Date(addLeaveData.fromDate)
     const to = new Date(addLeaveData.toDate)
 
-    // Calculate working days excluding weekends (Saturday & Sunday)
+    // Calculate working days excluding weekends (Saturday & Sunday) and holidays
     const workingDays = calculateWorkingDays(from, to)
 
     if (addLeaveData.leaveDayType === '2') {
@@ -716,7 +750,7 @@ function LeavesPageContent() {
     } else {
       setAddLeaveData(prev => ({ ...prev, numberOfDays: workingDays }))
     }
-  }, [addLeaveData.fromDate, addLeaveData.toDate, addLeaveData.leaveDayType])
+  }, [addLeaveData.fromDate, addLeaveData.toDate, addLeaveData.leaveDayType, calculateWorkingDays])
 
   useEffect(() => {
     if (isAddLeaveDialogOpen) {
@@ -843,7 +877,7 @@ function LeavesPageContent() {
     const from = new Date(newLeave.fromDate)
     const to = new Date(newLeave.toDate)
 
-    // Calculate working days excluding weekends (Saturday & Sunday)
+    // Calculate working days excluding weekends (Saturday & Sunday) and holidays
     const workingDays = calculateWorkingDays(from, to)
 
     if (newLeave.leaveDayType === '2') {
@@ -852,7 +886,7 @@ function LeavesPageContent() {
     } else {
       setNewLeave(prev => ({ ...prev, numberOfDays: workingDays }))
     }
-  }, [newLeave.fromDate, newLeave.toDate, newLeave.leaveDayType])
+  }, [newLeave.fromDate, newLeave.toDate, newLeave.leaveDayType, calculateWorkingDays])
 
   useEffect(() => {
     calculateDays()
@@ -1160,11 +1194,11 @@ function LeavesPageContent() {
     const from = new Date(remoteWorkData.fromDate)
     const to = new Date(remoteWorkData.toDate)
 
-    // Calculate working days excluding weekends (Saturday & Sunday)
+    // Calculate working days excluding weekends (Saturday & Sunday) and holidays
     const workingDays = calculateWorkingDays(from, to)
 
     setRemoteWorkData(prev => ({ ...prev, numberOfDays: workingDays }))
-  }, [remoteWorkData.fromDate, remoteWorkData.toDate])
+  }, [remoteWorkData.fromDate, remoteWorkData.toDate, calculateWorkingDays])
 
   useEffect(() => {
     calculateRemoteDays()
@@ -1177,11 +1211,11 @@ function LeavesPageContent() {
     const from = new Date(addRemoteData.fromDate)
     const to = new Date(addRemoteData.toDate)
 
-    // Calculate working days excluding weekends (Saturday & Sunday)
+    // Calculate working days excluding weekends (Saturday & Sunday) and holidays
     const workingDays = calculateWorkingDays(from, to)
 
     setAddRemoteData(prev => ({ ...prev, numberOfDays: workingDays }))
-  }, [addRemoteData.fromDate, addRemoteData.toDate])
+  }, [addRemoteData.fromDate, addRemoteData.toDate, calculateWorkingDays])
 
   useEffect(() => {
     calculateAddRemoteDays()
@@ -1477,11 +1511,11 @@ function LeavesPageContent() {
     const from = new Date(editRemoteData.fromDate)
     const to = new Date(editRemoteData.toDate)
 
-    // Calculate working days excluding weekends (Saturday & Sunday)
+    // Calculate working days excluding weekends (Saturday & Sunday) and holidays
     const workingDays = calculateWorkingDays(from, to)
 
     setEditRemoteData(prev => ({ ...prev, numberOfDays: workingDays }))
-  }, [editRemoteData.fromDate, editRemoteData.toDate])
+  }, [editRemoteData.fromDate, editRemoteData.toDate, calculateWorkingDays])
 
   useEffect(() => {
     calculateEditRemoteDays()
