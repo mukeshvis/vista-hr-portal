@@ -22,8 +22,55 @@ interface WeekData {
   totalHours: string
 }
 
-// Specific employees with 9-hour requirement that work weekends
+// Specific employees with 10-hour requirement (8 AM to 6 PM)
+const TEN_HOUR_EMPLOYEES = ['13', '14', '45', '1691479623873', '1691479623595']
+
+// Specific employees with 9-hour requirement that work weekends (9 AM to 6 PM)
 const NINE_HOUR_EMPLOYEES = ['16', '3819']
+
+// Get office window based on employee type
+function getOfficeWindow(employeeId: string) {
+  const requires10Hours = TEN_HOUR_EMPLOYEES.includes(employeeId)
+  const requires9Hours = NINE_HOUR_EMPLOYEES.includes(employeeId)
+
+  if (requires10Hours) {
+    // 10-hour employees: 8:00 AM to 6:00 PM
+    return { startHour: 8, startMinute: 0, endHour: 18, endMinute: 0 }
+  } else if (requires9Hours) {
+    // 9-hour employees: 9:00 AM to 6:00 PM
+    return { startHour: 9, startMinute: 0, endHour: 18, endMinute: 0 }
+  } else {
+    // Regular 8-hour employees: 9:00 AM to 5:30 PM
+    return { startHour: 9, startMinute: 0, endHour: 17, endMinute: 30 }
+  }
+}
+
+// Calculate hours worked within office window
+function calculateOfficeHours(checkInTime: Date, checkOutTime: Date, employeeId: string): number {
+  const window = getOfficeWindow(employeeId)
+
+  // Create office start and end times for the same day as check-in
+  const officeStart = new Date(checkInTime)
+  officeStart.setHours(window.startHour, window.startMinute, 0, 0)
+
+  const officeEnd = new Date(checkInTime)
+  officeEnd.setHours(window.endHour, window.endMinute, 0, 0)
+
+  // Cap check-in time to office start (if came early, count from office start)
+  const effectiveStart = checkInTime < officeStart ? officeStart : checkInTime
+
+  // Cap check-out time to office end (if left late, count until office end)
+  const effectiveEnd = checkOutTime > officeEnd ? officeEnd : checkOutTime
+
+  // If employee came after office end or left before office start, no valid hours
+  if (effectiveStart >= officeEnd || effectiveEnd <= officeStart) {
+    return 0
+  }
+
+  // Calculate hours worked within window
+  const hoursWorked = (effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60)
+  return Math.max(0, hoursWorked)
+}
 
 export async function POST(request: NextRequest) {
   let prismaConnected = false
@@ -250,7 +297,7 @@ async function calculateWeeklyData(attendanceData: any[], year: number, month: n
         const lastRecord = sortedRecords[sortedRecords.length - 1]
 
         const timeIn = new Date(firstRecord.punch_time).toLocaleTimeString('en-US', {
-          hour12: false,
+          hour12: true,
           hour: '2-digit',
           minute: '2-digit'
         })
@@ -261,13 +308,14 @@ async function calculateWeeklyData(attendanceData: any[], year: number, month: n
         if (sortedRecords.length > 1) {
           // Has check-out record
           timeOut = new Date(lastRecord.punch_time).toLocaleTimeString('en-US', {
-            hour12: false,
+            hour12: true,
             hour: '2-digit',
             minute: '2-digit'
           })
-          const timeInMs = new Date(firstRecord.punch_time).getTime()
-          const timeOutMs = new Date(lastRecord.punch_time).getTime()
-          hoursWorked = Math.max(0, (timeOutMs - timeInMs) / (1000 * 60 * 60))
+          // Calculate hours within office window (not actual hours)
+          const checkInTime = new Date(firstRecord.punch_time)
+          const checkOutTime = new Date(lastRecord.punch_time)
+          hoursWorked = calculateOfficeHours(checkInTime, checkOutTime, employeeId)
         } else {
           // Only check-in, no check-out - mark as incomplete
           timeOut = 'N/A'

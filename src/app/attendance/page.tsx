@@ -38,6 +38,7 @@ interface AttendanceRecord {
   totalTime: string
   checkInVerifyMode: string
   checkOutVerifyMode: string
+  timingStatus: 'Punctual' | 'Late' | '--'
 }
 
 interface AttendanceLog {
@@ -133,17 +134,75 @@ function AttendancePageContent() {
     return `${day}/${month}/${year}`
   }
 
-  // Calculate total time between two timestamps
-  const calculateTotalTime = (timeIn: string, timeOut: string) => {
+  // Specific employees with 10-hour requirement (8 AM to 6 PM)
+  const TEN_HOUR_EMPLOYEES = ['13', '14', '45', '1691479623873', '1691479623595']
+
+  // Specific employees with 9-hour requirement (9 AM to 6 PM, including weekends 9 AM to 3 PM)
+  const NINE_HOUR_EMPLOYEES = ['16', '3819']
+
+  // Calculate total time between two timestamps WITHIN office hours window
+  // 8-hour employees: 9:00 AM to 5:30 PM
+  // 10-hour employees: 8:00 AM to 6:00 PM
+  // 9-hour employees: 9:00 AM to 6:00 PM
+  const calculateTotalTime = (timeIn: string, timeOut: string, pinAuto: string) => {
     if (timeIn === '--' || timeOut === '--') return '--'
 
     try {
-      const inTime = new Date(`2025-01-01 ${timeIn}`)
-      const outTime = new Date(`2025-01-01 ${timeOut}`)
+      // Determine office hours window based on employee type
+      const requires10Hours = TEN_HOUR_EMPLOYEES.includes(pinAuto)
+      const requires9Hours = NINE_HOUR_EMPLOYEES.includes(pinAuto)
+
+      let officeStartHour: number
+      let officeStartMinute: number
+      let officeEndHour: number
+      let officeEndMinute: number
+
+      if (requires10Hours) {
+        // 10-hour employees: 8:00 AM to 6:00 PM
+        officeStartHour = 8
+        officeStartMinute = 0
+        officeEndHour = 18
+        officeEndMinute = 0
+      } else if (requires9Hours) {
+        // 9-hour employees: 9:00 AM to 6:00 PM
+        officeStartHour = 9
+        officeStartMinute = 0
+        officeEndHour = 18
+        officeEndMinute = 0
+      } else {
+        // Regular 8-hour employees: 9:00 AM to 5:30 PM
+        officeStartHour = 9
+        officeStartMinute = 0
+        officeEndHour = 17
+        officeEndMinute = 30
+      }
+
+      // Create office window times
+      const officeStart = new Date(`2025-01-01 ${officeStartHour}:${officeStartMinute.toString().padStart(2, '0')}:00`)
+      const officeEnd = new Date(`2025-01-01 ${officeEndHour}:${officeEndMinute.toString().padStart(2, '0')}:00`)
+
+      // Parse employee's actual times
+      let inTime = new Date(`2025-01-01 ${timeIn}`)
+      let outTime = new Date(`2025-01-01 ${timeOut}`)
 
       if (outTime < inTime) {
         // Handle next day case
         outTime.setDate(outTime.getDate() + 1)
+      }
+
+      // Cap times within office hours window
+      // If employee came before office start, count from office start
+      if (inTime < officeStart) {
+        inTime = officeStart
+      }
+      // If employee left after office end, count until office end
+      if (outTime > officeEnd) {
+        outTime = officeEnd
+      }
+
+      // If employee came after office end or left before office start, no valid time
+      if (inTime >= officeEnd || outTime <= officeStart) {
+        return '0h 0m'
       }
 
       const diffMs = outTime.getTime() - inTime.getTime()
@@ -156,11 +215,48 @@ function AttendancePageContent() {
     }
   }
 
-  // Specific employees with 10-hour requirement (8 AM to 6 PM)
-  const TEN_HOUR_EMPLOYEES = ['13', '14', '45', '1691479623873', '1691479623595']
+  // Calculate timing status based on employee type and required hours
+  // Regular (8-hour): Must complete 8 hours
+  // 10-hour employees: Must complete 10 hours
+  // 9-hour employees: Must complete 9 hours
+  // Status = "Punctual" if completed required hours, "Late" if not
+  const getTimingStatus = (timeIn: string, totalTime: string, pinAuto: string): 'Punctual' | 'Late' | '--' => {
+    if (timeIn === '--' || totalTime === '--') return '--'
 
-  // Specific employees with 9-hour requirement (9 AM to 6 PM, including weekends 9 AM to 3 PM)
-  const NINE_HOUR_EMPLOYEES = ['16', '3819']
+    try {
+      // Extract total hours and minutes worked from "8h 30m" format
+      const hoursMatch = totalTime.match(/(\d+)h/)
+      const minutesMatch = totalTime.match(/(\d+)m/)
+      const totalHours = hoursMatch ? parseInt(hoursMatch[1]) : 0
+      const totalMinutes = minutesMatch ? parseInt(minutesMatch[1]) : 0
+
+      // Convert to decimal hours for accurate comparison
+      const totalWorkedHours = totalHours + (totalMinutes / 60)
+
+      // Determine required hours based on employee type
+      const requires10Hours = TEN_HOUR_EMPLOYEES.includes(pinAuto)
+      const requires9Hours = NINE_HOUR_EMPLOYEES.includes(pinAuto)
+
+      let requiredHours: number
+
+      if (requires10Hours) {
+        requiredHours = 10
+      } else if (requires9Hours) {
+        requiredHours = 9
+      } else {
+        requiredHours = 8
+      }
+
+      // Check if employee completed their required hours
+      if (totalWorkedHours >= requiredHours) {
+        return 'Punctual'
+      } else {
+        return 'Late'
+      }
+    } catch {
+      return '--'
+    }
+  }
 
   // Get background color based on total working hours and attendance status
   const getTotalTimeStyles = (totalTime: string, attendanceStatus: string, pinAuto: string) => {
@@ -321,7 +417,7 @@ function AttendancePageContent() {
 
         const timeIn = checkIn ? extractTime(checkIn.punch_time) : '--'
         const timeOut = checkOut ? extractTime(checkOut.punch_time) : '--'
-        const totalTime = calculateTotalTime(timeIn, timeOut)
+        const totalTime = calculateTotalTime(timeIn, timeOut, emp.pin_auto)
 
         // Get verify modes (FACE = machine, FORM = manual HR edit)
         const checkInVerifyMode = checkIn ? (checkIn.verify_mode || 'UNKNOWN') : '--'
@@ -342,6 +438,9 @@ function AttendancePageContent() {
           // For example: if timeIn > "09:00:00 AM" then status = 'Late'
         }
 
+        // Calculate timing status
+        const timingStatus = getTimingStatus(timeIn, totalTime, emp.pin_auto)
+
         return {
           employeeName: emp.user_name,
           pinAuto: emp.pin_auto,
@@ -351,7 +450,8 @@ function AttendancePageContent() {
           timeOut,
           totalTime,
           checkInVerifyMode,
-          checkOutVerifyMode
+          checkOutVerifyMode,
+          timingStatus
         }
       })
 
@@ -500,6 +600,30 @@ function AttendancePageContent() {
         return <Badge className="bg-red-100 text-red-700 hover:bg-red-100 text-[10px] px-1.5 py-0.5"><XCircle className="w-2.5 h-2.5 mr-0.5" />Absent</Badge>
       default:
         return <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100 text-[10px] px-1.5 py-0.5"><AlertCircle className="w-2.5 h-2.5 mr-0.5" />Unknown</Badge>
+    }
+  }
+
+  // Get timing status badge (Punctual/Late based on office hours completion)
+  const getTimingStatusBadge = (status: 'Punctual' | 'Late' | '--') => {
+    switch (status) {
+      case 'Punctual':
+        return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100"><CheckCircle className="w-3 h-3 mr-1" />Punctual</Badge>
+      case 'Late':
+        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100"><AlertCircle className="w-3 h-3 mr-1" />Late</Badge>
+      default:
+        return <span className="text-gray-400 text-sm">--</span>
+    }
+  }
+
+  // Get mobile timing status badge (smaller)
+  const getMobileTimingStatusBadge = (status: 'Punctual' | 'Late' | '--') => {
+    switch (status) {
+      case 'Punctual':
+        return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 text-[10px] px-1.5 py-0.5"><CheckCircle className="w-2.5 h-2.5 mr-0.5" />Punctual</Badge>
+      case 'Late':
+        return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-[10px] px-1.5 py-0.5"><AlertCircle className="w-2.5 h-2.5 mr-0.5" />Late</Badge>
+      default:
+        return <span className="text-gray-400 text-[10px]">--</span>
     }
   }
 
@@ -780,6 +904,12 @@ function AttendancePageContent() {
                             Total Time
                           </div>
                         </th>
+                        <th className="text-left py-3 px-3 font-semibold text-purple-800 text-sm">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-emerald-600" />
+                            Timing Status
+                          </div>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -826,6 +956,9 @@ function AttendancePageContent() {
                                   </div>
                                 )
                               })()}
+                            </td>
+                            <td className="py-3 px-3">
+                              {getTimingStatusBadge(record.timingStatus)}
                             </td>
                           </tr>
                         ))
@@ -921,6 +1054,17 @@ function AttendancePageContent() {
                               </div>
                               <div className="text-[10px]">
                                 {getMobileCombinedVerifyMode(record.checkInVerifyMode, record.checkOutVerifyMode)}
+                              </div>
+                            </div>
+
+                            {/* Timing Status */}
+                            <div className="flex items-center justify-between pt-1.5 border-t border-gray-300">
+                              <div className="flex items-center gap-1.5">
+                                <Clock className="h-3 w-3 text-emerald-500" />
+                                <span className="text-[10px] font-medium text-gray-600">Timing Status</span>
+                              </div>
+                              <div className="text-[10px]">
+                                {getMobileTimingStatusBadge(record.timingStatus)}
                               </div>
                             </div>
                           </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useState, useEffect, useCallback, Suspense, useMemo } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -85,17 +85,21 @@ export default function EmployeeAttendancePage() {
 
         if (result.success && result.data) {
           const formattedHolidays = result.data.map((holiday: any) => {
-            // Timezone-safe date formatting
+            // Timezone-safe date formatting using UTC to avoid timezone shifts
             const holidayDate = new Date(holiday.holiday_date)
-            const year = holidayDate.getFullYear()
-            const month = String(holidayDate.getMonth() + 1).padStart(2, '0')
-            const day = String(holidayDate.getDate()).padStart(2, '0')
+            // Use UTC methods to avoid timezone conversion issues
+            const year = holidayDate.getUTCFullYear()
+            const month = String(holidayDate.getUTCMonth() + 1).padStart(2, '0')
+            const day = String(holidayDate.getUTCDate()).padStart(2, '0')
+            const formattedDate = `${year}-${month}-${day}`
+            console.log(`🎄 Holiday: ${holiday.holiday_name} -> ${formattedDate}`)
             return {
-              date: `${year}-${month}-${day}`,
+              date: formattedDate,
               name: holiday.holiday_name,
               type: holiday.holiday_type
             }
           })
+          console.log('📅 All holidays loaded:', formattedHolidays)
           setHolidays(formattedHolidays)
         }
       }
@@ -145,11 +149,18 @@ export default function EmployeeAttendancePage() {
         })
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch attendance data')
+      let apiData
+      try {
+        apiData = await response.json()
+      } catch (parseError) {
+        console.error('⚠️ Failed to parse API response as JSON:', parseError)
+        apiData = { data: [] }
       }
 
-      const apiData = await response.json()
+      // Handle API errors gracefully - still try to use any data returned
+      if (!response.ok) {
+        console.warn('⚠️ API returned error status but may have fallback data:', apiData)
+      }
       console.log('✅ API Response received')
       console.log('📊 Total records in response:', Array.isArray(apiData) ? apiData.length : (apiData.data ? apiData.data.length : 0))
 
@@ -379,12 +390,17 @@ export default function EmployeeAttendancePage() {
 
       console.log('📡 Weekly API Response Status:', response.status)
 
-      if (!response.ok) {
-        console.error('❌ Weekly API failed with status:', response.status)
-        throw new Error('Failed to fetch weekly attendance data')
+      let result
+      try {
+        result = await response.json()
+      } catch (parseError) {
+        console.error('⚠️ Failed to parse Weekly API response as JSON:', parseError)
+        result = { success: false, data: [] }
       }
 
-      const result = await response.json()
+      if (!response.ok) {
+        console.warn('⚠️ Weekly API returned error status but may have data:', result)
+      }
       console.log('✅ Weekly API Response:', result)
 
       if (result.success && result.data) {
@@ -439,6 +455,18 @@ export default function EmployeeAttendancePage() {
     const dateStr = dayDate.toISOString().split('T')[0]
     const isHoliday = isHolidayDate(dateStr)
 
+    // Determine required hours based on employee type
+    const requires10Hours = TEN_HOUR_EMPLOYEES.includes(employeeId)
+    const requires9Hours = NINE_HOUR_EMPLOYEES.includes(employeeId)
+    const requiredHours = requires10Hours ? 10 : (requires9Hours ? 9 : 8)
+
+    // Parse hours from "8h 15m" format
+    const hoursMatch = dayData.hours.match(/(\d+)h/)
+    const minutesMatch = dayData.hours.match(/(\d+)m/)
+    const hoursWorked = hoursMatch ? parseInt(hoursMatch[1]) : 0
+    const minutesWorked = minutesMatch ? parseInt(minutesMatch[1]) : 0
+    const totalHoursWorked = hoursWorked + (minutesWorked / 60)
+
     // Determine status
     let hourColor = 'text-green-800'
     let timeColor = 'text-green-600'
@@ -459,10 +487,14 @@ export default function EmployeeAttendancePage() {
     } else if (dayData.hours === '0h' && isFuture) {
       hourColor = 'text-orange-800'
       timeColor = 'text-orange-600'
+    } else if (totalHoursWorked > 0 && totalHoursWorked < requiredHours && isPast) {
+      // Hours worked but less than required - show in red
+      hourColor = 'text-red-800'
+      timeColor = 'text-red-600'
     }
 
     return { hourColor, timeColor, displayText, timeIn: dayData.timeIn, timeOut: dayData.timeOut }
-  }, [calculateWeekDate, isHolidayDate, getHolidayName])
+  }, [calculateWeekDate, isHolidayDate, getHolidayName, employeeId])
 
   // Load holidays and attendance data together
   useEffect(() => {
@@ -535,26 +567,51 @@ export default function EmployeeAttendancePage() {
   const hoursStatus = totalHoursWorked >= expectedHours ? 'Excellent' : totalHoursWorked >= expectedHours * 0.9 ? 'Good' : 'Below Expected'
 
 
-  // Get calendar layout
-  const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1).getDay()
-  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate()
-  const calendarDays = []
+  // Get calendar layout - memoized to recalculate when holidays or attendance changes
+  const calendarDays = useMemo(() => {
+    const firstDayOfMonth = new Date(selectedYear, selectedMonth, 1).getDay()
+    const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate()
+    const days: (null | { day: number; date: string; attendance: AttendanceData })[] = []
 
-  // Empty cells for days before first day of month
-  for (let i = 0; i < firstDayOfMonth; i++) {
-    calendarDays.push(null)
-  }
+    // Empty cells for days before first day of month
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      days.push(null)
+    }
 
-  // Days of the month
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    const attendanceRecord = attendanceData.find(d => d.date === dateStr)
-    calendarDays.push({
-      day,
-      date: dateStr,
-      attendance: attendanceRecord || { date: dateStr, status: 'Absent' as const }
-    })
-  }
+    // Days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      const attendanceRecord = attendanceData.find(d => d.date === dateStr)
+
+      // Check if this date is a holiday (when no attendance record)
+      let defaultStatus: 'Absent' | 'Holiday' | 'Future' = 'Absent'
+      const dayDate = new Date(selectedYear, selectedMonth, day)
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+
+      // Check if it's a holiday
+      const isHoliday = holidays.some(h => h.date === dateStr)
+
+      // Debug log for December 25
+      if (day === 25 && selectedMonth === 11) {
+        console.log(`🔍 Dec 25 check: dateStr=${dateStr}, isHoliday=${isHoliday}, holidays=`, holidays.map(h => h.date))
+      }
+
+      if (dayDate > today) {
+        defaultStatus = 'Future'
+      } else if (isHoliday) {
+        defaultStatus = 'Holiday'
+      }
+
+      days.push({
+        day,
+        date: dateStr,
+        attendance: attendanceRecord || { date: dateStr, status: defaultStatus }
+      })
+    }
+
+    return days
+  }, [selectedYear, selectedMonth, attendanceData, holidays])
 
   // Keep all days showing actual hours (including 0h) - no "Absent" text
 
